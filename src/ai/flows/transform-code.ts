@@ -33,7 +33,7 @@ const prompt = ai.definePrompt({
   prompt: `You are a code transformation expert.  You will take the provided code and transform it according to the instruction provided.
 
 Code:
-{{code}}
+{{{code}}}
 
 Instruction: {{instruction}}
 
