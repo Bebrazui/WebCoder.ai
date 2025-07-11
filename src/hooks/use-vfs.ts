@@ -34,8 +34,8 @@ Get started by opening a local folder, or by uploading your files or a ZIP archi
 ));
 
 const isTextFile = (file: {name: string, type?: string, content?: string}) => {
-    // Explicitly treat image files as non-text
-    if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(file.name)) {
+    // Explicitly treat image/audio files as non-text
+    if (/\.(png|jpg|jpeg|gif|webp|svg|mp3|wav|ogg|aac|flac|m4a)$/i.test(file.name)) {
         return false;
     }
     
@@ -173,6 +173,12 @@ export function useVfs() {
                           return 'image/jpeg';
                         case 'gif': return 'image/gif';
                         case 'svg': return 'image/svg+xml';
+                        case 'mp3': return 'audio/mpeg';
+                        case 'wav': return 'audio/wav';
+                        case 'ogg': return 'audio/ogg';
+                        case 'aac': return 'audio/aac';
+                        case 'flac': return 'audio/flac';
+                        case 'm4a': return 'audio/mp4';
                         default: return 'application/octet-stream';
                       }
                     }

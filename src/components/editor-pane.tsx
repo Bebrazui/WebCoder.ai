@@ -10,7 +10,7 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Code, Image as ImageIcon, FileQuestion, Save, Database } from "lucide-react";
+import { X, Code, Image as ImageIcon, FileQuestion, Save, Database, FileAudio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { Button } from "./ui/button";
@@ -32,10 +32,15 @@ const isImageFile = (path: string) => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
 }
 
+const isAudioFile = (path: string) => {
+    return /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(path);
+}
+
 const isPotentiallyBinary = (file: VFSFile) => {
     if (file.content.startsWith('data:')) {
         const mime = file.content.substring(5, file.content.indexOf(';'));
-        return !mime.startsWith('text/') && !mime.startsWith('image/');
+        // Treat audio as its own category, not binary for the picker
+        return !mime.startsWith('text/') && !mime.startsWith('image/') && !mime.startsWith('audio/');
     }
     // Simple heuristic for text files without data URI
     // This is imperfect but prevents trying to render huge binary files as text
@@ -66,8 +71,23 @@ const UnsupportedFileViewer = ({ file, onSelectView }: { file: VFSFile, onSelect
     )
 }
 
+const AudioPlayer = ({ file }: { file: VFSFile }) => {
+    return (
+        <div className="flex flex-col items-center justify-center h-full bg-muted/20 p-4">
+            <div className="w-full max-w-md text-center">
+                <FileAudio className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">{file.name}</h3>
+                <audio controls src={file.content} className="w-full">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+    );
+};
+
 const getFileIcon = (file: VFSFile, viewMode?: ViewMode) => {
     if (isImageFile(file.path)) return <ImageIcon className="h-4 w-4" />;
+    if (isAudioFile(file.path)) return <FileAudio className="h-4 w-4" />;
     if (viewMode === 'hex' || (viewMode !== 'code' && isPotentiallyBinary(file))) {
         return <Database className="h-4 w-4" />;
     }
@@ -110,6 +130,10 @@ export function EditorPane({
         </div>
     }
 
+    if (isAudioFile(file.path)) {
+        return <AudioPlayer file={file} />;
+    }
+
     if (isPotentiallyBinary(file) && viewMode === 'picker') {
         return <UnsupportedFileViewer file={file} onSelectView={(mode) => setViewModeForFile(file.path, mode)} />;
     }
@@ -131,7 +155,7 @@ export function EditorPane({
       value={activeFilePath || ""}
       onValueChange={(path) => {
         const file = openFiles.find(f => f.path === path);
-        if (file && !viewModes[path] && !isImageFile(path) && !isPotentiallyBinary(file)) {
+        if (file && !viewModes[path] && !isImageFile(path) && !isAudioFile(path) && !isPotentiallyBinary(file)) {
           setViewModeForFile(path, 'code');
         }
         onFileSelect(path);
