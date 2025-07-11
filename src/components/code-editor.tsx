@@ -87,7 +87,7 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
           minimap: { enabled: true },
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          wordWrap: "on",
+          wordWrap: "bounded",
         }}
       />
       {selectedText && (
