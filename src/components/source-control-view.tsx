@@ -1,14 +1,19 @@
 
 "use client";
 
+import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GitBranch, LoaderCircle } from "lucide-react";
+import { GitBranch, GitCommit, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GitStatus } from "@/hooks/use-vfs";
+import { Textarea } from "./ui/textarea";
+import { Button } from "./ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface SourceControlViewProps {
     changedFiles: GitStatus[];
     isLoading: boolean;
+    onCommit: (message: string) => Promise<void>;
 }
 
 const getStatusColor = (status: string) => {
@@ -28,7 +33,48 @@ const getStatusLetter = (status: string) => {
     }
 }
 
-export function SourceControlView({ changedFiles, isLoading }: SourceControlViewProps) {
+export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceControlViewProps) {
+    const [commitMessage, setCommitMessage] = useState("");
+    const [isCommitting, setIsCommitting] = useState(false);
+    const { toast } = useToast();
+
+    const handleCommit = async () => {
+        if (!commitMessage.trim()) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Commit message cannot be empty.",
+            });
+            return;
+        }
+        if (changedFiles.length === 0 && !isLoading) {
+            toast({
+                title: "No changes",
+                description: "There are no changes to commit.",
+            });
+            return;
+        }
+
+        setIsCommitting(true);
+        try {
+            await onCommit(commitMessage);
+            setCommitMessage("");
+            toast({
+                title: "Committed",
+                description: "Your changes have been committed.",
+            });
+        } catch (error: any) {
+             toast({
+                variant: "destructive",
+                title: "Commit failed",
+                description: error.message || "An unknown error occurred.",
+            });
+        } finally {
+            setIsCommitting(false);
+        }
+    };
+
+
     return (
         <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
             <div className="p-2 border-b border-sidebar-border">
@@ -36,6 +82,28 @@ export function SourceControlView({ changedFiles, isLoading }: SourceControlView
                     <GitBranch className="h-5 w-5" />
                     <span>Source Control</span>
                 </h2>
+            </div>
+
+            <div className="p-2 space-y-2">
+                <Textarea 
+                    placeholder="Commit message..."
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    className="bg-background text-sm"
+                    rows={3}
+                />
+                <Button 
+                    className="w-full" 
+                    onClick={handleCommit} 
+                    disabled={isCommitting || isLoading}
+                >
+                    {isCommitting ? (
+                        <LoaderCircle className="animate-spin" />
+                    ) : (
+                        <GitCommit />
+                    )}
+                    <span>Commit & Push</span>
+                </Button>
             </div>
             
             <ScrollArea className="flex-grow">

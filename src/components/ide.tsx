@@ -35,6 +35,7 @@ export function Ide() {
     currentBranch,
     gitStatus,
     isGitStatusLoading,
+    commit,
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,
@@ -275,6 +276,7 @@ export function Ide() {
                 loading={loading}
                 gitStatus={gitStatus}
                 isGitStatusLoading={isGitStatusLoading}
+                onCommit={commit}
                 onSelectFile={handleSelectFile}
                 onUploadFile={addFileToVfs}
                 onUploadZip={addZipToVfs}

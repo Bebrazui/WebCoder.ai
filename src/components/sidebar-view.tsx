@@ -15,6 +15,7 @@ import type { GitStatus } from "@/hooks/use-vfs";
 export interface SidebarViewProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
+    onCommit: (message: string) => Promise<void>;
 }
 
 
@@ -34,7 +35,7 @@ export function SidebarView(props: SidebarViewProps) {
       id: "source-control",
       icon: <GitBranch />,
       label: "Source Control",
-      component: <SourceControlView changedFiles={props.gitStatus} isLoading={props.isGitStatusLoading} />
+      component: <SourceControlView changedFiles={props.gitStatus} isLoading={props.isGitStatusLoading} onCommit={props.onCommit} />
     }
   ];
 

@@ -96,13 +96,17 @@ export type GitStatus = {
 
 const GIT_STATUS_MAP = {
   // [HEAD, WORKDIR, STAGE]
-  '0,2,0': 'new',        // new, untracked
-  '0,2,2': 'new',        // new, added
-  '1,2,1': 'modified',   // modified, unstaged
-  '1,2,2': 'modified',   // modified, staged
-  '1,0,1': 'deleted',    // deleted, unstaged
-  '1,0,0': 'deleted',    // deleted, staged
+  '*modified': 'modified',
+  '*deleted': 'deleted',
+  '*added': 'new',
+  'modified': 'modified',
+  'deleted': 'deleted',
+  'added': 'new',
+  'unmodified': 'unmodified',
+  'absent': 'deleted',
+  'new': 'new',
 };
+
 
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
@@ -116,16 +120,33 @@ export function useVfs() {
   const getGitStatus = useCallback(async () => {
     setIsGitStatusLoading(true);
     try {
-        const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
-        const statuses = matrix
-            .map(([filepath, head, workdir, stage]) => {
-                const statusKey = `${head},${workdir},${stage}`;
-                const status = GIT_STATUS_MAP[statusKey as keyof typeof GIT_STATUS_MAP];
-                return status ? { filepath, status } : null;
-            })
-            .filter((s): s is GitStatus => s !== null);
+      const statuses = await git.status({ fs, dir: GIT_DIR, filepaths: [''] });
+      const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+
+      const detailedStatuses = matrix.map(([filepath, head, workdir, stage]) => {
+        let status: GitStatus['status'] = 'unmodified';
+
+        // Stolen from Isomorphic-Git docs
+        const getStatus = (head: number, workdir: number, stage: number) => {
+            if (head === 0 && workdir === 2 && stage === 0) return 'new';        // new, untracked
+            if (head === 0 && workdir === 2 && stage === 2) return 'new';        // new, added
+            if (head === 1 && workdir === 2 && stage === 1) return 'modified';   // modified, unstaged
+            if (head === 1 && workdir === 2 && stage === 2) return 'modified';   // modified, staged
+            if (head === 1 && workdir === 0 && stage === 1) return 'deleted';    // deleted, unstaged
+            if (head === 1 && workdir === 0 && stage === 0) return 'deleted';    // deleted, staged
+            if (head === 1 && workdir === 1 && stage === 1) return 'unmodified'; // unmodified
+            return null;
+        }
+
+        const calculatedStatus = getStatus(head, workdir, stage);
+        if (calculatedStatus) {
+            return { filepath, status: calculatedStatus };
+        }
+        return null;
+
+      }).filter((s): s is GitStatus => s !== null && s.status !== 'unmodified');
         
-        setGitStatus(statuses);
+        setGitStatus(detailedStatuses);
     } catch (e) {
         // Not a git repository or other error
         setGitStatus([]);
@@ -137,7 +158,7 @@ export function useVfs() {
 
   const getGitBranch = useCallback(async () => {
     try {
-        const branch = await git.currentBranch({ fs, dir: GIT_DIR });
+        const branch = await git.currentBranch({ fs, dir: GIT_DIR, fullname: false });
         setCurrentBranch(branch || 'main');
     } catch (e) {
         // Not a git repository or other error
@@ -151,7 +172,7 @@ export function useVfs() {
           const entries = await pfs.readdir(dirPath);
           const nodes: VFSNode[] = [];
           for (const entry of entries) {
-              if (entry === '.' || entry === '..') continue;
+              if (entry === '.' || entry === '..' || entry === '.git') continue;
 
               const fullPath = `${dirPath === '/' ? '' : dirPath}/${entry}`;
               const stats = await pfs.stat(fullPath);
@@ -162,10 +183,13 @@ export function useVfs() {
                   dirNode.children = await readDir(fullPath);
                   nodes.push(dirNode);
               } else {
-                  const content = await pfs.readFile(fullPath);
-                  const newFile = createFile(entry, vfsPath, new TextDecoder().decode(content));
-                  // Here we could try to detect binary files and convert to data URI
-                  nodes.push(newFile);
+                  try {
+                    const contentBuffer = await pfs.readFile(fullPath);
+                    const newFile = createFile(entry, vfsPath, new TextDecoder().decode(contentBuffer));
+                    nodes.push(newFile);
+                  } catch (e) {
+                    console.error(`Could not read file ${fullPath} from LFS`, e);
+                  }
               }
           }
           return nodes;
@@ -179,33 +203,30 @@ export function useVfs() {
 
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
+    // Preserve .git directory
+    let gitDirBackup;
+    try {
+      gitDirBackup = await pfs.readFile('/.git');
+    } catch (e) {
+      // no .git dir, that's fine
+    }
+
+
     try {
       // Clear existing fs
       const entries = await pfs.readdir('/');
       for (const entry of entries) {
+        if (entry === '.' || entry === '..') continue;
+        const fullPath = `/${entry}`;
         try {
-          if (entry !== '.' && entry !== '..') {
-            const stat = await pfs.stat(`/${entry}`);
+            const stat = await pfs.stat(fullPath);
             if (stat.isDirectory()) {
-              await pfs.rmdir(`/${entry}`, { recursive: true });
+                await pfs.rmdir(fullPath, { recursive: true });
             } else {
-              await pfs.unlink(`/${entry}`);
+                await pfs.unlink(fullPath);
             }
-          }
-        } catch (e) {
-          if (e.code === 'ENOTEMPTY' || e.code === 'EPERM') {
-             try {
-                const subEntries = await pfs.readdir(`/${entry}`);
-                for (const subEntry of subEntries) {
-                    await pfs.unlink(`/${entry}/${subEntry}`);
-                }
-                await pfs.rmdir(`/${entry}`);
-             } catch(e2) {
-                 console.error("Failed to clean sub-directory", e2)
-             }
-          } else {
-            console.error("Error clearing lightning-fs entry", e);
-          }
+        } catch(e) {
+            console.error(`Failed to remove ${fullPath}`, e);
         }
       }
     } catch(e) {
@@ -724,6 +745,13 @@ export function useVfs() {
     toast({ title: 'Cloning...', description: `Cloning ${repoName}...` });
 
     try {
+        await pfs.rmdir(GIT_DIR, { recursive: true });
+    } catch (e) {
+        // Folder might not exist, that's okay.
+    }
+    await pfs.mkdir(GIT_DIR);
+
+    try {
         await git.clone({
             fs,
             http,
@@ -753,6 +781,33 @@ export function useVfs() {
     }
   }, [toast, getGitBranch, saveVfs, syncLfsToVfs]);
 
+  const commit = useCallback(async (message: string) => {
+    // Get the list of changed files
+    const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+
+    for (const [filepath, head, workdir] of matrix) {
+        if (workdir === 0) { // Deleted
+            await git.remove({ fs, dir: GIT_DIR, filepath });
+        } else if (head === 0 || workdir === 2) { // New or modified
+            await git.add({ fs, dir: GIT_DIR, filepath });
+        }
+    }
+
+    const sha = await git.commit({
+        fs,
+        dir: GIT_DIR,
+        message,
+        author: {
+            name: 'WebCoder.ai',
+            email: 'bot@webcoder.ai',
+        },
+    });
+    
+    // Refresh status
+    await getGitStatus();
+
+    return sha;
+  }, [getGitStatus]);
 
   return { 
     vfsRoot, 
@@ -772,5 +827,6 @@ export function useVfs() {
     openFolderWithApi,
     downloadVfsAsZip,
     cloneRepository,
+    commit,
   };
 }
