@@ -42,6 +42,7 @@ export function Ide() {
     deleteNodeInVfs,
     moveNodeInVfs,
     openFolderWithApi,
+    downloadVfsAsZip,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -257,6 +258,7 @@ export function Ide() {
                 onDeleteNode={handleDeleteNode}
                 onMoveNode={handleMoveNode}
                 onOpenFolder={handleOpenFolder}
+                onDownloadZip={downloadVfsAsZip}
               />
             </SidebarContent>
         </Sidebar>
@@ -297,3 +299,5 @@ export function Ide() {
     </div>
   );
 }
+
+    

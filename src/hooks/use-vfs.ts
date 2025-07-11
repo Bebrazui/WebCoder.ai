@@ -512,6 +512,43 @@ export function useVfs() {
     }
   }, [toast]);
 
+  const downloadVfsAsZip = useCallback(async () => {
+    const zip = new JSZip();
+
+    const addNodeToZip = (node: VFSNode, zipFolder: JSZip) => {
+      if (node.type === 'file') {
+        const content = node.content.startsWith('data:') 
+          ? node.content.split(',')[1] 
+          : node.content;
+        const isBase64 = node.content.startsWith('data:');
+        zipFolder.file(node.name, content, { base64: isBase64 });
+      } else if (node.type === 'directory') {
+        const folder = zipFolder.folder(node.name);
+        if (folder) {
+          node.children.forEach(child => addNodeToZip(child, folder));
+        }
+      }
+    };
+    
+    // We add the root's children, not the root itself, to avoid a wrapping folder
+    vfsRoot.children.forEach(child => addNodeToZip(child, zip));
+
+    try {
+      const content = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(content);
+      link.download = `${vfsRoot.name || 'project'}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast({ title: 'Success', description: 'Your project is downloading.' });
+    } catch (error) {
+      console.error('Failed to create ZIP:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not create the ZIP file.' });
+    }
+  }, [vfsRoot, toast]);
+
 
   return { 
     vfsRoot, 
@@ -526,7 +563,10 @@ export function useVfs() {
     deleteNodeInVfs,
     moveNodeInVfs,
     openFolderWithApi,
+    downloadVfsAsZip,
   };
 }
+
+    
 
     

@@ -17,6 +17,7 @@ import {
   FolderSearch,
   Search,
   X,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -26,7 +27,6 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuTrigger,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -44,6 +44,7 @@ interface FileExplorerProps {
   onDeleteNode: (node: VFSNode) => void;
   onMoveNode: (sourcePath: string, targetDirPath: string) => void;
   onOpenFolder: () => void;
+  onDownloadZip: () => void;
 }
 
 export function FileExplorer({
@@ -58,6 +59,7 @@ export function FileExplorer({
   onDeleteNode,
   onMoveNode,
   onOpenFolder,
+  onDownloadZip,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -94,12 +96,18 @@ export function FileExplorer({
       <div className="p-2 border-b border-sidebar-border">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-lg font-headline font-semibold">Explorer</h2>
-            <CollapsibleTrigger asChild>
-               <Button variant="ghost" size="icon" className="h-7 w-7">
-                  {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                  <span className="sr-only">Toggle Search</span>
+            <div className="flex items-center">
+               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}>
+                  <Download className="h-4 w-4" />
+                  <span className="sr-only">Download as ZIP</span>
                </Button>
-            </CollapsibleTrigger>
+               <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                     {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                     <span className="sr-only">Toggle Search</span>
+                  </Button>
+               </CollapsibleTrigger>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
@@ -356,3 +364,5 @@ const ExplorerNode = ({
     </ContextMenu>
   );
 };
+
+    
