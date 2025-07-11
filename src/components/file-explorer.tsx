@@ -127,7 +127,7 @@ export function FileExplorer({
       
       <CollapsibleContent>
         <div className="border-b border-sidebar-border">
-          <GlobalSearch vfsRoot={vfsRoot} onFileSelect={onSelectFile} />
+          <GlobalSearch vfsRoot={vfsRoot} onSelectFile={onSelectFile} />
         </div>
       </CollapsibleContent>
 
