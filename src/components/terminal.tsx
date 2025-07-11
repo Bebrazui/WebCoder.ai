@@ -65,7 +65,12 @@ export function TerminalView() {
 
             // Initial fit
             requestAnimationFrame(() => {
-                fitAddon.current?.fit();
+                try {
+                    fitAddon.current?.fit();
+                } catch(e) {
+                    // This can fail if the panel is still animating, we can ignore it
+                    // as the resize observer will pick it up later.
+                }
             });
 
 
