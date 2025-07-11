@@ -29,7 +29,11 @@ export function TerminalView() {
             xterm.loadAddon(fitAddon.current);
 
             xterm.open(terminalRef.current);
-            fitAddon.current.fit();
+
+            // Defer the initial fit to ensure the container has dimensions
+            requestAnimationFrame(() => {
+                fitAddon.current?.fit();
+            });
 
             xterm.writeln('Welcome to WebCoder.ai Terminal!');
             xterm.writeln('This is a simulated terminal environment.');
@@ -52,7 +56,9 @@ export function TerminalView() {
             const resizeObserver = new ResizeObserver(() => {
                 fitAddon.current?.fit();
             });
-            resizeObserver.observe(terminalRef.current);
+            if (terminalRef.current) {
+                resizeObserver.observe(terminalRef.current);
+            }
 
             return () => {
                 resizeObserver.disconnect();
