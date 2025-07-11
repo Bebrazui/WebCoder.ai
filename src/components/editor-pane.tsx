@@ -178,29 +178,31 @@ export function EditorPane({
                 <span>{file.name}</span>
                 {isDirty && (
                     <div className="flex items-center gap-1 ml-1">
-                        <button
+                        <div
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onFileSave(file.path);
                             }}
-                            className="p-0.5 rounded-sm hover:bg-accent"
+                            className="p-0.5 rounded-sm hover:bg-accent cursor-pointer"
                             aria-label={`Save ${file.name}`}
+                            role="button"
                         >
                             <Save className="h-3 w-3 text-blue-500" />
-                        </button>
+                        </div>
                         <div className="h-2 w-2 rounded-full bg-blue-500" title="Unsaved changes"></div>
                     </div>
                 )}
-                <button
+                <div
                   onClick={(e) => {
                     e.stopPropagation();
                     onFileClose(file.path);
                   }}
-                  className="p-0.5 rounded-sm hover:bg-destructive/80 ml-1"
+                  className="p-0.5 rounded-sm hover:bg-destructive/80 ml-1 cursor-pointer"
                   aria-label={`Close ${file.name}`}
+                  role="button"
                 >
                   <X className="h-3 w-3" />
-                </button>
+                </div>
               </TabsTrigger>
             );
           })}
