@@ -25,14 +25,47 @@ This is a web-based code editor with AI capabilities.
 *   **AI Code Transformer:** Select a piece of code, click the 'AI Transform' button, and tell the AI what to do!
 *   **Persistence:** Your file system is saved in your browser, so it will be here when you come back.
 
+**New:** Right-click on files/folders in the explorer to create, rename, or delete.
+
 Get started by uploading your files or a ZIP archive using the buttons in the explorer.
 `
 ));
 
-const isTextFile = (file: File) => {
-    return file.type.startsWith('text/') ||
-        /\.(json|js|jsx|ts|tsx|css|html|md|py|java|c|h|cpp|hpp|cs|go|php|rb|rs|swift|kt|yaml|yml|txt)$/i.test(file.name);
+const isTextFile = (file: {name: string, type?: string}) => {
+    // Check MIME type first if available
+    if (file.type?.startsWith('text/')) {
+        return true;
+    }
+    // Fallback to file extension for broader text-like file matching
+    return /\.(json|js|jsx|ts|tsx|css|html|md|py|java|c|h|cpp|hpp|cs|go|php|rb|rs|swift|kt|yaml|yml|txt|gitignore|env|bat|sh|xml|svg)$/i.test(file.name);
 }
+
+
+const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; parent: VFSDirectory } | null => {
+  const parts = path.split('/').filter(p => p);
+  let currentDir: VFSDirectory = root;
+  
+  if (path === '/') return { node: root, parent: root };
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const node = currentDir.children.find(c => c.name === part);
+
+    if (!node) return null;
+
+    if (i === parts.length - 1) {
+      return { node, parent: currentDir };
+    }
+
+    if (node.type === 'directory') {
+      currentDir = node;
+    } else {
+      return null;
+    }
+  }
+  return null;
+}
+
 
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
@@ -52,7 +85,6 @@ export function useVfs() {
         if (savedRoot && savedRoot.type === 'directory') {
           setVfsRoot(savedRoot);
         } else {
-          // If no VFS, save the default one
           await localforage.setItem(VFS_KEY, defaultRoot);
         }
       } catch (error) {
@@ -105,26 +137,30 @@ export function useVfs() {
         
         const promises = Object.keys(zip.files).map(async (relativePath) => {
             const zipEntry = zip.files[relativePath];
-            if (relativePath.startsWith('__MACOSX/')) return; // Skip macOS metadata
-            
+            if (zipEntry.dir || relativePath.startsWith('__MACOSX/')) return;
+
             const pathParts = relativePath.split('/').filter(p => p);
             let currentDir = newRoot;
 
             for(let i = 0; i < pathParts.length; i++) {
                 const part = pathParts[i];
-                if (i === pathParts.length - 1 && !zipEntry.dir) { // It's a file
-                    const fileContent = await zipEntry.async('base64');
-                    const mime = `application/octet-stream`; // Default MIME type
-                    const dataUri = `data:${mime};base64,${fileContent}`;
-                    const newFile = createFile(part, `${currentDir.path === '/' ? '' : currentDir.path}/${part}`, dataUri);
-                    currentDir.children.push(newFile);
-                } else { // It's a directory
+                const isFile = i === pathParts.length - 1;
+
+                if (!isFile) { // It's a directory
                     let dir = currentDir.children.find(c => c.name === part && c.type === 'directory') as VFSDirectory;
                     if (!dir) {
-                        dir = createDirectory(part, `${currentDir.path === '/' ? '' : currentDir.path}/${part}`);
+                        const dirPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
+                        dir = createDirectory(part, dirPath);
                         currentDir.children.push(dir);
                     }
                     currentDir = dir;
+                } else { // It's a file
+                    const fileContent = await zipEntry.async('base64');
+                    const mime = 'application/octet-stream';
+                    const dataUri = `data:${mime};base64,${fileContent}`;
+                    const newPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
+                    const newFile = createFile(part, newPath, dataUri);
+                    currentDir.children.push(newFile);
                 }
             }
         });
@@ -144,8 +180,7 @@ export function useVfs() {
     reader.readAsArrayBuffer(file);
   }, [saveVfs, toast]);
 
-  const addFileToVfs = useCallback((file: File) => {
-    // If it's a zip file, use the zip handler
+  const addFileToVfs = useCallback((file: File, parent: VFSDirectory) => {
     if (file.type === 'application/zip' || file.name.endsWith('.zip')) {
         addZipToVfs(file);
         return;
@@ -154,20 +189,27 @@ export function useVfs() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      const newRoot = JSON.parse(JSON.stringify(vfsRoot));
-      const newFile = createFile(file.name, `/${file.name}`, content);
+      setVfsRoot(currentRoot => {
+        const newRoot = JSON.parse(JSON.stringify(currentRoot));
+        const parentDirResult = findNodeAndParent(newRoot, parent.path);
+        
+        if (parentDirResult && parentDirResult.node.type === 'directory') {
+          const targetDir = parentDirResult.node;
+          const newPath = targetDir.path === '/' ? `/${file.name}` : `${targetDir.path}/${file.name}`;
+          const newFile = createFile(file.name, newPath, content);
 
-      // Avoid duplicates
-      const existingIndex = newRoot.children.findIndex((child: VFSNode) => child.name === file.name);
-      if (existingIndex !== -1) {
-          newRoot.children[existingIndex] = newFile;
-      } else {
-          newRoot.children.push(newFile);
-      }
-      
-      setVfsRoot(newRoot);
-      saveVfs(newRoot);
-      toast({ title: "File uploaded", description: `${file.name} has been added to the project.` });
+          const existingIndex = targetDir.children.findIndex((child: VFSNode) => child.name === file.name);
+          if (existingIndex !== -1) {
+            targetDir.children[existingIndex] = newFile;
+          } else {
+            targetDir.children.push(newFile);
+          }
+          saveVfs(newRoot);
+          toast({ title: "File uploaded", description: `${file.name} has been added.` });
+          return newRoot;
+        }
+        return currentRoot;
+      });
     };
 
     if (isTextFile(file)) {
@@ -175,29 +217,143 @@ export function useVfs() {
     } else {
         reader.readAsDataURL(file);
     }
-  }, [vfsRoot, saveVfs, toast, addZipToVfs]);
+  }, [saveVfs, toast, addZipToVfs]);
 
   const updateFileInVfs = useCallback((path: string, newContent: string): VFSFile | null => {
-    const newRoot: VFSDirectory = JSON.parse(JSON.stringify(vfsRoot));
-    const parentDir = findParentDir(newRoot, path);
-    if (!parentDir) return null;
-    
-    const fileName = path.split('/').pop();
-    const fileIndex = parentDir.children.findIndex(c => c.name === fileName && c.type === 'file');
+    let updatedFile: VFSFile | null = null;
+    setVfsRoot(currentRoot => {
+        const newRoot = JSON.parse(JSON.stringify(currentRoot));
+        const result = findNodeAndParent(newRoot, path);
 
-    if (fileIndex > -1) {
-        const fileToUpdate = parentDir.children[fileIndex] as VFSFile;
-        // Don't update content if it's not a text file (to avoid replacing data URI with raw text)
-        if (isTextFile({name: fileToUpdate.name, type: ''} as File)) {
-            fileToUpdate.content = newContent;
+        if (result && result.node.type === 'file') {
+            if (!result.node.content.startsWith('data:') || isTextFile(result.node)) {
+              result.node.content = newContent;
+            }
+            updatedFile = result.node;
+            saveVfs(newRoot);
+            return newRoot;
         }
-        setVfsRoot(newRoot);
+        return currentRoot;
+    });
+    return updatedFile;
+  }, [saveVfs]);
+
+  const createFileInVfs = useCallback((name: string, parent: VFSDirectory) => {
+    setVfsRoot(currentRoot => {
+      const newRoot = JSON.parse(JSON.stringify(currentRoot));
+      const parentDirResult = findNodeAndParent(newRoot, parent.path);
+      
+      if (parentDirResult && parentDirResult.node.type === 'directory') {
+        const targetDir = parentDirResult.node;
+        if (targetDir.children.some(c => c.name === name)) {
+          toast({ variant: 'destructive', title: 'Error', description: `File "${name}" already exists.` });
+          return currentRoot;
+        }
+        const newPath = targetDir.path === '/' ? `/${name}` : `${targetDir.path}/${name}`;
+        const newFile = createFile(name, newPath, '');
+        targetDir.children.push(newFile);
         saveVfs(newRoot);
-        return fileToUpdate;
-    }
-    return null;
+        toast({ title: 'File created', description: `Created ${name}` });
+        return newRoot;
+      }
+      return currentRoot;
+    });
+  }, [saveVfs, toast]);
 
-  }, [vfsRoot, saveVfs]);
+  const createDirectoryInVfs = useCallback((name: string, parent: VFSDirectory) => {
+    setVfsRoot(currentRoot => {
+      const newRoot = JSON.parse(JSON.stringify(currentRoot));
+      const parentDirResult = findNodeAndParent(newRoot, parent.path);
+      
+      if (parentDirResult && parentDirResult.node.type === 'directory') {
+        const targetDir = parentDirResult.node;
+        if (targetDir.children.some(c => c.name === name)) {
+          toast({ variant: 'destructive', title: 'Error', description: `"${name}" already exists.` });
+          return currentRoot;
+        }
+        const newPath = targetDir.path === '/' ? `/${name}` : `${targetDir.path}/${name}`;
+        const newDir = createDirectory(name, newPath);
+        targetDir.children.push(newDir);
+        saveVfs(newRoot);
+        toast({ title: 'Directory created', description: `Created ${name}` });
+        return newRoot;
+      }
+      return currentRoot;
+    });
+  }, [saveVfs, toast]);
 
-  return { vfsRoot, loading, addFileToVfs, addZipToVfs, updateFileInVfs };
+  const renameNodeInVfs = useCallback((node: VFSNode, newName: string): string | null => {
+    let newPath: string | null = null;
+    setVfsRoot(currentRoot => {
+      const newRoot = JSON.parse(JSON.stringify(currentRoot));
+      const result = findNodeAndParent(newRoot, node.path);
+      
+      if (result && result.parent) {
+        if (result.parent.children.some(c => c.name === newName && c.path !== node.path)) {
+          toast({ variant: 'destructive', title: 'Error', description: `"${newName}" already exists.` });
+          return currentRoot;
+        }
+
+        const nodeToRename = result.parent.children.find(c => c.path === node.path)!;
+        const oldPath = nodeToRename.path;
+        const pathParts = oldPath.split('/');
+        pathParts[pathParts.length - 1] = newName;
+        newPath = pathParts.join('/');
+        nodeToRename.name = newName;
+        nodeToRename.path = newPath;
+
+        // Recursively update children paths if it's a directory
+        const updateChildrenPaths = (dir: VFSDirectory) => {
+          dir.children.forEach(child => {
+            const childName = child.path.substring(dir.path.lastIndexOf('/') + 1);
+            child.path = dir.path === '/' ? `/${child.name}` : `${dir.path}/${child.name}`;
+            if (child.type === 'directory') {
+              updateChildrenPaths(child);
+            }
+          });
+        };
+        
+        if (nodeToRename.type === 'directory') {
+          updateChildrenPaths(nodeToRename);
+        }
+
+        saveVfs(newRoot);
+        toast({ title: 'Renamed', description: `"${node.name}" is now "${newName}"` });
+        return newRoot;
+      }
+      return currentRoot;
+    });
+    return newPath;
+  }, [saveVfs, toast]);
+
+  const deleteNodeInVfs = useCallback((node: VFSNode) => {
+    setVfsRoot(currentRoot => {
+      const newRoot = JSON.parse(JSON.stringify(currentRoot));
+      const result = findNodeAndParent(newRoot, node.path);
+
+      if (result && result.parent && node.path !== '/') {
+        const index = result.parent.children.findIndex(c => c.path === node.path);
+        if (index > -1) {
+          result.parent.children.splice(index, 1);
+          saveVfs(newRoot);
+          toast({ title: 'Deleted', description: `Removed "${node.name}"` });
+          return newRoot;
+        }
+      }
+      return currentRoot;
+    });
+  }, [saveVfs, toast]);
+
+
+  return { 
+    vfsRoot, 
+    loading, 
+    addFileToVfs, 
+    addZipToVfs, 
+    updateFileInVfs,
+    createFileInVfs,
+    createDirectoryInVfs,
+    renameNodeInVfs,
+    deleteNodeInVfs,
+  };
 }

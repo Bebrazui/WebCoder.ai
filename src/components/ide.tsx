@@ -12,11 +12,21 @@ import { FileExplorer } from "./file-explorer";
 import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
-import type { VFSFile } from "@/lib/vfs";
+import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Button } from "./ui/button";
 
 export function Ide() {
-  const { vfsRoot, loading, addFileToVfs, addZipToVfs, updateFileInVfs } = useVfs();
+  const { 
+    vfsRoot, 
+    loading, 
+    addFileToVfs, 
+    addZipToVfs, 
+    updateFileInVfs,
+    createFileInVfs,
+    createDirectoryInVfs,
+    renameNodeInVfs,
+    deleteNodeInVfs,
+  } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
@@ -55,6 +65,49 @@ export function Ide() {
       }
     }
   }, [openFiles, activeFilePath]);
+  
+  const handleRenameNode = (node: VFSNode, newName: string) => {
+    const oldPath = node.path;
+    const newPath = renameNodeInVfs(node, newName);
+
+    if (newPath) {
+      // If the renamed node was an open file or a directory containing open files, update their paths
+      setOpenFiles(prevOpenFiles => {
+        return prevOpenFiles.map(file => {
+          if (file.path === oldPath && node.type === 'file') {
+            return { ...file, path: newPath, name: newName };
+          }
+          if (file.path.startsWith(oldPath + '/') && node.type === 'directory') {
+            const updatedPath = newPath + file.path.substring(oldPath.length);
+            return { ...file, path: updatedPath };
+          }
+          return file;
+        });
+      });
+
+      // Update active file path if it was the renamed file
+      if (activeFilePath === oldPath && node.type === 'file') {
+        setActiveFilePath(newPath);
+      } else if (activeFilePath && activeFilePath.startsWith(oldPath + '/') && node.type === 'directory') {
+        setActiveFilePath(newPath + activeFilePath.substring(oldPath.length));
+      }
+    }
+  };
+
+  const handleDeleteNode = (node: VFSNode) => {
+    // Close any files that are being deleted
+    const pathsToDelete = node.type === 'file' ? [node.path] : 
+      openFiles.filter(f => f.path.startsWith(node.path + '/')).map(f => f.path);
+    
+    pathsToDelete.forEach(path => handleFileClose(path));
+
+    // If deleting the active file, handle it.
+    if(node.type === 'file' && activeFilePath === node.path) {
+        // handleFileClose already logic for setting new active tab
+    }
+    
+    deleteNodeInVfs(node);
+  }
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
 
@@ -69,6 +122,10 @@ export function Ide() {
               onSelectFile={handleSelectFile}
               onUploadFile={addFileToVfs}
               onUploadZip={addZipToVfs}
+              onNewFile={createFileInVfs}
+              onNewFolder={createDirectoryInVfs}
+              onRenameNode={handleRenameNode}
+              onDeleteNode={handleDeleteNode}
             />
           </SidebarContent>
         </Sidebar>
