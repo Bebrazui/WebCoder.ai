@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import {
   SidebarProvider,
@@ -9,6 +9,9 @@ import {
   SidebarContent,
   SidebarInset,
   SidebarTrigger,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { FileExplorer } from "./file-explorer";
 import { EditorPane } from "./editor-pane";
@@ -17,6 +20,8 @@ import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
+import { File, Search } from "lucide-react";
+import { GlobalSearch } from "./global-search";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -46,12 +51,10 @@ export function Ide() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'explorer' | 'search'>('explorer');
 
   const handleSelectFile = useCallback((file: VFSFile) => {
-    // Check if the file is already open by comparing its path.
-    // The content in openFiles might be different if it's dirty.
     if (!openFiles.some((f) => f.path === file.path)) {
-       // Find the latest version from VFS to open.
        const findFile = (root: VFSDirectory, path: string): VFSFile | null => {
          for (const child of root.children) {
            if (child.path === path && child.type === 'file') return child;
@@ -72,13 +75,10 @@ export function Ide() {
 
 
   const handleFileChange = useCallback((path: string, newContent: string) => {
-    // Update content in the open file state
     setOpenFiles((prev) =>
       prev.map((f) => (f.path === path ? { ...f, content: newContent } : f))
     );
-    // Mark file as dirty
     setDirtyFiles(prev => new Set(prev).add(path));
-    // Also update the content in the main VFS state but don't save to storage
     updateFileInVfs(path, newContent);
   }, [updateFileInVfs]);
 
@@ -127,7 +127,6 @@ export function Ide() {
     const newPath = renameNodeInVfs(node, newName);
 
     if (newPath) {
-      // If the renamed node was an open file or a directory containing open files, update their paths
       setOpenFiles(prevOpenFiles => {
         return prevOpenFiles.map(file => {
           if (file.path === oldPath && node.type === 'file') {
@@ -141,8 +140,7 @@ export function Ide() {
         });
       });
 
-       // Update dirty files set
-      if(dirtyFiles.has(oldPath)) {
+       if(dirtyFiles.has(oldPath)) {
         setDirtyFiles(prev => {
           const newSet = new Set(prev);
           newSet.delete(oldPath);
@@ -151,7 +149,6 @@ export function Ide() {
         });
       }
 
-      // Update active file path if it was the renamed file
       if (activeFilePath === oldPath && node.type === 'file') {
         setActiveFilePath(newPath);
       } else if (activeFilePath && activeFilePath.startsWith(oldPath + '/') && node.type === 'directory') {
@@ -161,7 +158,6 @@ export function Ide() {
   };
 
   const handleDeleteNode = (node: VFSNode) => {
-    // Close any files that are being deleted
     const pathsToDelete = node.type === 'file' ? [node.path] : 
       openFiles.filter(f => f.path.startsWith(node.path + '/')).map(f => f.path);
     
@@ -197,18 +193,16 @@ export function Ide() {
     
     const { newPath } = result;
     
-    // Update paths for open files
     setOpenFiles(prev => prev.map(file => {
-      if (file.path === sourcePath) { // it's the moved file itself
+      if (file.path === sourcePath) {
         return {...file, path: newPath };
       }
-      if (file.path.startsWith(sourcePath + '/')) { // it's a file inside a moved directory
+      if (file.path.startsWith(sourcePath + '/')) {
         return { ...file, path: newPath + file.path.substring(sourcePath.length) };
       }
       return file;
     }));
 
-    // Update dirty files set
     if (dirtyFiles.has(sourcePath)) {
         setDirtyFiles(prev => {
             const newSet = new Set(prev);
@@ -218,7 +212,6 @@ export function Ide() {
         });
     }
 
-    // Update active file path
     if (activeFilePath === sourcePath) {
         setActiveFilePath(newPath);
     } else if (activeFilePath?.startsWith(sourcePath + '/')) {
@@ -229,7 +222,6 @@ export function Ide() {
   const handleOpenFolder = async () => {
     const success = await openFolderWithApi();
     if (success) {
-      // Reset editor state
       setOpenFiles([]);
       setActiveFilePath(null);
       setDirtyFiles(new Set());
@@ -242,9 +234,34 @@ export function Ide() {
   return (
     <div className="h-screen w-screen bg-background text-foreground flex">
       <SidebarProvider>
-        <Sidebar collapsible="icon">
-          <SidebarContent>
-            <FileExplorer 
+        <Sidebar>
+            <SidebarContent className="flex flex-col">
+                <div className="p-2">
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton 
+                                tooltip="Explorer" 
+                                isActive={activeView === 'explorer'}
+                                onClick={() => setActiveView('explorer')}>
+                                <File />
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                             <SidebarMenuButton 
+                                tooltip="Search" 
+                                isActive={activeView === 'search'}
+                                onClick={() => setActiveView('search')}>
+                                <Search />
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </div>
+            </SidebarContent>
+        </Sidebar>
+
+        <div className="w-80 border-r bg-sidebar">
+          {activeView === 'explorer' && (
+             <FileExplorer 
               vfsRoot={vfsRoot}
               loading={loading}
               onSelectFile={handleSelectFile}
@@ -257,8 +274,15 @@ export function Ide() {
               onMoveNode={handleMoveNode}
               onOpenFolder={handleOpenFolder}
             />
-          </SidebarContent>
-        </Sidebar>
+          )}
+          {activeView === 'search' && (
+            <GlobalSearch 
+              vfsRoot={vfsRoot}
+              onFileSelect={handleSelectFile}
+            />
+          )}
+        </div>
+       
         <div className="flex-1 flex flex-col min-w-0 h-full">
             <header className="flex items-center gap-2 p-2 border-b shrink-0">
                 <SidebarTrigger />
