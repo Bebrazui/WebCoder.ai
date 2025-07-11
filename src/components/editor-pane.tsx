@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -112,7 +113,7 @@ export function EditorPane({
 
   if (openFiles.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground bg-background p-4">
         <Code className="h-16 w-16 mb-4" />
         <h2 className="text-xl font-medium font-headline">Welcome to WebCoder.ai</h2>
         <p>Select a file from the explorer to begin editing.</p>
@@ -160,56 +161,58 @@ export function EditorPane({
         }
         onFileSelect(path);
       }}
-      className="flex flex-col h-full"
+      className="flex flex-col h-full bg-background"
     >
-      <ScrollArea className="w-full">
-        <TabsList className="bg-transparent p-0 m-0 gap-1">
-          {openFiles.map((file) => {
-            const isDirty = dirtyFiles.has(file.path);
-            return (
-              <TabsTrigger
-                key={file.path}
-                value={file.path}
-                className={cn(
-                  "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
-                )}
-              >
-                {getFileIcon(file, viewModes[file.path])}
-                <span>{file.name}</span>
-                {isDirty && (
-                    <div className="flex items-center gap-1 ml-1">
-                        <div
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onFileSave(file.path);
-                            }}
-                            className="p-0.5 rounded-sm hover:bg-accent cursor-pointer"
-                            aria-label={`Save ${file.name}`}
-                            role="button"
-                        >
-                            <Save className="h-3 w-3 text-blue-500" />
-                        </div>
-                        <div className="h-2 w-2 rounded-full bg-blue-500" title="Unsaved changes"></div>
-                    </div>
-                )}
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFileClose(file.path);
-                  }}
-                  className="p-0.5 rounded-sm hover:bg-destructive/80 ml-1 cursor-pointer"
-                  aria-label={`Close ${file.name}`}
-                  role="button"
+      <div className="flex-shrink-0">
+        <ScrollArea className="w-full">
+          <TabsList className="bg-transparent p-0 m-0 gap-1 pl-2">
+            {openFiles.map((file) => {
+              const isDirty = dirtyFiles.has(file.path);
+              return (
+                <TabsTrigger
+                  key={file.path}
+                  value={file.path}
+                  className={cn(
+                    "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
+                  )}
                 >
-                  <X className="h-3 w-3" />
-                </div>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-      <div className="flex-grow bg-background rounded-b-md rounded-tr-md overflow-hidden">
+                  {getFileIcon(file, viewModes[file.path])}
+                  <span>{file.name}</span>
+                  {isDirty && (
+                      <div className="flex items-center gap-1 ml-1">
+                          <div
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  onFileSave(file.path);
+                              }}
+                              className="p-0.5 rounded-sm hover:bg-accent cursor-pointer"
+                              aria-label={`Save ${file.name}`}
+                              role="button"
+                          >
+                              <Save className="h-3 w-3 text-blue-500" />
+                          </div>
+                          <div className="h-2 w-2 rounded-full bg-blue-500" title="Unsaved changes"></div>
+                      </div>
+                  )}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFileClose(file.path);
+                    }}
+                    className="p-0.5 rounded-sm hover:bg-destructive/80 ml-1 cursor-pointer"
+                    aria-label={`Close ${file.name}`}
+                    role="button"
+                  >
+                    <X className="h-3 w-3" />
+                  </div>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+      <div className="flex-grow bg-background rounded-b-md overflow-hidden">
         {openFiles.map((file) => (
           <TabsContent
             key={file.path}

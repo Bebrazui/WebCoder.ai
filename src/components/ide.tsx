@@ -14,10 +14,11 @@ import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
-import { Collapsible, CollapsibleContent } from "./ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
 import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -109,10 +110,16 @@ export function Ide() {
       event.preventDefault();
       setIsCommandPaletteOpen(prev => !prev);
     });
+    
+    hotkeys('ctrl+`, command+`', (event) => {
+      event.preventDefault();
+      setIsTerminalOpen(prev => !prev);
+    });
 
     return () => {
         hotkeys.unbind('ctrl+s, command+s');
         hotkeys.unbind('ctrl+k, command+k');
+        hotkeys.unbind('ctrl+`, command+`');
     }
   }, [handleSaveFile]);
 
@@ -315,38 +322,39 @@ export function Ide() {
               </SidebarContent>
           </Sidebar>
         
-          <div className="flex-1 flex flex-col min-w-0 h-full">
-              <main className="flex-1 p-4 min-h-0">
-                <Collapsible open={!isTerminalOpen} className="flex flex-col h-full">
-                  <div className="flex-grow">
-                    <EditorPane
-                        openFiles={openFiles}
-                        activeFilePath={activeFilePath}
-                        dirtyFiles={dirtyFiles}
-                        onFileSelect={setActiveFilePath}
-                        onFileChange={handleFileChange}
-                        onFileClose={handleFileClose}
-                        onFileSave={handleSaveFile}
-                    />
-                  </div>
-                  <CollapsibleContent>
-                      <div className="h-64 mt-4">
-                          <TerminalView />
-                      </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </main>
-              <StatusBar 
-                activeFile={activeFile} 
-                isDirty={isFileDirty}
-                branch={currentBranch}
-                onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
-                isTerminalOpen={isTerminalOpen} 
-                onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
-              />
-          </div>
+          <main className="flex-1 flex flex-col min-w-0 h-full">
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100}>
+                <EditorPane
+                    openFiles={openFiles}
+                    activeFilePath={activeFilePath}
+                    dirtyFiles={dirtyFiles}
+                    onFileSelect={setActiveFilePath}
+                    onFileChange={handleFileChange}
+                    onFileClose={handleFileClose}
+                    onFileSave={handleSaveFile}
+                />
+              </ResizablePanel>
+              {isTerminalOpen && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={35} minSize={10}>
+                    <TerminalView />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </main>
         </SidebarProvider>
       </div>
+      <StatusBar 
+          activeFile={activeFile} 
+          isDirty={isFileDirty}
+          branch={currentBranch}
+          onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
+          isTerminalOpen={isTerminalOpen} 
+          onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+        />
       <CommandPalette 
         isOpen={isCommandPaletteOpen}
         setIsOpen={setIsCommandPaletteOpen}
