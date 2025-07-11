@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GitCommit, GitBranch } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Placeholder for changed files
 const changedFiles = [
