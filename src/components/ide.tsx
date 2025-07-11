@@ -33,6 +33,7 @@ export function Ide() {
   const { 
     vfsRoot, 
     loading, 
+    currentBranch,
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,
@@ -302,6 +303,7 @@ export function Ide() {
             <StatusBar 
               activeFile={activeFile} 
               isDirty={isFileDirty}
+              branch={currentBranch}
               onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
               isTerminalOpen={isTerminalOpen} 
               onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { getLanguage, type VFSFile } from "@/lib/vfs";
@@ -8,19 +9,20 @@ import { Button } from "./ui/button";
 interface StatusBarProps {
   activeFile: VFSFile | null;
   isDirty: boolean;
+  branch: string;
   onTerminalToggle: () => void;
   isTerminalOpen: boolean;
   onCommandPaletteToggle: () => void;
 }
 
-export function StatusBar({ activeFile, isDirty, onTerminalToggle, isTerminalOpen, onCommandPaletteToggle }: StatusBarProps) {
+export function StatusBar({ activeFile, isDirty, branch, onTerminalToggle, isTerminalOpen, onCommandPaletteToggle }: StatusBarProps) {
   const language = activeFile ? getLanguage(activeFile.path) : "plaintext";
   return (
     <footer className="shrink-0 flex items-center justify-between px-4 py-1.5 border-t text-xs text-muted-foreground bg-background">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" title={`Current Git branch: ${branch}`}>
             <GitBranch className="h-3.5 w-3.5" />
-            <span>main</span>
+            <span>{branch}</span>
         </div>
         {activeFile && (
             <>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -6,8 +7,13 @@ import JSZip from "jszip";
 import type { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
 import { createDirectory, createFile } from "@/lib/vfs";
 import { useToast } from "./use-toast";
+import git from 'isomorphic-git';
+import LightningFS from '@isomorphic-git/lightning-fs';
+import { dataURIToArrayBuffer } from "@/lib/utils";
+
 
 const VFS_KEY = "webcoder-vfs-root";
+const GIT_FS_NAME = "webcoder-git-fs";
 
 const defaultRoot: VFSDirectory = createDirectory("Project", "/");
 defaultRoot.children.push(createFile(
@@ -75,12 +81,81 @@ const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; p
   return null;
 }
 
+// Initialize LightningFS
+const fs = new LightningFS(GIT_FS_NAME);
+const pfs = fs.promises;
 
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [currentBranch, setCurrentBranch] = useState('main');
+
+  const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
+    try {
+      // Clear existing fs
+      const entries = await pfs.readdir('/');
+      for (const entry of entries) {
+        try {
+          if (entry !== '.' && entry !== '..') {
+            const stat = await pfs.stat(`/${entry}`);
+            if (stat.isDirectory()) {
+              await pfs.rmdir(`/${entry}`, { recursive: true });
+            } else {
+              await pfs.unlink(`/${entry}`);
+            }
+          }
+        } catch (e) {
+          // In some cases, recursive rmdir might fail on first pass
+          // Let's try to delete files inside first
+          if (e.code === 'ENOTEMPTY') {
+            const subEntries = await pfs.readdir(`/${entry}`);
+             for(const subEntry of subEntries) {
+                await pfs.unlink(`/${entry}/${subEntry}`);
+             }
+             await pfs.rmdir(`/${entry}`);
+          }
+        }
+      }
+    } catch(e) {
+        console.error("Error clearing lightning-fs", e);
+    }
+    
+    const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
+        const currentPath = `${pathPrefix}/${node.name}`;
+        if (node.type === 'directory') {
+            await pfs.mkdir(currentPath);
+            for (const child of node.children) {
+                await syncNode(child, currentPath);
+            }
+        } else if (node.type === 'file') {
+            try {
+              const content = node.content.startsWith('data:') 
+                  ? dataURIToArrayBuffer(node.content)
+                  : new TextEncoder().encode(node.content);
+              await pfs.writeFile(currentPath, new Uint8Array(content));
+            } catch (error) {
+              console.error(`Failed to write file ${currentPath} to lightning-fs`, error);
+            }
+        }
+    };
+    // Sync children of the root to avoid a wrapping folder.
+    for (const child of root.children) {
+        await syncNode(child, '');
+    }
+  }, []);
+
+  const getGitBranch = useCallback(async () => {
+    try {
+        const branch = await git.currentBranch({ fs, dir: '/' });
+        setCurrentBranch(branch || 'main');
+    } catch (e) {
+        // Not a git repository or other error
+        setCurrentBranch('main');
+        console.log("Could not get git branch", e);
+    }
+  }, []);
 
   useEffect(() => {
     localforage.config({
@@ -94,9 +169,12 @@ export function useVfs() {
         const savedRoot = await localforage.getItem<VFSDirectory>(VFS_KEY);
         if (savedRoot && savedRoot.type === 'directory') {
           setVfsRoot(savedRoot);
+          await syncVfsToLfs(savedRoot);
         } else {
           await localforage.setItem(VFS_KEY, defaultRoot);
+          await syncVfsToLfs(defaultRoot);
         }
+        await getGitBranch();
       } catch (error) {
         console.error("Failed to load VFS from IndexedDB", error);
         toast({ variant: "destructive", title: "Error", description: "Could not load your project from local storage."});
@@ -108,21 +186,21 @@ export function useVfs() {
     if (!directoryHandle) {
       loadVfs();
     }
-  }, [toast, directoryHandle]);
+  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch]);
 
   const saveVfs = useCallback(async (root: VFSDirectory) => {
     if (directoryHandle) {
-        // When using File System Access API, we don't save to localforage
-        // as the file system is the source of truth.
         return;
     }
     try {
       await localforage.setItem(VFS_KEY, root);
+      await syncVfsToLfs(root);
+      await getGitBranch();
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
       toast({ variant: "destructive", title: "Error", description: "Could not save your project changes."});
     }
-  }, [toast, directoryHandle]);
+  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
@@ -499,7 +577,8 @@ export function useVfs() {
         if (newRoot && newRoot.type === 'directory') {
             newRoot.name = handle.name; // Use the actual directory name for the root
             setVfsRoot(newRoot);
-            // No need to saveVfs, as the file system is the source of truth
+            await syncVfsToLfs(newRoot);
+            await getGitBranch();
             toast({ title: "Folder opened", description: `Opened "${handle.name}" successfully.`});
             return true;
         }
@@ -516,7 +595,7 @@ export function useVfs() {
     } finally {
         setLoading(false);
     }
-  }, [toast]);
+  }, [toast, syncVfsToLfs, getGitBranch]);
 
   const downloadVfsAsZip = useCallback(async () => {
     const zip = new JSZip();
@@ -558,7 +637,8 @@ export function useVfs() {
 
   return { 
     vfsRoot, 
-    loading, 
+    loading,
+    currentBranch,
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,
@@ -572,7 +652,3 @@ export function useVfs() {
     downloadVfsAsZip,
   };
 }
-
-    
-
-    
