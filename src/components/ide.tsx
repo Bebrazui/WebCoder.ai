@@ -1,8 +1,9 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import hotkeys from "hotkeys-js";
 import {
   SidebarProvider,
   Sidebar,
@@ -76,17 +77,31 @@ export function Ide() {
     updateFileInVfs(path, newContent);
   }, [updateFileInVfs]);
 
-  const handleSaveFile = useCallback((path: string) => {
-    const fileToSave = openFiles.find(f => f.path === path);
+  const handleSaveFile = useCallback((path: string | null) => {
+    const filePathToSave = path || activeFilePath;
+    if (!filePathToSave) return;
+
+    const fileToSave = openFiles.find(f => f.path === filePathToSave);
     if (fileToSave) {
       saveFileToVfs(fileToSave);
       setDirtyFiles(prev => {
         const newDirtyFiles = new Set(prev);
-        newDirtyFiles.delete(path);
+        newDirtyFiles.delete(filePathToSave);
         return newDirtyFiles;
       });
     }
-  }, [openFiles, saveFileToVfs]);
+  }, [openFiles, activeFilePath, saveFileToVfs]);
+
+  useEffect(() => {
+    const saveKey = 'ctrl+s, command+s';
+    hotkeys(saveKey, (event) => {
+      event.preventDefault();
+      handleSaveFile(null);
+    });
+
+    return () => hotkeys.unbind(saveKey);
+  }, [handleSaveFile]);
+
 
   const handleFileClose = useCallback((path: string) => {
     const isDirty = dirtyFiles.has(path);
