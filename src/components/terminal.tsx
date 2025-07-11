@@ -1,15 +1,63 @@
 
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
+
+const PROMPT = '$ ';
+
+const commands: Record<string, { description: string; output: string[] | ((term: Terminal) => void) }> = {
+    'help': {
+        description: 'Shows this help message.',
+        output: [
+            'Available commands:',
+            '  help        - Shows this help message.',
+            '  npm install - Simulates installing dependencies.',
+            '  npm run dev - Simulates running the development server.',
+            '  clear       - Clears the terminal screen.',
+        ]
+    },
+    'npm install': {
+        description: 'Simulates installing dependencies.',
+        output: async (term: Terminal) => {
+            term.writeln('Simulating package installation...');
+            await new Promise(res => setTimeout(res, 500));
+            term.writeln('added 350 packages, and audited 351 packages in 10s');
+            term.writeln('42 packages are looking for funding');
+            term.writeln('  run `npm fund` for details');
+            term.writeln('found 0 vulnerabilities');
+        }
+    },
+    'npm run dev': {
+        description: 'Simulates running the development server.',
+        output: [
+            '> next dev --turbopack -p 9002',
+            '',
+            '  ▲ Next.js 15.3.3',
+            '  - Local:        http://localhost:9002',
+            '  - Environments: .env',
+            '',
+            ' ✓ Ready in 459ms',
+            ' ✓ Compiled / in 227ms (245 modules)',
+            '',
+            'This is a simulated server. To see your app, please use your browser\'s preview feature.',
+        ]
+    },
+    'clear': {
+        description: 'Clears the terminal screen.',
+        output: (term: Terminal) => {
+            term.clear();
+        }
+    }
+};
 
 export function TerminalView() {
     const terminalRef = useRef<HTMLDivElement>(null);
     const term = useRef<Terminal | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
+    const [currentLine, setCurrentLine] = useState('');
 
     useEffect(() => {
         if (terminalRef.current && !term.current) {
@@ -31,30 +79,46 @@ export function TerminalView() {
             xterm.open(terminalRef.current);
 
             xterm.writeln('Welcome to WebCoder.ai Terminal!');
-            xterm.writeln('This is a simulated terminal environment.');
-            xterm.write('$ ');
+            xterm.writeln('Type `help` to see available commands.');
+            xterm.write(PROMPT);
 
             xterm.onKey(({ key, domEvent }) => {
                 if (domEvent.key === 'Enter') {
-                    xterm.write('\r\n$ ');
-                } else if (domEvent.key === 'Backspace') {
-                     if (xterm.buffer.active.cursorX > 2) {
-                        xterm.write('\b \b');
+                    if (currentLine.trim()) {
+                        xterm.writeln('');
+                        const commandHandler = commands[currentLine.trim()];
+                        if (commandHandler) {
+                             const { output } = commandHandler;
+                             if (Array.isArray(output)) {
+                                output.forEach(line => xterm.writeln(line));
+                             } else {
+                                output(xterm);
+                             }
+                        } else {
+                            xterm.writeln(`command not found: ${currentLine.trim()}`);
+                        }
                     }
-                } else {
+                    xterm.write(`\r\n${PROMPT}`);
+                    setCurrentLine('');
+                } else if (domEvent.key === 'Backspace') {
+                     if (currentLine.length > 0) {
+                        xterm.write('\b \b');
+                        setCurrentLine(currentLine.slice(0, -1));
+                    }
+                } else if (!domEvent.ctrlKey && !domEvent.altKey && !domEvent.metaKey) {
                     xterm.write(key);
+                    setCurrentLine(currentLine + key);
                 }
             });
 
             term.current = xterm;
 
             const resizeObserver = new ResizeObserver(() => {
-                // Defer fit to next frame to avoid issues with container size
                 requestAnimationFrame(() => {
                     try {
                         fitAddon.current?.fit();
                     } catch (e) {
-                        // This can sometimes fail if the terminal is not visible, we can ignore it.
+                        // ignore
                     }
                 });
             });
@@ -63,16 +127,13 @@ export function TerminalView() {
                 resizeObserver.observe(terminalRef.current);
             }
 
-            // Initial fit
             requestAnimationFrame(() => {
                 try {
                     fitAddon.current?.fit();
                 } catch(e) {
-                    // This can fail if the panel is still animating, we can ignore it
-                    // as the resize observer will pick it up later.
+                    // ignore
                 }
             });
-
 
             return () => {
                 resizeObserver.disconnect();
@@ -80,7 +141,7 @@ export function TerminalView() {
                 term.current = null;
             };
         }
-    }, []);
+    }, [currentLine]);
 
     return <div ref={terminalRef} className="h-full w-full p-2" />;
 }
