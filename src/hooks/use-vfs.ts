@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -181,6 +182,7 @@ export function useVfs() {
     const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
         const currentPath = `${pathPrefix}/${node.name}`;
         if (node.type === 'directory') {
+            if (node.name === '.git') return;
             await pfs.mkdir(currentPath, { recursive: true });
             for (const child of node.children) {
                 await syncNode(child, currentPath);
@@ -457,6 +459,35 @@ export function useVfs() {
       return currentRoot;
     });
   }, [saveVfs, toast]);
+
+  const upsertFileInVfs = useCallback((name: string, parent: VFSDirectory, content: string): VFSFile => {
+    let upsertedFile: VFSFile | null = null;
+    setVfsRoot(currentRoot => {
+      const newRoot = JSON.parse(JSON.stringify(currentRoot));
+      const parentDirResult = findNodeAndParent(newRoot, parent.path);
+      
+      if (parentDirResult && parentDirResult.node.type === 'directory') {
+        const targetDir = parentDirResult.node;
+        const newPath = targetDir.path === '/' ? `/${name}` : `${targetDir.path}/${name}`;
+
+        const existingFileIndex = targetDir.children.findIndex(c => c.name === name);
+        if (existingFileIndex !== -1) {
+            const existingFile = targetDir.children[existingFileIndex] as VFSFile;
+            existingFile.content = content;
+            upsertedFile = existingFile;
+        } else {
+            const newFile = createFile(name, newPath, content);
+            targetDir.children.push(newFile);
+            upsertedFile = newFile;
+        }
+        
+        saveVfs(newRoot);
+        return newRoot;
+      }
+      return currentRoot;
+    });
+    return upsertedFile!;
+  }, [saveVfs]);
 
   const createDirectoryInVfs = useCallback((name: string, parent: VFSDirectory) => {
     setVfsRoot(currentRoot => {
@@ -800,7 +831,6 @@ export function useVfs() {
     downloadVfsAsZip,
     cloneRepository,
     commit,
+    upsertFileInVfs,
   };
 }
-
-    

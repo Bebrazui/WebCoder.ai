@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef } from "react";
@@ -17,6 +18,8 @@ import {
   X,
   Download,
   Github,
+  PenSquare,
+  LoaderCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -49,6 +52,8 @@ export interface FileExplorerProps {
   onOpenFolder: () => void;
   onDownloadZip: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
+  onGenerateReadme: () => Promise<void>;
+  isGeneratingReadme: boolean;
 }
 
 export function FileExplorer({
@@ -65,6 +70,8 @@ export function FileExplorer({
   onOpenFolder,
   onDownloadZip,
   onCloneRepository,
+  onGenerateReadme,
+  isGeneratingReadme,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +155,10 @@ export function FileExplorer({
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
               <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
             </div>
+            <Button size="sm" variant="secondary" onClick={onGenerateReadme} disabled={isGeneratingReadme} className="w-full mt-2">
+              {isGeneratingReadme ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <PenSquare className="mr-2 h-4 w-4" />}
+              Generate README
+            </Button>
         </div>
         
         <CollapsibleContent>
