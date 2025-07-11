@@ -708,7 +708,7 @@ export function useVfs() {
     } finally {
         setLoading(false);
     }
-  }, [toast, getGitBranch, saveVfs, syncLfsToVfs]);
+  }, [toast, getGitBranch, saveVfs, syncVfsToLfs]);
 
 
   return { 
