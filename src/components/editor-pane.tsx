@@ -28,8 +28,6 @@ interface EditorPaneProps {
   onFileSave: (path: string) => void;
 }
 
-type ViewMode = "code" | "hex" | "picker";
-
 const isImageFile = (path: string) => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
 }
@@ -38,45 +36,24 @@ const isAudioFile = (path: string) => {
     return /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(path);
 }
 
-const isPotentiallyBinary = (file: VFSFile) => {
-    // Explicitly handle .class files as binary
-    if (/\.class$/i.test(file.path)) {
+// Determines if a file is likely text-based and should be opened in the code editor
+const isTextBased = (file: VFSFile) => {
+    // Has a common text extension
+    if (/\.(txt|md|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|hpp|cs|go|php|rb|rs|swift|kt|yml|yaml|sh|toml|gitignore|npmrc|log)$/i.test(file.path)) {
         return true;
     }
-
-    if (file.content.startsWith('data:')) {
-        const mime = file.content.substring(5, file.content.indexOf(';'));
-        // Treat audio as its own category, not binary for the picker
-        return !mime.startsWith('text/') && !mime.startsWith('image/') && !mime.startsWith('audio/');
+    // Is not a data URI
+    if (!file.content.startsWith('data:')) {
+        return true;
     }
-    // Simple heuristic for text files without data URI
-    // This is imperfect but prevents trying to render huge binary files as text
-    if (file.content.length > 1000000 && !/\.(txt|md|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|hpp|cs|go|php|rb|rs|swift|kt|yml|yaml)$/i.test(file.path)) {
-       return true;
+    // Is a text-based data URI
+    const mime = file.content.substring(5, file.content.indexOf(';'));
+    if (mime.startsWith('text/')) {
+        return true;
     }
-    // Check for null bytes in the first 1024 chars, a strong indicator of binary
-    for (let i = 0; i < Math.min(file.content.length, 1024); i++) {
-        if (file.content.charCodeAt(i) === 0) {
-            return true;
-        }
-    }
+    // Default to not text-based for other data URIs
     return false;
 };
-
-
-const UnsupportedFileViewer = ({ file, onSelectView }: { file: VFSFile, onSelectView: (mode: ViewMode) => void }) => {
-    return (
-        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
-            <FileQuestion className="h-16 w-16 mb-4" />
-            <h2 className="text-xl font-medium font-headline mb-2">Unsupported File Type</h2>
-            <p className="mb-4">How would you like to open <span className="font-semibold">{file.name}</span>?</p>
-            <div className="flex gap-4">
-                <Button onClick={() => onSelectView('code')}>Open as Text</Button>
-                <Button variant="secondary" onClick={() => onSelectView('hex')}>Open in Hex Viewer</Button>
-            </div>
-        </div>
-    )
-}
 
 const AudioPlayer = ({ file }: { file: VFSFile }) => {
     return (
@@ -102,11 +79,6 @@ export function EditorPane({
   onFileClose,
   onFileSave,
 }: EditorPaneProps) {
-  const [viewModes, setViewModes] = useState<Record<string, ViewMode>>({});
-
-  const setViewModeForFile = (path: string, mode: ViewMode) => {
-    setViewModes(prev => ({ ...prev, [path]: mode }));
-  };
 
   if (openFiles.length === 0) {
     return (
@@ -120,21 +92,6 @@ export function EditorPane({
   }
 
   const renderFileContent = (file: VFSFile) => {
-    let viewMode = viewModes[file.path];
-
-    if (!viewMode) {
-        if (isImageFile(file.path) || isAudioFile(file.path)) {
-            viewMode = 'code'; // Special handling below, not a real mode
-        } else if (/\.class$/i.test(file.path)) {
-            viewMode = 'picker'; // Changed from 'hex' to 'picker'
-        } else if (isPotentiallyBinary(file)) {
-            viewMode = 'picker';
-        } else {
-            viewMode = 'code';
-        }
-    }
-
-
     if (isImageFile(file.path)) {
         return <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
             <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
@@ -145,20 +102,16 @@ export function EditorPane({
         return <AudioPlayer file={file} />;
     }
 
-    if (viewMode === 'picker') {
-        return <UnsupportedFileViewer file={file} onSelectView={(mode) => setViewModeForFile(file.path, mode)} />;
-    }
-    
-    if (viewMode === 'hex') {
-        return <HexViewer file={file} />;
-    }
-
-    // Default to code editor (includes 'code' mode and files that aren't potentially binary)
-    return <CodeEditor
+    if (isTextBased(file)) {
+      return <CodeEditor
         path={file.path}
         value={file.content}
         onChange={(newContent) => onFileChange(file.path, newContent)}
-    />
+      />
+    }
+
+    // Default to Hex Viewer for binary files (like .class) and others
+    return <HexViewer file={file} />;
   }
 
   return (
