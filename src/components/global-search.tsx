@@ -11,7 +11,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 
 interface GlobalSearchProps {
     vfsRoot: VFSDirectory;
-    onFileSelect: (file: VFSFile) => void;
+    onSelectFile: (file: VFSFile) => void;
 }
 
 interface SearchResult {
