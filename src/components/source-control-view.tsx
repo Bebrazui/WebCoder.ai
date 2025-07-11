@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -75,8 +74,8 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
 
 
     return (
-        <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
-            <div className="p-2 border-b border-sidebar-border">
+        <div className="flex flex-col h-full bg-background text-foreground">
+            <div className="p-2 border-b border-border">
                 <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
                     <GitBranch className="h-5 w-5" />
                     <span>Source Control</span>
@@ -91,7 +90,7 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
                         placeholder="Your commit message..."
                         value={commitMessage}
                         onChange={(e) => setCommitMessage(e.target.value)}
-                        className="bg-background text-sm"
+                        className="bg-muted text-sm"
                         rows={3}
                     />
                 </div>
@@ -105,7 +104,7 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
                             placeholder="ghp_..."
                             value={githubToken}
                             onChange={(e) => setGithubToken(e.target.value)}
-                            className="bg-background pl-8"
+                            className="bg-muted pl-8"
                         />
                     </div>
                  </div>
@@ -119,7 +118,7 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
                     ) : (
                         <GitCommit />
                     )}
-                    <span>Commit & Push</span>
+                    <span>Commit &amp; Push</span>
                 </Button>
             </div>
             
@@ -132,7 +131,7 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
                     {changedFiles.length > 0 ? (
                         <ul className="space-y-1">
                             {changedFiles.map(file => (
-                                <li key={file.filepath} className="flex items-center justify-between p-1 rounded-md hover:bg-sidebar-accent">
+                                <li key={file.filepath} className="flex items-center justify-between p-1 rounded-md hover:bg-accent">
                                     <span className="truncate">{file.filepath}</span>
                                     <span 
                                         className={cn("font-mono font-bold w-4 text-center", getStatusColor(file.status))}

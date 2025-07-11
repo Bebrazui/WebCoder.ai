@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -179,12 +178,8 @@ const Sidebar = React.forwardRef<
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
           <SheetContent
             side={side}
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground"
-            style={
-              {
-                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-              } as React.CSSProperties
-            }
+            className="w-full max-w-xs bg-background p-0 text-foreground"
+            
           >
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
@@ -197,13 +192,12 @@ const Sidebar = React.forwardRef<
         ref={ref}
         data-state={open ? "expanded" : "collapsed"}
         className={cn(
-          "hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-[width] duration-300 ease-in-out",
-          open ? "w-[var(--sidebar-width)]" : "w-0",
+          "hidden md:flex flex-col bg-background text-foreground transition-[width] duration-300 ease-in-out h-full",
            className
         )}
         {...props}
       >
-          {open && children}
+          {children}
       </div>
     )
   }
@@ -243,7 +237,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2 border-b border-sidebar-border", className)}
+      className={cn("flex flex-col gap-2 p-2 border-b border-border", className)}
       {...props}
     />
   )

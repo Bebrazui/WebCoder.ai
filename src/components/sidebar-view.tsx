@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -12,14 +11,14 @@ import type { FileExplorerProps } from "./file-explorer";
 import type { GitStatus } from "@/hooks/use-vfs";
 
 
-export interface SidebarViewProps extends Omit<FileExplorerProps, 'className'> {
+export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
     onCommit: (message: string, token: string) => Promise<void>;
 }
 
 
-export function SidebarView(props: SidebarViewProps) {
+export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
 
   type View = "explorer" | "source-control";
@@ -42,18 +41,18 @@ export function SidebarView(props: SidebarViewProps) {
   const ActiveComponent = views.find(v => v.id === activeView)?.component;
 
   return (
-    <div className="flex h-full">
-      <div className="w-12 border-r border-sidebar-border bg-sidebar p-2 flex flex-col items-center gap-2">
+    <div className="flex h-full bg-background">
+      <div className="w-12 border-r border-border bg-background p-2 flex flex-col items-center gap-2">
         <TooltipProvider>
             {views.map(view => (
-                <Tooltip key={view.id}>
+                <Tooltip key={view.id} delayDuration={0}>
                     <TooltipTrigger asChild>
                         <Button
                             variant="ghost"
                             size="icon"
                             className={cn(
                                 "h-8 w-8",
-                                activeView === view.id && "bg-sidebar-accent text-sidebar-accent-foreground"
+                                activeView === view.id && "bg-accent text-accent-foreground"
                             )}
                             onClick={() => setActiveView(view.id)}
                         >
@@ -73,8 +72,3 @@ export function SidebarView(props: SidebarViewProps) {
     </div>
   );
 }
-
-// Re-export props for parent component
-export type { FileExplorerProps };
-
-    

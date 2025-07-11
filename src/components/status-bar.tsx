@@ -1,11 +1,9 @@
-
 "use client";
 
 import { getLanguage, type VFSFile } from "@/lib/vfs";
-import { Code, GitBranch, Terminal, Save, ChevronUp, ChevronDown, Command, PanelLeft } from "lucide-react";
+import { Code, GitBranch, Terminal, Save, ChevronUp, ChevronDown, Command } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
-import { SidebarTrigger } from "./ui/sidebar";
 
 interface StatusBarProps {
   activeFile: VFSFile | null;
@@ -21,10 +19,7 @@ export function StatusBar({ activeFile, isDirty, branch, onTerminalToggle, isTer
   return (
     <footer className="shrink-0 flex items-center justify-between px-4 py-1.5 border-t text-xs text-muted-foreground bg-background z-20 h-auto">
       <div className="flex items-center gap-4">
-        <div className="md:hidden">
-            <SidebarTrigger />
-        </div>
-        <div className="hidden md:flex items-center gap-2" title={`Current Git branch: ${branch}`}>
+        <div className="flex items-center gap-2" title={`Current Git branch: ${branch}`}>
             <GitBranch className="h-3.5 w-3.5" />
             <span>{branch}</span>
         </div>

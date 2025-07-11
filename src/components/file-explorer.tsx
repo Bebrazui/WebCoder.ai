@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useRef } from "react";
@@ -100,26 +99,26 @@ export function FileExplorer({
 
   return (
     <>
-      <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
-        <div className="p-2 border-b border-sidebar-border">
+      <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-background text-foreground">
+        <div className="p-2 border-b border-border">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-lg font-headline font-semibold">Explorer</h2>
               <TooltipProvider>
                 <div className="flex items-center">
-                    <Tooltip>
+                    <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFileAtRoot}><FilePlus className="h-4 w-4" /></Button></TooltipTrigger>
                         <TooltipContent><p>New File</p></TooltipContent>
                     </Tooltip>
-                    <Tooltip>
+                    <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFolderAtRoot}><FolderPlus className="h-4 w-4" /></Button></TooltipTrigger>
                         <TooltipContent><p>New Folder</p></TooltipContent>
                     </Tooltip>
-                    <Tooltip>
+                    <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}><Download className="h-4 w-4" /></Button></TooltipTrigger>
                         <TooltipContent><p>Download as ZIP</p></TooltipContent>
                     </Tooltip>
                     <CollapsibleTrigger asChild>
-                      <Tooltip>
+                      <Tooltip delayDuration={0}>
                           <TooltipTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7">
                                 {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
@@ -152,7 +151,7 @@ export function FileExplorer({
         </div>
         
         <CollapsibleContent>
-          <div className="border-b border-sidebar-border">
+          <div className="border-b border-border">
             <GlobalSearch vfsRoot={vfsRoot} onSelectFile={onSelectFile} />
           </div>
         </CollapsibleContent>
@@ -302,12 +301,12 @@ const ExplorerNode = ({
              onDragOver={handleDragOver}
              onDragLeave={handleDragLeave}
              onDrop={handleDrop}
-             className={cn('rounded-md', isDragOver && 'bg-sidebar-accent/50')}
+             className={cn('rounded-md', isDragOver && 'bg-accent/50')}
           >
             <div
               draggable={node.path !== '/'}
               onDragStart={handleDragStart}
-              className="flex items-center p-1 rounded-md cursor-pointer hover:bg-sidebar-accent"
+              className="flex items-center p-1 rounded-md cursor-pointer hover:bg-accent"
               style={{ paddingLeft }}
               onClick={() => setIsOpen(!isOpen)}
             >
@@ -318,9 +317,9 @@ const ExplorerNode = ({
                 )}
               />
               {isOpen ? (
-                <FolderOpen className="h-4 w-4 mr-2 text-accent" />
+                <FolderOpen className="h-4 w-4 mr-2 text-blue-500" />
               ) : (
-                <Folder className="h-4 w-4 mr-2 text-accent" />
+                <Folder className="h-4 w-4 mr-2 text-blue-500" />
               )}
               <span className="truncate">{node.name}</span>
             </div>
@@ -381,7 +380,7 @@ const ExplorerNode = ({
             <div
                 draggable
                 onDragStart={handleDragStart}
-                className="flex items-center p-1 rounded-md cursor-pointer hover:bg-sidebar-accent"
+                className="flex items-center p-1 rounded-md cursor-pointer hover:bg-accent"
                 style={{ paddingLeft }}
                 onClick={() => onSelectFile(node)}
             >
