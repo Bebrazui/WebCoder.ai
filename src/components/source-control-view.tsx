@@ -1,34 +1,34 @@
 
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GitCommit, GitBranch } from "lucide-react";
+import { GitBranch, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { GitStatus } from "@/hooks/use-vfs";
 
-// Placeholder for changed files
-const changedFiles = [
-    { name: "src/components/ide.tsx", status: "M" },
-    { name: "package.json", status: "M" },
-    { name: "src/app/page.tsx", status: "A" },
-    { name: "README.md", status: "D" },
-];
+interface SourceControlViewProps {
+    changedFiles: GitStatus[];
+    isLoading: boolean;
+}
 
 const getStatusColor = (status: string) => {
     switch(status) {
-        case "M": return "text-yellow-500"; // Modified
-        case "A": return "text-green-500";  // Added
-        case "D": return "text-red-500";    // Deleted
+        case "modified": return "text-yellow-500";
+        case "new": return "text-green-500";
+        case "deleted": return "text-red-500";
         default: return "text-muted-foreground";
     }
 }
+const getStatusLetter = (status: string) => {
+    switch(status) {
+        case "modified": return "M";
+        case "new": return "A"; // Added
+        case "deleted": return "D";
+        default: return "?";
+    }
+}
 
-export function SourceControlView() {
-    const [commitMessage, setCommitMessage] = useState("");
-
+export function SourceControlView({ changedFiles, isLoading }: SourceControlViewProps) {
     return (
         <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
             <div className="p-2 border-b border-sidebar-border">
@@ -37,31 +37,30 @@ export function SourceControlView() {
                     <span>Source Control</span>
                 </h2>
             </div>
-            <div className="p-2 space-y-2">
-                <Textarea 
-                    placeholder="Message"
-                    value={commitMessage}
-                    onChange={(e) => setCommitMessage(e.target.value)}
-                    className="bg-background text-sm"
-                />
-                <Button className="w-full" disabled>
-                    <GitCommit className="mr-2 h-4 w-4" />
-                    Commit
-                </Button>
-            </div>
+            
             <ScrollArea className="flex-grow">
                 <div className="p-2 text-sm">
-                    <h3 className="font-semibold mb-2 px-2">Changes ({changedFiles.length})</h3>
-                    <ul className="space-y-1">
-                        {changedFiles.map(file => (
-                            <li key={file.name} className="flex items-center justify-between p-1 rounded-md hover:bg-sidebar-accent">
-                                <span className="truncate">{file.name}</span>
-                                <span className={cn("font-mono font-bold w-4 text-center", getStatusColor(file.status))}>
-                                    {file.status}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
+                    <h3 className="font-semibold mb-2 px-2 flex items-center gap-2">
+                        Changes ({isLoading ? '...' : changedFiles.length})
+                        {isLoading && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                    </h3>
+                    {changedFiles.length > 0 ? (
+                        <ul className="space-y-1">
+                            {changedFiles.map(file => (
+                                <li key={file.filepath} className="flex items-center justify-between p-1 rounded-md hover:bg-sidebar-accent">
+                                    <span className="truncate">{file.filepath}</span>
+                                    <span 
+                                        className={cn("font-mono font-bold w-4 text-center", getStatusColor(file.status))}
+                                        title={file.status}
+                                    >
+                                        {getStatusLetter(file.status)}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        !isLoading && <p className="text-muted-foreground text-center p-4">No changes detected.</p>
+                    )}
                 </div>
             </ScrollArea>
         </div>

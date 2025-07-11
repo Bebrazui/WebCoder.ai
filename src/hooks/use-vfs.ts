@@ -89,12 +89,51 @@ const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; p
 const fs = new LightningFS(GIT_FS_NAME);
 const pfs = fs.promises;
 
+export type GitStatus = {
+    filepath: string;
+    status: 'new' | 'modified' | 'deleted' | 'unmodified';
+};
+
+const GIT_STATUS_MAP = {
+  // [HEAD, WORKDIR, STAGE]
+  '0,2,0': 'new',        // new, untracked
+  '0,2,2': 'new',        // new, added
+  '1,2,1': 'modified',   // modified, unstaged
+  '1,2,2': 'modified',   // modified, staged
+  '1,0,1': 'deleted',    // deleted, unstaged
+  '1,0,0': 'deleted',    // deleted, staged
+};
+
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [currentBranch, setCurrentBranch] = useState('main');
+  const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
+  const [isGitStatusLoading, setIsGitStatusLoading] = useState(false);
+
+  const getGitStatus = useCallback(async () => {
+    setIsGitStatusLoading(true);
+    try {
+        const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+        const statuses = matrix
+            .map(([filepath, head, workdir, stage]) => {
+                const statusKey = `${head},${workdir},${stage}`;
+                const status = GIT_STATUS_MAP[statusKey as keyof typeof GIT_STATUS_MAP];
+                return status ? { filepath, status } : null;
+            })
+            .filter((s): s is GitStatus => s !== null);
+        
+        setGitStatus(statuses);
+    } catch (e) {
+        // Not a git repository or other error
+        setGitStatus([]);
+    } finally {
+        setIsGitStatusLoading(false);
+    }
+  }, []);
+
 
   const getGitBranch = useCallback(async () => {
     try {
@@ -215,6 +254,7 @@ export function useVfs() {
           await syncVfsToLfs(defaultRoot);
         }
         await getGitBranch();
+        await getGitStatus();
       } catch (error) {
         console.error("Failed to load VFS from IndexedDB", error);
         toast({ variant: "destructive", title: "Error", description: "Could not load your project from local storage."});
@@ -226,7 +266,7 @@ export function useVfs() {
     if (!directoryHandle) {
       loadVfs();
     }
-  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch]);
+  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
 
   const saveVfs = useCallback(async (root: VFSDirectory) => {
     if (directoryHandle) {
@@ -236,11 +276,12 @@ export function useVfs() {
       await localforage.setItem(VFS_KEY, root);
       await syncVfsToLfs(root);
       await getGitBranch();
+      await getGitStatus();
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
       toast({ variant: "destructive", title: "Error", description: "Could not save your project changes."});
     }
-  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch]);
+  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
@@ -408,6 +449,7 @@ export function useVfs() {
                 const writable = await currentHandle.createWritable();
                 await writable.write(file.content);
                 await writable.close();
+                getGitStatus();
                 toast({ title: "File Saved", description: `${file.name} has been saved to disk.`});
             }
         } catch (error) {
@@ -428,7 +470,7 @@ export function useVfs() {
             return currentRoot;
         });
     }
-  }, [saveVfs, toast, directoryHandle]);
+  }, [saveVfs, toast, directoryHandle, getGitStatus]);
 
   const createFileInVfs = useCallback((name: string, parent: VFSDirectory) => {
     setVfsRoot(currentRoot => {
@@ -619,6 +661,7 @@ export function useVfs() {
             setVfsRoot(newRoot);
             await syncVfsToLfs(newRoot);
             await getGitBranch();
+            await getGitStatus();
             toast({ title: "Folder opened", description: `Opened "${handle.name}" successfully.`});
             return true;
         }
@@ -635,7 +678,7 @@ export function useVfs() {
     } finally {
         setLoading(false);
     }
-  }, [toast, syncVfsToLfs, getGitBranch]);
+  }, [toast, syncVfsToLfs, getGitBranch, getGitStatus]);
 
   const downloadVfsAsZip = useCallback(async () => {
     const zip = new JSZip();
@@ -708,13 +751,15 @@ export function useVfs() {
     } finally {
         setLoading(false);
     }
-  }, [toast, getGitBranch, saveVfs, syncVfsToLfs]);
+  }, [toast, getGitBranch, saveVfs, syncLfsToVfs]);
 
 
   return { 
     vfsRoot, 
     loading,
     currentBranch,
+    gitStatus,
+    isGitStatusLoading,
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,

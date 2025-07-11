@@ -33,6 +33,8 @@ export function Ide() {
     vfsRoot, 
     loading, 
     currentBranch,
+    gitStatus,
+    isGitStatusLoading,
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,
@@ -271,6 +273,8 @@ export function Ide() {
                <SidebarView 
                 vfsRoot={vfsRoot}
                 loading={loading}
+                gitStatus={gitStatus}
+                isGitStatusLoading={isGitStatusLoading}
                 onSelectFile={handleSelectFile}
                 onUploadFile={addFileToVfs}
                 onUploadZip={addZipToVfs}

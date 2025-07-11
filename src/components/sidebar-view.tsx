@@ -9,11 +9,19 @@ import { FileCode, GitBranch } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileExplorerProps } from "./file-explorer";
+import type { GitStatus } from "@/hooks/use-vfs";
 
-type View = "explorer" | "source-control";
 
-export function SidebarView(props: Omit<FileExplorerProps, 'className'>) {
+export interface SidebarViewProps extends Omit<FileExplorerProps, 'className'> {
+    gitStatus: GitStatus[];
+    isGitStatusLoading: boolean;
+}
+
+
+export function SidebarView(props: SidebarViewProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
+
+  type View = "explorer" | "source-control";
 
   const views: { id: View, icon: React.ReactNode, label: string, component: React.ReactNode }[] = [
     {
@@ -26,7 +34,7 @@ export function SidebarView(props: Omit<FileExplorerProps, 'className'>) {
       id: "source-control",
       icon: <GitBranch />,
       label: "Source Control",
-      component: <SourceControlView />
+      component: <SourceControlView changedFiles={props.gitStatus} isLoading={props.isGitStatusLoading} />
     }
   ];
 
