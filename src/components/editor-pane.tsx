@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Tabs,
   TabsContent,
@@ -25,43 +26,51 @@ interface EditorPaneProps {
   onFileSave: (path: string) => void;
 }
 
+type ViewMode = "code" | "hex" | "picker";
+
 const isImageFile = (path: string) => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
 }
 
-const isBinaryDataURI = (content: string) => {
-    if (!content.startsWith('data:')) return false;
-    const mime = content.substring(5, content.indexOf(';'));
-    // Consider binary if not text and not an image mime type
-    return !mime.startsWith('text') && !mime.startsWith('image');
-}
-
-const UnsupportedFileViewer = ({ file }: { file: VFSFile }) => {
-    const handleDownload = () => {
-        try {
-            const link = document.createElement('a');
-            link.href = file.content; // Assumes content is a data URI
-            link.download = file.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (e) {
-            console.error("Download failed", e);
+const isPotentiallyBinary = (file: VFSFile) => {
+    if (file.content.startsWith('data:')) {
+        const mime = file.content.substring(5, file.content.indexOf(';'));
+        return !mime.startsWith('text/') && !mime.startsWith('image/');
+    }
+    // Simple heuristic for text files without data URI
+    // This is imperfect but prevents trying to render huge binary files as text
+    if (file.content.length > 1000000 && !/\.(txt|md|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|hpp|cs|go|php|rb|rs|swift|kt|yml|yaml)$/i.test(file.path)) {
+       return true;
+    }
+    // Check for null bytes in the first 1024 chars, a strong indicator of binary
+    for (let i = 0; i < Math.min(file.content.length, 1024); i++) {
+        if (file.content.charCodeAt(i) === 0) {
+            return true;
         }
     }
+    return false;
+};
+
+
+const UnsupportedFileViewer = ({ file, onSelectView }: { file: VFSFile, onSelectView: (mode: ViewMode) => void }) => {
     return (
         <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
             <FileQuestion className="h-16 w-16 mb-4" />
             <h2 className="text-xl font-medium font-headline mb-2">Unsupported File Type</h2>
-            <p className="mb-4">Cannot display <span className="font-semibold">{file.name}</span> in the editor.</p>
-            <Button onClick={handleDownload}>Download File</Button>
+            <p className="mb-4">How would you like to open <span className="font-semibold">{file.name}</span>?</p>
+            <div className="flex gap-4">
+                <Button onClick={() => onSelectView('code')}>Open as Text</Button>
+                <Button variant="secondary" onClick={() => onSelectView('hex')}>Open in Hex Viewer</Button>
+            </div>
         </div>
     )
 }
 
-const getFileIcon = (file: VFSFile) => {
+const getFileIcon = (file: VFSFile, viewMode?: ViewMode) => {
     if (isImageFile(file.path)) return <ImageIcon className="h-4 w-4" />;
-    if (isBinaryDataURI(file.content)) return <Database className="h-4 w-4" />;
+    if (viewMode === 'hex' || (viewMode !== 'code' && isPotentiallyBinary(file))) {
+        return <Database className="h-4 w-4" />;
+    }
     return <Code className="h-4 w-4" />;
 }
 
@@ -75,6 +84,12 @@ export function EditorPane({
   onFileClose,
   onFileSave,
 }: EditorPaneProps) {
+  const [viewModes, setViewModes] = useState<Record<string, ViewMode>>({});
+
+  const setViewModeForFile = (path: string, mode: ViewMode) => {
+    setViewModes(prev => ({ ...prev, [path]: mode }));
+  };
+
   if (openFiles.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
@@ -85,10 +100,42 @@ export function EditorPane({
       </div>
     );
   }
+
+  const renderFileContent = (file: VFSFile) => {
+    const viewMode = viewModes[file.path] || 'picker';
+
+    if (isImageFile(file.path)) {
+        return <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
+            <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
+        </div>
+    }
+
+    if (isPotentiallyBinary(file) && viewMode === 'picker') {
+        return <UnsupportedFileViewer file={file} onSelectView={(mode) => setViewModeForFile(file.path, mode)} />;
+    }
+    
+    if (viewMode === 'hex') {
+        return <HexViewer file={file} />;
+    }
+
+    // Default to code editor (includes 'code' mode and files that aren't potentially binary)
+    return <CodeEditor
+        path={file.path}
+        value={file.content}
+        onChange={(newContent) => onFileChange(file.path, newContent)}
+    />
+  }
+
   return (
     <Tabs
       value={activeFilePath || ""}
-      onValueChange={onFileSelect}
+      onValueChange={(path) => {
+        const file = openFiles.find(f => f.path === path);
+        if (file && !viewModes[path] && !isImageFile(path) && !isPotentiallyBinary(file)) {
+          setViewModeForFile(path, 'code');
+        }
+        onFileSelect(path);
+      }}
       className="flex flex-col h-full"
     >
       <ScrollArea className="w-full">
@@ -103,7 +150,7 @@ export function EditorPane({
                   "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
                 )}
               >
-                {getFileIcon(file)}
+                {getFileIcon(file, viewModes[file.path])}
                 <span>{file.name}</span>
                 {isDirty && (
                     <div className="flex items-center gap-1 ml-1">
@@ -143,19 +190,7 @@ export function EditorPane({
             value={file.path}
             className="h-full mt-0"
           >
-             {isImageFile(file.path) ? (
-                <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
-                    <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
-                </div>
-             ) : isBinaryDataURI(file.content) ? (
-                <HexViewer file={file} />
-             ) : (
-                <CodeEditor
-                    path={file.path}
-                    value={file.content}
-                    onChange={(newContent) => onFileChange(file.path, newContent)}
-                />
-             )}
+             {renderFileContent(file)}
           </TabsContent>
         ))}
       </div>
