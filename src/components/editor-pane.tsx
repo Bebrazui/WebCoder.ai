@@ -26,61 +26,6 @@ const isImageFile = (path: string) => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
 }
 
-const isKnownTextFile = (path: string) => {
-    const lang = getLanguage(path);
-    return lang !== 'plaintext' || path.endsWith('.txt') || path.endsWith('.md');
-}
-
-// Helper to get language for text files
-const getLanguage = (path: string): string => {
-    const extension = path.split('.').pop()?.toLowerCase();
-    switch (extension) {
-        case 'js':
-        case 'jsx':
-            return 'javascript';
-        case 'ts':
-        case 'tsx':
-            return 'typescript';
-        case 'json':
-            return 'json';
-        case 'css':
-            return 'css';
-        case 'html':
-            return 'html';
-        case 'md':
-            return 'markdown';
-        case 'py':
-            return 'python';
-        case 'java':
-            return 'java';
-        case 'c':
-        case 'h':
-            return 'c';
-        case 'cpp':
-        case 'hpp':
-            return 'cpp';
-        case 'cs':
-            return 'csharp';
-        case 'go':
-            return 'go';
-        case 'php':
-            return 'php';
-        case 'rb':
-            return 'ruby';
-        case 'rs':
-            return 'rust';
-        case 'swift':
-            return 'swift';
-        case 'kt':
-            return 'kotlin';
-        case 'yaml':
-        case 'yml':
-            return 'yaml';
-        default:
-            return 'plaintext';
-    }
-}
-
 const UnsupportedFileViewer = ({ file }: { file: VFSFile }) => {
     const handleDownload = () => {
         const link = document.createElement('a');
@@ -98,6 +43,11 @@ const UnsupportedFileViewer = ({ file }: { file: VFSFile }) => {
             <Button onClick={handleDownload}>Download File</Button>
         </div>
     )
+}
+
+// This function determines if a file content is a data URI for a binary file
+const isBinaryDataURI = (content: string) => {
+    return content.startsWith('data:') && !content.startsWith('data:text');
 }
 
 export function EditorPane({
@@ -161,14 +111,14 @@ export function EditorPane({
                 <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
                     <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
                 </div>
-             ) : isKnownTextFile(file.path) ? (
+             ) : isBinaryDataURI(file.content) ? (
+                <UnsupportedFileViewer file={file} />
+             ) : (
                 <CodeEditor
                     path={file.path}
                     value={file.content}
                     onChange={(newContent) => onFileChange(file.path, newContent)}
                 />
-             ) : (
-                <UnsupportedFileViewer file={file} />
              )}
           </TabsContent>
         ))}
