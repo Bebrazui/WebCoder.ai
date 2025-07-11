@@ -29,6 +29,11 @@ Get started by uploading your files or a ZIP archive using the buttons in the ex
 `
 ));
 
+const isTextFile = (file: File) => {
+    return file.type.startsWith('text/') ||
+        /\.(json|js|jsx|ts|tsx|css|html|md|py|java|c|h|cpp|hpp|cs|go|php|rb|rs|swift|kt|yaml|yml|txt)$/i.test(file.name);
+}
+
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
   const [loading, setLoading] = useState(true);
@@ -85,28 +90,6 @@ export function useVfs() {
     }
     return currentDir;
   }
-
-  const addFileToVfs = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const newRoot = JSON.parse(JSON.stringify(vfsRoot));
-      const newFile = createFile(file.name, `/${file.name}`, content);
-
-      // Avoid duplicates
-      const existingIndex = newRoot.children.findIndex((child: VFSNode) => child.name === file.name);
-      if (existingIndex !== -1) {
-          newRoot.children[existingIndex] = newFile;
-      } else {
-          newRoot.children.push(newFile);
-      }
-      
-      setVfsRoot(newRoot);
-      saveVfs(newRoot);
-      toast({ title: "File uploaded", description: `${file.name} has been added to the project.` });
-    };
-    reader.readAsText(file);
-  }, [vfsRoot, saveVfs, toast]);
   
   const addZipToVfs = useCallback((file: File) => {
     const reader = new FileReader();
@@ -122,14 +105,18 @@ export function useVfs() {
         
         const promises = Object.keys(zip.files).map(async (relativePath) => {
             const zipEntry = zip.files[relativePath];
+            if (relativePath.startsWith('__MACOSX/')) return; // Skip macOS metadata
+            
             const pathParts = relativePath.split('/').filter(p => p);
             let currentDir = newRoot;
 
             for(let i = 0; i < pathParts.length; i++) {
                 const part = pathParts[i];
                 if (i === pathParts.length - 1 && !zipEntry.dir) { // It's a file
-                    const fileContent = await zipEntry.async('string');
-                    const newFile = createFile(part, `${currentDir.path === '/' ? '' : currentDir.path}/${part}`, fileContent);
+                    const fileContent = await zipEntry.async('base64');
+                    const mime = `application/octet-stream`; // Default MIME type
+                    const dataUri = `data:${mime};base64,${fileContent}`;
+                    const newFile = createFile(part, `${currentDir.path === '/' ? '' : currentDir.path}/${part}`, dataUri);
                     currentDir.children.push(newFile);
                 } else { // It's a directory
                     let dir = currentDir.children.find(c => c.name === part && c.type === 'directory') as VFSDirectory;
@@ -157,6 +144,39 @@ export function useVfs() {
     reader.readAsArrayBuffer(file);
   }, [saveVfs, toast]);
 
+  const addFileToVfs = useCallback((file: File) => {
+    // If it's a zip file, use the zip handler
+    if (file.type === 'application/zip' || file.name.endsWith('.zip')) {
+        addZipToVfs(file);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const newRoot = JSON.parse(JSON.stringify(vfsRoot));
+      const newFile = createFile(file.name, `/${file.name}`, content);
+
+      // Avoid duplicates
+      const existingIndex = newRoot.children.findIndex((child: VFSNode) => child.name === file.name);
+      if (existingIndex !== -1) {
+          newRoot.children[existingIndex] = newFile;
+      } else {
+          newRoot.children.push(newFile);
+      }
+      
+      setVfsRoot(newRoot);
+      saveVfs(newRoot);
+      toast({ title: "File uploaded", description: `${file.name} has been added to the project.` });
+    };
+
+    if (isTextFile(file)) {
+        reader.readAsText(file);
+    } else {
+        reader.readAsDataURL(file);
+    }
+  }, [vfsRoot, saveVfs, toast, addZipToVfs]);
+
   const updateFileInVfs = useCallback((path: string, newContent: string): VFSFile | null => {
     const newRoot: VFSDirectory = JSON.parse(JSON.stringify(vfsRoot));
     const parentDir = findParentDir(newRoot, path);
@@ -167,7 +187,10 @@ export function useVfs() {
 
     if (fileIndex > -1) {
         const fileToUpdate = parentDir.children[fileIndex] as VFSFile;
-        fileToUpdate.content = newContent;
+        // Don't update content if it's not a text file (to avoid replacing data URI with raw text)
+        if (isTextFile({name: fileToUpdate.name, type: ''} as File)) {
+            fileToUpdate.content = newContent;
+        }
         setVfsRoot(newRoot);
         saveVfs(newRoot);
         return fileToUpdate;

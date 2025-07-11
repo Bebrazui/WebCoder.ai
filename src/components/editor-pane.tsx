@@ -9,8 +9,10 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Code } from "lucide-react";
+import { X, Code, Image as ImageIcon, FileQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from 'next/image';
+import { Button } from "./ui/button";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -18,6 +20,84 @@ interface EditorPaneProps {
   onFileSelect: (path: string) => void;
   onFileChange: (path: string, newContent: string) => void;
   onFileClose: (path: string) => void;
+}
+
+const isImageFile = (path: string) => {
+    return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
+}
+
+const isKnownTextFile = (path: string) => {
+    const lang = getLanguage(path);
+    return lang !== 'plaintext' || path.endsWith('.txt') || path.endsWith('.md');
+}
+
+// Helper to get language for text files
+const getLanguage = (path: string): string => {
+    const extension = path.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'js':
+        case 'jsx':
+            return 'javascript';
+        case 'ts':
+        case 'tsx':
+            return 'typescript';
+        case 'json':
+            return 'json';
+        case 'css':
+            return 'css';
+        case 'html':
+            return 'html';
+        case 'md':
+            return 'markdown';
+        case 'py':
+            return 'python';
+        case 'java':
+            return 'java';
+        case 'c':
+        case 'h':
+            return 'c';
+        case 'cpp':
+        case 'hpp':
+            return 'cpp';
+        case 'cs':
+            return 'csharp';
+        case 'go':
+            return 'go';
+        case 'php':
+            return 'php';
+        case 'rb':
+            return 'ruby';
+        case 'rs':
+            return 'rust';
+        case 'swift':
+            return 'swift';
+        case 'kt':
+            return 'kotlin';
+        case 'yaml':
+        case 'yml':
+            return 'yaml';
+        default:
+            return 'plaintext';
+    }
+}
+
+const UnsupportedFileViewer = ({ file }: { file: VFSFile }) => {
+    const handleDownload = () => {
+        const link = document.createElement('a');
+        link.href = file.content; // Assumes content is a data URI
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
+            <FileQuestion className="h-16 w-16 mb-4" />
+            <h2 className="text-xl font-medium font-headline mb-2">Unsupported File Type</h2>
+            <p className="mb-4">Cannot display <span className="font-semibold">{file.name}</span> in the editor.</p>
+            <Button onClick={handleDownload}>Download File</Button>
+        </div>
+    )
 }
 
 export function EditorPane({
@@ -53,6 +133,7 @@ export function EditorPane({
                 "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
               )}
             >
+              {isImageFile(file.name) ? <ImageIcon className="h-4 w-4" /> : <Code className="h-4 w-4" />}
               <span>{file.name}</span>
               <button
                 onClick={(e) => {
@@ -76,11 +157,19 @@ export function EditorPane({
             value={file.path}
             className="h-full mt-0"
           >
-            <CodeEditor
-              path={file.path}
-              value={file.content}
-              onChange={(newContent) => onFileChange(file.path, newContent)}
-            />
+             {isImageFile(file.path) ? (
+                <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
+                    <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
+                </div>
+             ) : isKnownTextFile(file.path) ? (
+                <CodeEditor
+                    path={file.path}
+                    value={file.content}
+                    onChange={(newContent) => onFileChange(file.path, newContent)}
+                />
+             ) : (
+                <UnsupportedFileViewer file={file} />
+             )}
           </TabsContent>
         ))}
       </div>
