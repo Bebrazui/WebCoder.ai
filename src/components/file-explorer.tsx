@@ -18,6 +18,7 @@ import {
   Search,
   X,
   Download,
+  Github,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { GlobalSearch } from "./global-search";
+import { CloneRepositoryDialog } from "./clone-repository-dialog";
 
 interface FileExplorerProps {
   vfsRoot: VFSDirectory;
@@ -46,6 +48,7 @@ interface FileExplorerProps {
   onMoveNode: (sourcePath: string, targetDirPath: string) => void;
   onOpenFolder: () => void;
   onDownloadZip: () => void;
+  onCloneRepository: (url: string) => Promise<boolean>;
 }
 
 export function FileExplorer({
@@ -61,10 +64,12 @@ export function FileExplorer({
   onMoveNode,
   onOpenFolder,
   onDownloadZip,
+  onCloneRepository,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -93,81 +98,93 @@ export function FileExplorer({
   };
 
   return (
-    <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full">
-      <div className="p-2 border-b border-sidebar-border">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-lg font-headline font-semibold">Explorer</h2>
-            <div className="flex items-center">
-               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}>
-                  <Download className="h-4 w-4" />
-                  <span className="sr-only">Download as ZIP</span>
-               </Button>
-               <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                     {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                     <span className="sr-only">Toggle Search</span>
-                  </Button>
-               </CollapsibleTrigger>
+    <>
+      <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full">
+        <div className="p-2 border-b border-sidebar-border">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-headline font-semibold">Explorer</h2>
+              <div className="flex items-center">
+                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}>
+                    <Download className="h-4 w-4" />
+                    <span className="sr-only">Download as ZIP</span>
+                 </Button>
+                 <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                       {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                       <span className="sr-only">Toggle Search</span>
+                    </Button>
+                 </CollapsibleTrigger>
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="mr-2 h-4 w-4" /> File
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => zipInputRef.current?.click()}>
-              <FileArchive className="mr-2 h-4 w-4" /> ZIP
-            </Button>
-             <Button size="sm" variant="secondary" onClick={onOpenFolder}>
-              <FolderSearch className="mr-2 h-4 w-4" /> Folder
-            </Button>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-            <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
-          </div>
-      </div>
-      
-      <CollapsibleContent>
-        <div className="border-b border-sidebar-border">
-          <GlobalSearch vfsRoot={vfsRoot} onSelectFile={onSelectFile} />
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant="secondary" onClick={onOpenFolder}>
+                <FolderSearch className="mr-2 h-4 w-4" /> Folder
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setIsCloneDialogOpen(true)}>
+                <Github className="mr-2 h-4 w-4" /> Clone
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" /> File
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => zipInputRef.current?.click()}>
+                <FileArchive className="mr-2 h-4 w-4" /> ZIP
+              </Button>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+              <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
+            </div>
         </div>
-      </CollapsibleContent>
+        
+        <CollapsibleContent>
+          <div className="border-b border-sidebar-border">
+            <GlobalSearch vfsRoot={vfsRoot} onSelectFile={onSelectFile} />
+          </div>
+        </CollapsibleContent>
 
-      <ScrollArea className="flex-grow">
-        <div className="p-2 text-sm">
-          {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-6 w-5/6 ml-4" />
-              <Skeleton className="h-6 w-4/6" />
-              <Skeleton className="h-6 w-5/6 ml-4" />
-              <Skeleton className="h-6 w-3/6 ml-4" />
-            </div>
-          ) : (
-            <ContextMenu>
-              <ContextMenuTrigger>
-                <ExplorerNode 
-                  node={vfsRoot} 
-                  onSelectFile={onSelectFile} 
-                  level={0}
-                  onNewFile={onNewFile}
-                  onNewFolder={onNewFolder}
-                  onRenameNode={onRenameNode}
-                  onDeleteNode={onDeleteNode}
-                  onMoveNode={onMoveNode}
-                />
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                  <ContextMenuItem onClick={handleNewFile}>
-                    <FilePlus className="mr-2 h-4 w-4" /> New File
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={handleNewFolder}>
-                    <FolderPlus className="mr-2 h-4 w-4" /> New Folder
-                  </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          )}
-        </div>
-      </ScrollArea>
-    </Collapsible>
+        <ScrollArea className="flex-grow">
+          <div className="p-2 text-sm">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-5/6 ml-4" />
+                <Skeleton className="h-6 w-4/6" />
+                <Skeleton className="h-6 w-5/6 ml-4" />
+                <Skeleton className="h-6 w-3/6 ml-4" />
+              </div>
+            ) : (
+              <ContextMenu>
+                <ContextMenuTrigger>
+                  <ExplorerNode 
+                    node={vfsRoot} 
+                    onSelectFile={onSelectFile} 
+                    level={0}
+                    onNewFile={onNewFile}
+                    onNewFolder={onNewFolder}
+                    onRenameNode={onRenameNode}
+                    onDeleteNode={onDeleteNode}
+                    onMoveNode={onMoveNode}
+                  />
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                    <ContextMenuItem onClick={handleNewFile}>
+                      <FilePlus className="mr-2 h-4 w-4" /> New File
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={handleNewFolder}>
+                      <FolderPlus className="mr-2 h-4 w-4" /> New Folder
+                    </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            )}
+          </div>
+        </ScrollArea>
+      </Collapsible>
+      <CloneRepositoryDialog 
+        open={isCloneDialogOpen} 
+        onOpenChange={setIsCloneDialogOpen}
+        onClone={onCloneRepository}
+      />
+    </>
   );
 }
 

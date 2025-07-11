@@ -45,6 +45,7 @@ export function Ide() {
     moveNodeInVfs,
     openFolderWithApi,
     downloadVfsAsZip,
+    cloneRepository,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -241,13 +242,25 @@ export function Ide() {
     }
   };
 
-  const handleOpenFolder = async () => {
-    const success = await openFolderWithApi();
-    if (success) {
+  const resetEditorState = () => {
       setOpenFiles([]);
       setActiveFilePath(null);
       setDirtyFiles(new Set());
+  }
+
+  const handleOpenFolder = async () => {
+    const success = await openFolderWithApi();
+    if (success) {
+      resetEditorState();
     }
+  }
+
+  const handleCloneRepo = async (url: string) => {
+    const success = await cloneRepository(url);
+    if (success) {
+      resetEditorState();
+    }
+    return success;
   }
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
@@ -271,6 +284,7 @@ export function Ide() {
                 onMoveNode={handleMoveNode}
                 onOpenFolder={handleOpenFolder}
                 onDownloadZip={downloadVfsAsZip}
+                onCloneRepository={handleCloneRepo}
               />
             </SidebarContent>
         </Sidebar>

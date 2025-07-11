@@ -8,12 +8,15 @@ import type { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
 import { createDirectory, createFile } from "@/lib/vfs";
 import { useToast } from "./use-toast";
 import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { dataURIToArrayBuffer } from "@/lib/utils";
 
 
 const VFS_KEY = "webcoder-vfs-root";
 const GIT_FS_NAME = "webcoder-git-fs";
+const GIT_DIR = '/';
+const CORS_PROXY = 'https://cors.isomorphic-git.org';
 
 const defaultRoot: VFSDirectory = createDirectory("Project", "/");
 defaultRoot.children.push(createFile(
@@ -25,6 +28,7 @@ This is a web-based code editor with AI capabilities.
 
 **Features:**
 
+*   **GitHub Integration:** Clone public repositories directly from GitHub.
 *   **File System Access API:** Open local folders directly (click "Folder" in the explorer).
 *   **File Explorer:** Manage your files and folders on the left.
 *   **ZIP Support:** Upload a .zip archive to unpack a project.
@@ -92,6 +96,49 @@ export function useVfs() {
   const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [currentBranch, setCurrentBranch] = useState('main');
 
+  const getGitBranch = useCallback(async () => {
+    try {
+        const branch = await git.currentBranch({ fs, dir: GIT_DIR });
+        setCurrentBranch(branch || 'main');
+    } catch (e) {
+        // Not a git repository or other error
+        setCurrentBranch('main');
+        console.log("Could not get git branch", e);
+    }
+  }, []);
+
+  const syncLfsToVfs = useCallback(async (): Promise<VFSDirectory> => {
+      const readDir = async (dirPath: string): Promise<VFSNode[]> => {
+          const entries = await pfs.readdir(dirPath);
+          const nodes: VFSNode[] = [];
+          for (const entry of entries) {
+              if (entry === '.' || entry === '..') continue;
+
+              const fullPath = `${dirPath === '/' ? '' : dirPath}/${entry}`;
+              const stats = await pfs.stat(fullPath);
+              const vfsPath = fullPath;
+              
+              if (stats.isDirectory()) {
+                  const dirNode = createDirectory(entry, vfsPath);
+                  dirNode.children = await readDir(fullPath);
+                  nodes.push(dirNode);
+              } else {
+                  const content = await pfs.readFile(fullPath);
+                  const newFile = createFile(entry, vfsPath, new TextDecoder().decode(content));
+                  // Here we could try to detect binary files and convert to data URI
+                  nodes.push(newFile);
+              }
+          }
+          return nodes;
+      };
+
+      const repoName = vfsRoot.name || 'cloned-repo';
+      const rootDir = createDirectory(repoName, '/');
+      rootDir.children = await readDir('/');
+      return rootDir;
+  }, [vfsRoot.name]);
+
+
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
     try {
       // Clear existing fs
@@ -107,25 +154,29 @@ export function useVfs() {
             }
           }
         } catch (e) {
-          // In some cases, recursive rmdir might fail on first pass
-          // Let's try to delete files inside first
-          if (e.code === 'ENOTEMPTY') {
-            const subEntries = await pfs.readdir(`/${entry}`);
-             for(const subEntry of subEntries) {
-                await pfs.unlink(`/${entry}/${subEntry}`);
+          if (e.code === 'ENOTEMPTY' || e.code === 'EPERM') {
+             try {
+                const subEntries = await pfs.readdir(`/${entry}`);
+                for (const subEntry of subEntries) {
+                    await pfs.unlink(`/${entry}/${subEntry}`);
+                }
+                await pfs.rmdir(`/${entry}`);
+             } catch(e2) {
+                 console.error("Failed to clean sub-directory", e2)
              }
-             await pfs.rmdir(`/${entry}`);
+          } else {
+            console.error("Error clearing lightning-fs entry", e);
           }
         }
       }
     } catch(e) {
-        console.error("Error clearing lightning-fs", e);
+        console.error("Error clearing lightning-fs root", e);
     }
     
     const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
         const currentPath = `${pathPrefix}/${node.name}`;
         if (node.type === 'directory') {
-            await pfs.mkdir(currentPath);
+            await pfs.mkdir(currentPath, { recursive: true });
             for (const child of node.children) {
                 await syncNode(child, currentPath);
             }
@@ -143,17 +194,6 @@ export function useVfs() {
     // Sync children of the root to avoid a wrapping folder.
     for (const child of root.children) {
         await syncNode(child, '');
-    }
-  }, []);
-
-  const getGitBranch = useCallback(async () => {
-    try {
-        const branch = await git.currentBranch({ fs, dir: '/' });
-        setCurrentBranch(branch || 'main');
-    } catch (e) {
-        // Not a git repository or other error
-        setCurrentBranch('main');
-        console.log("Could not get git branch", e);
     }
   }, []);
 
@@ -634,6 +674,42 @@ export function useVfs() {
     }
   }, [vfsRoot, toast]);
 
+  const cloneRepository = useCallback(async (url: string): Promise<boolean> => {
+    setLoading(true);
+    setDirectoryHandle(null);
+    const repoName = url.split('/').pop()?.replace('.git', '') || 'cloned-repo';
+    toast({ title: 'Cloning...', description: `Cloning ${repoName}...` });
+
+    try {
+        await git.clone({
+            fs,
+            http,
+            dir: GIT_DIR,
+            url,
+            corsProxy: CORS_PROXY,
+            singleBranch: true,
+            depth: 10,
+        });
+
+        const newRoot = await syncLfsToVfs();
+        newRoot.name = repoName;
+
+        setVfsRoot(newRoot);
+        await saveVfs(newRoot);
+        
+        await getGitBranch();
+        
+        toast({ title: 'Clone successful', description: `Repository ${repoName} cloned.` });
+        return true;
+    } catch (e) {
+        console.error("Clone failed", e);
+        toast({ variant: 'destructive', title: 'Clone failed', description: e.message });
+        return false;
+    } finally {
+        setLoading(false);
+    }
+  }, [toast, getGitBranch, saveVfs, syncLfsToVfs]);
+
 
   return { 
     vfsRoot, 
@@ -650,5 +726,6 @@ export function useVfs() {
     moveNodeInVfs,
     openFolderWithApi,
     downloadVfsAsZip,
+    cloneRepository,
   };
 }
