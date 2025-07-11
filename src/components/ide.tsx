@@ -28,6 +28,7 @@ export function Ide() {
     renameNodeInVfs,
     deleteNodeInVfs,
     moveNodeInVfs,
+    openFolderWithApi,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -212,6 +213,16 @@ export function Ide() {
     }
   };
 
+  const handleOpenFolder = async () => {
+    const success = await openFolderWithApi();
+    if (success) {
+      // Reset editor state
+      setOpenFiles([]);
+      setActiveFilePath(null);
+      setDirtyFiles(new Set());
+    }
+  }
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
@@ -231,6 +242,7 @@ export function Ide() {
               onRenameNode={handleRenameNode}
               onDeleteNode={handleDeleteNode}
               onMoveNode={handleMoveNode}
+              onOpenFolder={handleOpenFolder}
             />
           </SidebarContent>
         </Sidebar>

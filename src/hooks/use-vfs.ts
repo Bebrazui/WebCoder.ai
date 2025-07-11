@@ -19,6 +19,7 @@ This is a web-based code editor with AI capabilities.
 
 **Features:**
 
+*   **File System Access API:** Open local folders directly (click "Folder" in the explorer).
 *   **File Explorer:** Manage your files and folders on the left.
 *   **ZIP Support:** Upload a .zip archive to unpack a project.
 *   **File Upload:** Upload individual files.
@@ -28,24 +29,24 @@ This is a web-based code editor with AI capabilities.
 
 **New:** Right-click on files/folders in the explorer to create, rename, or delete.
 
-Get started by uploading your files or a ZIP archive using the buttons in the explorer.
+Get started by opening a local folder, or by uploading your files or a ZIP archive using the buttons in the explorer.
 `
 ));
 
 const isTextFile = (file: {name: string, type?: string, content?: string}) => {
-    // Check MIME type first if available
-    if (file.content?.startsWith('data:image')) return false;
-
-    // By default, assume it's a text file unless it has a common binary extension or data URI
-    if (file.content && file.content.startsWith('data:')) {
-      const mime = file.content.substring(5, file.content.indexOf(';'));
-      if (!mime.startsWith('text')) {
+    // Explicitly treat image files as non-text
+    if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(file.name)) {
         return false;
-      }
     }
     
-    // Fallback to file extension for a few common non-text types
-    return !/\.(zip|exe|dll|bin|dat|sav|img|iso|tar|gz|7z|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(file.name);
+    // Check data URI mime type if available
+    if (file.content && file.content.startsWith('data:')) {
+        const mime = file.content.substring(5, file.content.indexOf(';'));
+        return mime.startsWith('text/') || !mime.includes('/');
+    }
+    
+    // By default, assume it's a text file
+    return true;
 }
 
 
@@ -413,6 +414,65 @@ export function useVfs() {
     return newPath ? { newPath } : null;
   }, [saveVfs, toast]);
 
+  const openFolderWithApi = useCallback(async (): Promise<boolean> => {
+    try {
+        const dirHandle = await window.showDirectoryPicker();
+        setLoading(true);
+
+        const processHandle = async (handle: FileSystemDirectoryHandle | FileSystemFileHandle, path: string): Promise<VFSNode | null> => {
+            if (handle.kind === 'file') {
+                const file = await handle.getFile();
+                const content = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    if (isTextFile({name: file.name, type: file.type})) {
+                        reader.readAsText(file);
+                    } else {
+                        reader.readAsDataURL(file);
+                    }
+                });
+                return createFile(handle.name, path, content);
+            }
+            if (handle.kind === 'directory') {
+                const dir = createDirectory(handle.name, path);
+                const children: VFSNode[] = [];
+                for await (const entry of handle.values()) {
+                    const childPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
+                    const childNode = await processHandle(entry, childPath);
+                    if (childNode) {
+                        children.push(childNode);
+                    }
+                }
+                dir.children = children;
+                return dir;
+            }
+            return null;
+        }
+
+        const newRoot = await processHandle(dirHandle, '/');
+        if (newRoot && newRoot.type === 'directory') {
+            newRoot.name = dirHandle.name; // Use the actual directory name for the root
+            setVfsRoot(newRoot);
+            saveVfs(newRoot); // Persist the new VFS structure
+            toast({ title: "Folder opened", description: `Opened "${dirHandle.name}" successfully.`});
+            return true;
+        }
+        return false;
+
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            // User cancelled the picker, do nothing.
+        } else {
+            console.error("File System Access API error:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not open folder. Your browser might not support this feature."});
+        }
+        return false;
+    } finally {
+        setLoading(false);
+    }
+  }, [saveVfs, toast]);
+
 
   return { 
     vfsRoot, 
@@ -426,5 +486,6 @@ export function useVfs() {
     renameNodeInVfs,
     deleteNodeInVfs,
     moveNodeInVfs,
+    openFolderWithApi,
   };
 }

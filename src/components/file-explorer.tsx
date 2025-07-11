@@ -13,6 +13,7 @@ import {
   FolderPlus,
   Edit,
   Trash2,
+  FolderSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -37,6 +38,7 @@ interface FileExplorerProps {
   onRenameNode: (node: VFSNode, newName: string) => void;
   onDeleteNode: (node: VFSNode) => void;
   onMoveNode: (sourcePath: string, targetDirPath: string) => void;
+  onOpenFolder: () => void;
 }
 
 export function FileExplorer({
@@ -50,6 +52,7 @@ export function FileExplorer({
   onRenameNode,
   onDeleteNode,
   onMoveNode,
+  onOpenFolder,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -84,12 +87,15 @@ export function FileExplorer({
     <div className="flex flex-col h-full">
       <div className="p-2 border-b border-sidebar-border">
           <h2 className="text-lg font-headline font-semibold">Explorer</h2>
-          <div className="flex gap-2 mt-2">
-            <Button size="sm" variant="secondary" className="w-full" onClick={() => fileInputRef.current?.click()}>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
               <Upload className="mr-2 h-4 w-4" /> File
             </Button>
-            <Button size="sm" variant="secondary" className="w-full" onClick={() => zipInputRef.current?.click()}>
+            <Button size="sm" variant="secondary" onClick={() => zipInputRef.current?.click()}>
               <FileArchive className="mr-2 h-4 w-4" /> ZIP
+            </Button>
+             <Button size="sm" variant="secondary" onClick={onOpenFolder}>
+              <FolderSearch className="mr-2 h-4 w-4" /> Folder
             </Button>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
             <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
