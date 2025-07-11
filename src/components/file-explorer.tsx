@@ -28,6 +28,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { GlobalSearch } from "./global-search";
@@ -364,5 +365,6 @@ const ExplorerNode = ({
     </ContextMenu>
   );
 };
+    
 
     
