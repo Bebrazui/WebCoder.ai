@@ -158,18 +158,18 @@ export function FileExplorer({
         </CollapsibleContent>
 
         <ScrollArea className="flex-grow">
-          <div className="p-2 text-sm">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-5/6 ml-4" />
-                <Skeleton className="h-6 w-4/6" />
-                <Skeleton className="h-6 w-5/6 ml-4" />
-                <Skeleton className="h-6 w-3/6 ml-4" />
-              </div>
-            ) : (
-              <ContextMenu>
-                <ContextMenuTrigger>
+          <ContextMenu>
+            <ContextMenuTrigger className="h-full">
+              <div className="p-2 text-sm h-full">
+                {loading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-5/6 ml-4" />
+                    <Skeleton className="h-6 w-4/6" />
+                    <Skeleton className="h-6 w-5/6 ml-4" />
+                    <Skeleton className="h-6 w-3/6 ml-4" />
+                  </div>
+                ) : (
                   <ExplorerNode 
                     node={vfsRoot} 
                     onSelectFile={onSelectFile} 
@@ -180,18 +180,18 @@ export function FileExplorer({
                     onDeleteNode={onDeleteNode}
                     onMoveNode={onMoveNode}
                   />
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                    <ContextMenuItem onClick={handleNewFile}>
-                      <FilePlus className="mr-2 h-4 w-4" /> New File
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={handleNewFolder}>
-                      <FolderPlus className="mr-2 h-4 w-4" /> New Folder
-                    </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            )}
-          </div>
+                )}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+                <ContextMenuItem onClick={handleNewFile}>
+                  <FilePlus className="mr-2 h-4 w-4" /> New File
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleNewFolder}>
+                  <FolderPlus className="mr-2 h-4 w-4" /> New Folder
+                </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         </ScrollArea>
       </Collapsible>
       <CloneRepositoryDialog 
