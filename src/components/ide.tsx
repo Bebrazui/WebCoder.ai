@@ -27,6 +27,7 @@ export function Ide() {
     createDirectoryInVfs,
     renameNodeInVfs,
     deleteNodeInVfs,
+    moveNodeInVfs,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -176,6 +177,41 @@ export function Ide() {
     deleteNodeInVfs(node);
   }
 
+  const handleMoveNode = (sourcePath: string, targetDirPath: string) => {
+    const result = moveNodeInVfs(sourcePath, targetDirPath);
+    if (!result) return;
+    
+    const { newPath } = result;
+    
+    // Update paths for open files
+    setOpenFiles(prev => prev.map(file => {
+      if (file.path === sourcePath) { // it's the moved file itself
+        return {...file, path: newPath };
+      }
+      if (file.path.startsWith(sourcePath + '/')) { // it's a file inside a moved directory
+        return { ...file, path: newPath + file.path.substring(sourcePath.length) };
+      }
+      return file;
+    }));
+
+    // Update dirty files set
+    if (dirtyFiles.has(sourcePath)) {
+        setDirtyFiles(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(sourcePath);
+            newSet.add(newPath);
+            return newSet;
+        });
+    }
+
+    // Update active file path
+    if (activeFilePath === sourcePath) {
+        setActiveFilePath(newPath);
+    } else if (activeFilePath?.startsWith(sourcePath + '/')) {
+        setActiveFilePath(newPath + activeFilePath.substring(sourcePath.length));
+    }
+  };
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
@@ -194,6 +230,7 @@ export function Ide() {
               onNewFolder={createDirectoryInVfs}
               onRenameNode={handleRenameNode}
               onDeleteNode={handleDeleteNode}
+              onMoveNode={handleMoveNode}
             />
           </SidebarContent>
         </Sidebar>

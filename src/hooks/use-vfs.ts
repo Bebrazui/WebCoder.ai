@@ -24,6 +24,7 @@ This is a web-based code editor with AI capabilities.
 *   **File Upload:** Upload individual files.
 *   **AI Code Transformer:** Select a piece of code, click the 'AI Transform' button, and tell the AI what to do!
 *   **Persistence:** Your file system is saved in your browser, so it will be here when you come back.
+*   **Drag & Drop:** Move files and folders around in the explorer.
 
 **New:** Right-click on files/folders in the explorer to create, rename, or delete.
 
@@ -33,26 +34,26 @@ Get started by uploading your files or a ZIP archive using the buttons in the ex
 
 const isTextFile = (file: {name: string, type?: string, content?: string}) => {
     // Check MIME type first if available
-    if (file.type?.startsWith('text/')) {
-        return true;
+    if (file.content?.startsWith('data:image')) return false;
+
+    // By default, assume it's a text file unless it has a common binary extension or data URI
+    if (file.content && file.content.startsWith('data:')) {
+      const mime = file.content.substring(5, file.content.indexOf(';'));
+      if (!mime.startsWith('text')) {
+        return false;
+      }
     }
-    // Check if content is not a data URI for binary data
-    if (file.content && file.content.startsWith('data:') && !file.content.startsWith('data:text')) {
-        const mime = file.content.substring(5, file.content.indexOf(';'));
-        if (!mime.startsWith('image')) { // Since images are handled separately
-            return false;
-        }
-    }
-    // Fallback to file extension for broader text-like file matching, or if it has no extension
-    return !/\.(jpg|jpeg|png|gif|webp|zip|exe|dll|bin|dat|sav|img|iso|tar|gz|7z)$/i.test(file.name);
+    
+    // Fallback to file extension for a few common non-text types
+    return !/\.(zip|exe|dll|bin|dat|sav|img|iso|tar|gz|7z|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(file.name);
 }
 
 
-const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; parent: VFSDirectory } | null => {
+const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; parent: VFSDirectory | null } | null => {
   const parts = path.split('/').filter(p => p);
   let currentDir: VFSDirectory = root;
   
-  if (path === '/') return { node: root, parent: root };
+  if (path === '/') return { node: root, parent: null };
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -204,6 +205,12 @@ export function useVfs() {
         if (parentDirResult && parentDirResult.node.type === 'directory') {
           const targetDir = parentDirResult.node;
           const newPath = targetDir.path === '/' ? `/${file.name}` : `${targetDir.path}/${file.name}`;
+          
+          if (targetDir.children.some((c: VFSNode) => c.name === file.name)) {
+            toast({ variant: "destructive", title: "Error", description: `A file named "${file.name}" already exists.`});
+            return currentRoot;
+          }
+
           const newFile = createFile(file.name, newPath, content);
 
           const existingIndex = targetDir.children.findIndex((child: VFSNode) => child.name === file.name);
@@ -220,9 +227,7 @@ export function useVfs() {
       });
     };
     
-    // Always read as Data URL unless we are sure it is text.
-    // A more robust check might be needed for edge cases.
-    if (/^(text\/|application\/(javascript|json|xml))/.test(file.type)) {
+    if (isTextFile({name: file.name, type: file.type})) {
        reader.readAsText(file);
     } else {
        reader.readAsDataURL(file);
@@ -236,7 +241,6 @@ export function useVfs() {
         const result = findNodeAndParent(newRoot, path);
 
         if (result && result.node.type === 'file') {
-            // Only update if it's a text-editable file
             if (isTextFile(result.node)) {
               result.node.content = newContent;
             }
@@ -321,13 +325,10 @@ export function useVfs() {
 
         const nodeToRename = result.parent.children.find(c => c.path === node.path)!;
         const oldPath = nodeToRename.path;
-        const pathParts = oldPath.split('/');
-        pathParts[pathParts.length - 1] = newName;
-        newPath = pathParts.join('/');
         
         // Recursively update children paths if it's a directory
         const updateChildrenPaths = (dir: VFSNode, newParentPath: string) => {
-          dir.path = `${newParentPath}/${dir.name}`;
+          dir.path = newParentPath === '/' ? `/${dir.name}`: `${newParentPath}/${dir.name}`;
           if (dir.type === 'directory') {
             dir.children.forEach(child => {
               updateChildrenPaths(child, dir.path);
@@ -336,8 +337,9 @@ export function useVfs() {
         };
         
         nodeToRename.name = newName;
-        const parentPath = newPath.substring(0, newPath.lastIndexOf('/')) || '/';
-        updateChildrenPaths(nodeToRename, parentPath === '/' ? '' : parentPath);
+        const parentPath = result.parent.path;
+        updateChildrenPaths(nodeToRename, parentPath);
+        newPath = nodeToRename.path;
         
         saveVfs(newRoot);
         toast({ title: 'Renamed', description: `"${node.name}" is now "${newName}"` });
@@ -366,6 +368,51 @@ export function useVfs() {
     });
   }, [saveVfs, toast]);
 
+  const moveNodeInVfs = useCallback((sourcePath: string, targetDirPath: string): {newPath: string} | null => {
+    let newPath: string | null = null;
+    setVfsRoot(currentRoot => {
+        const newRoot = JSON.parse(JSON.stringify(currentRoot));
+        const sourceResult = findNodeAndParent(newRoot, sourcePath);
+        const targetResult = findNodeAndParent(newRoot, targetDirPath);
+
+        if (!sourceResult || !sourceResult.parent || !targetResult || targetResult.node.type !== 'directory') {
+            toast({ variant: 'destructive', title: 'Move Error', description: "Invalid source or target." });
+            return currentRoot;
+        }
+
+        const targetDir = targetResult.node;
+        const nodeToMove = sourceResult.node;
+
+        if (targetDir.children.some(c => c.name === nodeToMove.name)) {
+            toast({ variant: 'destructive', title: 'Move Error', description: `A file or folder named "${nodeToMove.name}" already exists in the target directory.` });
+            return currentRoot;
+        }
+        
+        // Remove from old parent
+        const sourceIndex = sourceResult.parent.children.findIndex(c => c.path === sourcePath);
+        sourceResult.parent.children.splice(sourceIndex, 1);
+
+        // Add to new parent and update paths
+        const oldPath = nodeToMove.path;
+        const updatePaths = (node: VFSNode, newParentPath: string) => {
+            node.path = newParentPath === '/' ? `/${node.name}` : `${newParentPath}/${node.name}`;
+            if (node.type === 'directory') {
+                node.children.forEach(child => updatePaths(child, node.path));
+            }
+        }
+
+        updatePaths(nodeToMove, targetDir.path);
+        newPath = nodeToMove.path;
+        targetDir.children.push(nodeToMove);
+        
+        saveVfs(newRoot);
+        toast({ title: 'Moved', description: `Moved "${nodeToMove.name}"` });
+        return newRoot;
+    });
+
+    return newPath ? { newPath } : null;
+  }, [saveVfs, toast]);
+
 
   return { 
     vfsRoot, 
@@ -378,5 +425,6 @@ export function useVfs() {
     createDirectoryInVfs,
     renameNodeInVfs,
     deleteNodeInVfs,
+    moveNodeInVfs,
   };
 }

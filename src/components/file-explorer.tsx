@@ -36,6 +36,7 @@ interface FileExplorerProps {
   onNewFolder: (name: string, parent: VFSDirectory) => void;
   onRenameNode: (node: VFSNode, newName: string) => void;
   onDeleteNode: (node: VFSNode) => void;
+  onMoveNode: (sourcePath: string, targetDirPath: string) => void;
 }
 
 export function FileExplorer({
@@ -48,6 +49,7 @@ export function FileExplorer({
   onNewFolder,
   onRenameNode,
   onDeleteNode,
+  onMoveNode,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +116,7 @@ export function FileExplorer({
                   onNewFolder={onNewFolder}
                   onRenameNode={onRenameNode}
                   onDeleteNode={onDeleteNode}
+                  onMoveNode={onMoveNode}
                 />
               </ContextMenuTrigger>
               <ContextMenuContent>
@@ -140,6 +143,7 @@ const ExplorerNode = ({
   onNewFolder,
   onRenameNode,
   onDeleteNode,
+  onMoveNode,
 }: {
   node: VFSNode;
   onSelectFile: (file: VFSFile) => void;
@@ -148,8 +152,10 @@ const ExplorerNode = ({
   onNewFolder: (name: string, parent: VFSDirectory) => void;
   onRenameNode: (node: VFSNode, newName: string) => void;
   onDeleteNode: (node: VFSNode) => void;
+  onMoveNode: (sourcePath: string, targetDirPath: string) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const paddingLeft = `${level * 1}rem`;
 
@@ -165,6 +171,41 @@ const ExplorerNode = ({
       onDeleteNode(node);
     }
   };
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (node.path === '/') return; // Can't drag root
+    e.dataTransfer.setData("text/plain", node.path);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (node.type === 'directory') {
+      setIsDragOver(true);
+    }
+  };
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    if(node.type !== 'directory') return;
+    
+    const sourcePath = e.dataTransfer.getData("text/plain");
+    const targetDirPath = node.path;
+    
+    // Prevent dropping a node into itself or its own children
+    if (!sourcePath || sourcePath === targetDirPath || targetDirPath.startsWith(sourcePath + '/')) {
+        return;
+    }
+    onMoveNode(sourcePath, targetDirPath);
+  };
+
 
   if (node.type === "directory") {
     const handleNewFile = () => {
@@ -185,8 +226,15 @@ const ExplorerNode = ({
     return (
       <ContextMenu>
         <ContextMenuTrigger>
-          <div>
+          <div 
+             onDragOver={handleDragOver}
+             onDragLeave={handleDragLeave}
+             onDrop={handleDrop}
+             className={cn(isDragOver && 'bg-sidebar-accent/50 rounded-md')}
+          >
             <div
+              draggable={node.path !== '/'}
+              onDragStart={handleDragStart}
               className="flex items-center p-1 rounded-md cursor-pointer hover:bg-sidebar-accent"
               style={{ paddingLeft }}
               onClick={() => setIsOpen(!isOpen)}
@@ -224,6 +272,7 @@ const ExplorerNode = ({
                                 onNewFolder={onNewFolder}
                                 onRenameNode={onRenameNode}
                                 onDeleteNode={onDeleteNode}
+                                onMoveNode={onMoveNode}
                             />
                     ))
                 ) : (
@@ -259,6 +308,8 @@ const ExplorerNode = ({
     <ContextMenu>
         <ContextMenuTrigger>
             <div
+                draggable
+                onDragStart={handleDragStart}
                 className="flex items-center p-1 rounded-md cursor-pointer hover:bg-sidebar-accent"
                 style={{ paddingLeft }}
                 onClick={() => onSelectFile(node)}
