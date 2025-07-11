@@ -30,11 +30,6 @@ export function TerminalView() {
 
             xterm.open(terminalRef.current);
 
-            // Defer the initial fit to ensure the container has dimensions
-            requestAnimationFrame(() => {
-                fitAddon.current?.fit();
-            });
-
             xterm.writeln('Welcome to WebCoder.ai Terminal!');
             xterm.writeln('This is a simulated terminal environment.');
             xterm.write('$ ');
@@ -54,11 +49,25 @@ export function TerminalView() {
             term.current = xterm;
 
             const resizeObserver = new ResizeObserver(() => {
-                fitAddon.current?.fit();
+                // Defer fit to next frame to avoid issues with container size
+                requestAnimationFrame(() => {
+                    try {
+                        fitAddon.current?.fit();
+                    } catch (e) {
+                        // This can sometimes fail if the terminal is not visible, we can ignore it.
+                    }
+                });
             });
+
             if (terminalRef.current) {
                 resizeObserver.observe(terminalRef.current);
             }
+
+            // Initial fit
+            requestAnimationFrame(() => {
+                fitAddon.current?.fit();
+            });
+
 
             return () => {
                 resizeObserver.disconnect();
@@ -68,5 +77,5 @@ export function TerminalView() {
         }
     }, []);
 
-    return <div ref={terminalRef} className="h-full w-full" />;
+    return <div ref={terminalRef} className="h-full w-full p-2" />;
 }

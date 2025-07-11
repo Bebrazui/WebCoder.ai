@@ -287,7 +287,7 @@ export function Ide() {
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
   return (
-    <div className="h-screen w-screen bg-background text-foreground flex flex-col">
+    <div className="h-screen w-screen bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
       <MenuBar 
         onNewFile={handleNewFile}
         onNewFolder={handleNewFolder}
@@ -296,7 +296,7 @@ export function Ide() {
         onDownloadZip={downloadVfsAsZip}
         onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
       />
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0">
         <SidebarProvider>
           <Sidebar>
               <SidebarContent className="p-0">
@@ -323,7 +323,7 @@ export function Ide() {
         
           <main className="flex-1 flex flex-col min-w-0 h-full">
             <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100}>
+              <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100} minSize={20}>
                 <EditorPane
                     openFiles={openFiles}
                     activeFilePath={activeFilePath}
