@@ -42,6 +42,7 @@ export function FileIcon({ filename, ...props }: FileIconProps) {
     case "py":
       return <FileCode {...props} color="#3776ab" />; // Python Blue
     case "java":
+    case "class":
       return <FileCode {...props} color="#f89820" />; // Oracle Orange
     case "cs":
       return <FileCode {...props} color="#68217a" />; // C# Purple

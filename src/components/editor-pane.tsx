@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { Button } from "./ui/button";
 import { HexViewer } from "./hex-viewer";
+import { FileIcon } from "./file-icon";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -91,15 +92,6 @@ const AudioPlayer = ({ file }: { file: VFSFile }) => {
     );
 };
 
-const getFileIcon = (file: VFSFile, viewMode?: ViewMode) => {
-    if (isImageFile(file.path)) return <ImageIcon className="h-4 w-4" />;
-    if (isAudioFile(file.path)) return <FileAudio className="h-4 w-4" />;
-    if (viewMode === 'hex' || (viewMode !== 'code' && isPotentiallyBinary(file))) {
-        return <Database className="h-4 w-4" />;
-    }
-    return <Code className="h-4 w-4" />;
-}
-
 
 export function EditorPane({
   openFiles,
@@ -128,7 +120,20 @@ export function EditorPane({
   }
 
   const renderFileContent = (file: VFSFile) => {
-    const viewMode = viewModes[file.path] || 'picker';
+    let viewMode = viewModes[file.path];
+
+    if (!viewMode) {
+        if (isImageFile(file.path) || isAudioFile(file.path)) {
+            viewMode = 'code'; // Special handling below, not a real mode
+        } else if (/\.class$/i.test(file.path)) {
+            viewMode = 'hex';
+        } else if (isPotentiallyBinary(file)) {
+            viewMode = 'picker';
+        } else {
+            viewMode = 'code';
+        }
+    }
+
 
     if (isImageFile(file.path)) {
         return <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
@@ -140,7 +145,7 @@ export function EditorPane({
         return <AudioPlayer file={file} />;
     }
 
-    if (isPotentiallyBinary(file) && viewMode === 'picker') {
+    if (viewMode === 'picker') {
         return <UnsupportedFileViewer file={file} onSelectView={(mode) => setViewModeForFile(file.path, mode)} />;
     }
     
@@ -160,10 +165,6 @@ export function EditorPane({
     <Tabs
       value={activeFilePath || ""}
       onValueChange={(path) => {
-        const file = openFiles.find(f => f.path === path);
-        if (file && !viewModes[path] && !isImageFile(path) && !isAudioFile(path) && !isPotentiallyBinary(file)) {
-          setViewModeForFile(path, 'code');
-        }
         onFileSelect(path);
       }}
       className="flex flex-col h-full bg-background"
@@ -181,7 +182,7 @@ export function EditorPane({
                     "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
                   )}
                 >
-                  {getFileIcon(file, viewModes[file.path])}
+                  <FileIcon filename={file.name} className="h-4 w-4" />
                   <span>{file.name}</span>
                   {isDirty && (
                       <div className="flex items-center gap-1 ml-1">
