@@ -13,7 +13,9 @@ import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
-import { Button } from "./ui/button";
+import { TerminalView } from "./terminal";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+
 
 export function Ide() {
   const { 
@@ -33,6 +35,7 @@ export function Ide() {
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
   const handleSelectFile = useCallback((file: VFSFile) => {
     // Check if the file is already open by comparing its path.
@@ -252,17 +255,31 @@ export function Ide() {
                 <h1 className="font-headline font-semibold text-lg tracking-tight">WebCoder.ai</h1>
             </header>
             <main className="flex-1 p-4 min-h-0">
-                <EditorPane
-                    openFiles={openFiles}
-                    activeFilePath={activeFilePath}
-                    dirtyFiles={dirtyFiles}
-                    onFileSelect={setActiveFilePath}
-                    onFileChange={handleFileChange}
-                    onFileClose={handleFileClose}
-                    onFileSave={handleSaveFile}
-                />
+              <Collapsible open={isTerminalOpen} onOpenChange={setIsTerminalOpen} className="flex flex-col h-full">
+                <div className="flex-grow">
+                  <EditorPane
+                      openFiles={openFiles}
+                      activeFilePath={activeFilePath}
+                      dirtyFiles={dirtyFiles}
+                      onFileSelect={setActiveFilePath}
+                      onFileChange={handleFileChange}
+                      onFileClose={handleFileClose}
+                      onFileSave={handleSaveFile}
+                  />
+                </div>
+                <CollapsibleContent>
+                    <div className="h-64 mt-4">
+                        <TerminalView />
+                    </div>
+                </CollapsibleContent>
+              </Collapsible>
             </main>
-            <StatusBar activeFile={activeFile} isDirty={isFileDirty} />
+            <StatusBar 
+              activeFile={activeFile} 
+              isDirty={isFileDirty}
+              onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
+              isTerminalOpen={isTerminalOpen} 
+            />
         </div>
       </SidebarProvider>
     </div>
