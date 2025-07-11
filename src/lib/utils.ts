@@ -7,7 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function dataURIToArrayBuffer(dataURI: string): ArrayBuffer {
   if (!dataURI.startsWith('data:')) {
-    throw new Error('Invalid data URI format');
+    // Fallback for plain text content
+    const encoder = new TextEncoder();
+    return encoder.encode(dataURI).buffer;
   }
 
   const base64Marker = ';base64,';
