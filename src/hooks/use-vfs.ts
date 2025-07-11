@@ -94,19 +94,6 @@ export type GitStatus = {
     status: 'new' | 'modified' | 'deleted' | 'unmodified';
 };
 
-const GIT_STATUS_MAP = {
-  // [HEAD, WORKDIR, STAGE]
-  '*modified': 'modified',
-  '*deleted': 'deleted',
-  '*added': 'new',
-  'modified': 'modified',
-  'deleted': 'deleted',
-  'added': 'new',
-  'unmodified': 'unmodified',
-  'absent': 'deleted',
-  'new': 'new',
-};
-
 
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
@@ -120,31 +107,19 @@ export function useVfs() {
   const getGitStatus = useCallback(async () => {
     setIsGitStatusLoading(true);
     try {
-      const statuses = await git.status({ fs, dir: GIT_DIR, filepaths: [''] });
       const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
 
       const detailedStatuses = matrix.map(([filepath, head, workdir, stage]) => {
-        let status: GitStatus['status'] = 'unmodified';
-
-        // Stolen from Isomorphic-Git docs
-        const getStatus = (head: number, workdir: number, stage: number) => {
-            if (head === 0 && workdir === 2 && stage === 0) return 'new';        // new, untracked
-            if (head === 0 && workdir === 2 && stage === 2) return 'new';        // new, added
-            if (head === 1 && workdir === 2 && stage === 1) return 'modified';   // modified, unstaged
-            if (head === 1 && workdir === 2 && stage === 2) return 'modified';   // modified, staged
-            if (head === 1 && workdir === 0 && stage === 1) return 'deleted';    // deleted, unstaged
-            if (head === 1 && workdir === 0 && stage === 0) return 'deleted';    // deleted, staged
-            if (head === 1 && workdir === 1 && stage === 1) return 'unmodified'; // unmodified
-            return null;
-        }
-
-        const calculatedStatus = getStatus(head, workdir, stage);
-        if (calculatedStatus) {
-            return { filepath, status: calculatedStatus };
-        }
-        return null;
-
-      }).filter((s): s is GitStatus => s !== null && s.status !== 'unmodified');
+        // Based on https://isomorphic-git.org/docs/en/statusMatrix
+        if (workdir === 0) return { filepath, status: 'deleted' as const };
+        if (head === 0 && workdir > 0) return { filepath, status: 'new' as const };
+        if (stage === 0) return { filepath, status: 'modified' as const };
+        // Any other combination that reaches here could be more complex (e.g. conflicts)
+        // but for our purposes, we'll mark as modified if there's a diff.
+        if (head > 0 && workdir > 0 && head !== workdir) return { filepath, status: 'modified' as const };
+        
+        return { filepath, status: 'unmodified' as const };
+      }).filter((s) => s.status !== 'unmodified');
         
         setGitStatus(detailedStatuses);
     } catch (e) {
@@ -163,7 +138,6 @@ export function useVfs() {
     } catch (e) {
         // Not a git repository or other error
         setCurrentBranch('main');
-        console.log("Could not get git branch", e);
     }
   }, []);
 
@@ -203,35 +177,7 @@ export function useVfs() {
 
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
-    // Preserve .git directory
-    let gitDirBackup;
-    try {
-      gitDirBackup = await pfs.readFile('/.git');
-    } catch (e) {
-      // no .git dir, that's fine
-    }
-
-
-    try {
-      // Clear existing fs
-      const entries = await pfs.readdir('/');
-      for (const entry of entries) {
-        if (entry === '.' || entry === '..') continue;
-        const fullPath = `/${entry}`;
-        try {
-            const stat = await pfs.stat(fullPath);
-            if (stat.isDirectory()) {
-                await pfs.rmdir(fullPath, { recursive: true });
-            } else {
-                await pfs.unlink(fullPath);
-            }
-        } catch(e) {
-            console.error(`Failed to remove ${fullPath}`, e);
-        }
-      }
-    } catch(e) {
-        console.error("Error clearing lightning-fs root", e);
-    }
+    await fs.init(GIT_FS_NAME, { wipe: true });
     
     const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
         const currentPath = `${pathPrefix}/${node.name}`;
@@ -296,12 +242,11 @@ export function useVfs() {
     try {
       await localforage.setItem(VFS_KEY, root);
       await syncVfsToLfs(root);
-      await getGitBranch();
       await getGitStatus();
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
     }
-  }, [directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
+  }, [directoryHandle, syncVfsToLfs, getGitStatus]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
@@ -483,7 +428,7 @@ export function useVfs() {
             const result = findNodeAndParent(newRoot, file.path);
             if (result && result.node.type === 'file') {
                 result.node.content = file.content;
-                saveVfs(newRoot); // This now persists the changes
+                saveVfs(newRoot);
                 toast({ title: "File Saved", description: `${file.name} has been saved.`});
                 return newRoot;
             }
@@ -744,12 +689,11 @@ export function useVfs() {
     toast({ title: 'Cloning...', description: `Cloning ${repoName}...` });
 
     try {
-        await pfs.rmdir(GIT_DIR, { recursive: true });
+        await fs.init(GIT_FS_NAME, { wipe: true });
     } catch (e) {
         // Folder might not exist, that's okay.
     }
-    await pfs.mkdir(GIT_DIR);
-
+    
     try {
         await git.clone({
             fs,
@@ -768,17 +712,18 @@ export function useVfs() {
         await saveVfs(newRoot);
         
         await getGitBranch();
+        await getGitStatus();
         
         toast({ title: 'Clone successful', description: `Repository ${repoName} cloned.` });
         return true;
-    } catch (e) {
+    } catch (e: any) {
         console.error("Clone failed", e);
-        toast({ variant: 'destructive', title: 'Clone failed', description: e.message });
+        toast({ variant: 'destructive', title: 'Clone failed', description: e.message || 'An unknown error occurred during clone.' });
         return false;
     } finally {
         setLoading(false);
     }
-  }, [toast, getGitBranch, saveVfs, syncLfsToVfs]);
+  }, [toast, getGitBranch, getGitStatus, saveVfs, syncLfsToVfs]);
 
   const commit = useCallback(async (message: string) => {
     // Get the list of changed files
@@ -787,7 +732,7 @@ export function useVfs() {
     for (const [filepath, head, workdir] of matrix) {
         if (workdir === 0) { // Deleted
             await git.remove({ fs, dir: GIT_DIR, filepath });
-        } else if (head === 0 || workdir === 2) { // New or modified
+        } else if (head === 0 || workdir > 0) { // New or modified
             await git.add({ fs, dir: GIT_DIR, filepath });
         }
     }
