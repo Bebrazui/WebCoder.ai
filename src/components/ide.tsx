@@ -290,7 +290,7 @@ export function Ide() {
 
   return (
     <SidebarProvider>
-      <div className="h-screen w-screen bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
+      <div className="h-full w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
         <MenuBar 
           onNewFile={handleNewFile}
           onNewFolder={handleNewFolder}

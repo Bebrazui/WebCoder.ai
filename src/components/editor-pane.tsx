@@ -11,12 +11,12 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Code, Image as ImageIcon, FileQuestion, Save, Database, FileAudio } from "lucide-react";
+import { X, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
-import { Button } from "./ui/button";
 import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
+import { JavaDecompilerViewer } from "./java-decompiler-viewer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -32,8 +32,12 @@ const isImageFile = (path: string) => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
 }
 
-const isAudioFile = (path: string) => {
+const isAudioFile = (path:string) => {
     return /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(path);
+}
+
+const isJavaClassFile = (path: string) => {
+    return /\.class$/i.test(path);
 }
 
 // Determines if a file is likely text-based and should be opened in the code editor
@@ -59,7 +63,7 @@ const AudioPlayer = ({ file }: { file: VFSFile }) => {
     return (
         <div className="flex flex-col items-center justify-center h-full bg-muted/20 p-4">
             <div className="w-full max-w-md text-center">
-                <FileAudio className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
+                <FileIcon filename={file.name} className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold mb-2">{file.name}</h3>
                 <audio controls src={file.content} className="w-full">
                     Your browser does not support the audio element.
@@ -83,7 +87,7 @@ export function EditorPane({
   if (openFiles.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground bg-background p-4">
-        <Code className="h-16 w-16 mb-4" />
+        <FileIcon filename="placeholder.tsx" className="h-16 w-16 mb-4" />
         <h2 className="text-xl font-medium font-headline">Welcome to WebCoder.ai</h2>
         <p>Select a file from the explorer to begin editing.</p>
         <p className="text-xs mt-2">Right-click in the explorer to create files or folders.</p>
@@ -101,6 +105,10 @@ export function EditorPane({
     if (isAudioFile(file.path)) {
         return <AudioPlayer file={file} />;
     }
+    
+    if (isJavaClassFile(file.path)) {
+        return <JavaDecompilerViewer file={file} />;
+    }
 
     if (isTextBased(file)) {
       return <CodeEditor
@@ -110,7 +118,7 @@ export function EditorPane({
       />
     }
 
-    // Default to Hex Viewer for binary files (like .class) and others
+    // Default to Hex Viewer for binary files and others
     return <HexViewer file={file} />;
   }
 
