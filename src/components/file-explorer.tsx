@@ -6,7 +6,6 @@ import { type VFSNode, type VFSDirectory, type VFSFile } from "@/lib/vfs";
 import {
   ChevronRight,
   Folder,
-  File as FileIcon,
   FolderOpen,
   Upload,
   FileArchive,
@@ -35,6 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collap
 import { GlobalSearch } from "./global-search";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { FileIcon } from "./file-icon";
 
 export interface FileExplorerProps {
   vfsRoot: VFSDirectory;
@@ -84,14 +84,14 @@ export function FileExplorer({
     }
   };
 
-  const handleNewFile = () => {
+  const handleNewFileAtRoot = () => {
     const name = prompt("Enter new file name:");
     if (name) {
       onNewFile(name, vfsRoot);
     }
   };
 
-  const handleNewFolder = () => {
+  const handleNewFolderAtRoot = () => {
     const name = prompt("Enter new folder name:");
     if (name) {
       onNewFolder(name, vfsRoot);
@@ -107,11 +107,11 @@ export function FileExplorer({
               <TooltipProvider>
                 <div className="flex items-center">
                     <Tooltip>
-                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFile}><FilePlus className="h-4 w-4" /></Button></TooltipTrigger>
+                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFileAtRoot}><FilePlus className="h-4 w-4" /></Button></TooltipTrigger>
                         <TooltipContent><p>New File</p></TooltipContent>
                     </Tooltip>
                     <Tooltip>
-                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFolder}><FolderPlus className="h-4 w-4" /></Button></TooltipTrigger>
+                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFolderAtRoot}><FolderPlus className="h-4 w-4" /></Button></TooltipTrigger>
                         <TooltipContent><p>New Folder</p></TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -169,6 +169,10 @@ export function FileExplorer({
                     <Skeleton className="h-6 w-5/6 ml-4" />
                     <Skeleton className="h-6 w-3/6 ml-4" />
                   </div>
+                ) : vfsRoot.children.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <p>No files in project.</p>
+                  </div>
                 ) : (
                   <ExplorerNode 
                     node={vfsRoot} 
@@ -184,10 +188,10 @@ export function FileExplorer({
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-                <ContextMenuItem onClick={handleNewFile}>
+                <ContextMenuItem onClick={handleNewFileAtRoot}>
                   <FilePlus className="mr-2 h-4 w-4" /> New File
                 </ContextMenuItem>
-                <ContextMenuItem onClick={handleNewFolder}>
+                <ContextMenuItem onClick={handleNewFolderAtRoot}>
                   <FolderPlus className="mr-2 h-4 w-4" /> New Folder
                 </ContextMenuItem>
             </ContextMenuContent>
@@ -260,6 +264,7 @@ const ExplorerNode = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // prevent parent handlers from catching this
     setIsDragOver(false);
     
     if(node.type !== 'directory') return;
@@ -297,7 +302,7 @@ const ExplorerNode = ({
              onDragOver={handleDragOver}
              onDragLeave={handleDragLeave}
              onDrop={handleDrop}
-             className={cn(isDragOver && 'bg-sidebar-accent/50 rounded-md')}
+             className={cn('rounded-md', isDragOver && 'bg-sidebar-accent/50')}
           >
             <div
               draggable={node.path !== '/'}
@@ -343,7 +348,7 @@ const ExplorerNode = ({
                             />
                     ))
                 ) : (
-                    <p className="p-1 text-muted-foreground" style={{ paddingLeft: `${(level + 1) * 1}rem` }}>
+                    level > 0 && <p className="p-1 text-muted-foreground" style={{ paddingLeft: `${(level + 1) * 1}rem` }}>
                         empty
                     </p>
                 )}
@@ -380,7 +385,7 @@ const ExplorerNode = ({
                 style={{ paddingLeft }}
                 onClick={() => onSelectFile(node)}
             >
-                <FileIcon className="h-4 w-4 mr-2 shrink-0" />
+                <FileIcon filename={node.name} className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">{node.name}</span>
             </div>
       </ContextMenuTrigger>
