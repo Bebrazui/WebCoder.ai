@@ -9,10 +9,11 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Code, Image as ImageIcon, FileQuestion, Save } from "lucide-react";
+import { X, Code, Image as ImageIcon, FileQuestion, Save, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { Button } from "./ui/button";
+import { HexViewer } from "./hex-viewer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -31,6 +32,7 @@ const isImageFile = (path: string) => {
 const isBinaryDataURI = (content: string) => {
     if (!content.startsWith('data:')) return false;
     const mime = content.substring(5, content.indexOf(';'));
+    // Consider binary if not text and not an image mime type
     return !mime.startsWith('text') && !mime.startsWith('image');
 }
 
@@ -56,6 +58,13 @@ const UnsupportedFileViewer = ({ file }: { file: VFSFile }) => {
         </div>
     )
 }
+
+const getFileIcon = (file: VFSFile) => {
+    if (isImageFile(file.path)) return <ImageIcon className="h-4 w-4" />;
+    if (isBinaryDataURI(file.content)) return <Database className="h-4 w-4" />;
+    return <Code className="h-4 w-4" />;
+}
+
 
 export function EditorPane({
   openFiles,
@@ -94,7 +103,7 @@ export function EditorPane({
                   "flex items-center gap-2 pr-1 rounded-none rounded-t-md border-b-0 data-[state=inactive]:bg-muted/50 data-[state=inactive]:hover:bg-muted data-[state=active]:bg-background",
                 )}
               >
-                {isImageFile(file.name) ? <ImageIcon className="h-4 w-4" /> : <Code className="h-4 w-4" />}
+                {getFileIcon(file)}
                 <span>{file.name}</span>
                 {isDirty && (
                     <div className="flex items-center gap-1 ml-1">
@@ -139,7 +148,7 @@ export function EditorPane({
                     <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
                 </div>
              ) : isBinaryDataURI(file.content) ? (
-                <UnsupportedFileViewer file={file} />
+                <HexViewer file={file} />
              ) : (
                 <CodeEditor
                     path={file.path}
