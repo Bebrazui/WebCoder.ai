@@ -77,7 +77,7 @@ export function HexViewer({ file }: HexViewerProps) {
             </div>
        </div>
       <ScrollArea className="flex-grow">
-        <div className="p-4">
+        <div className="p-4 select-none">
           <div className="grid grid-cols-[auto_1fr_auto] gap-x-4">
             {/* Header */}
             <div className="font-semibold text-muted-foreground">Offset</div>
