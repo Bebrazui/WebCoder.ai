@@ -18,6 +18,7 @@ import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
+import { CommandPalette } from "./command-palette";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -48,6 +49,7 @@ export function Ide() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
@@ -94,13 +96,22 @@ export function Ide() {
   }, [openFiles, activeFilePath, saveFileToVfs]);
 
   useEffect(() => {
-    const saveKey = 'ctrl+s, command+s';
-    hotkeys(saveKey, (event) => {
+    // Save file shortcut
+    hotkeys('ctrl+s, command+s', (event) => {
       event.preventDefault();
       handleSaveFile(null);
     });
 
-    return () => hotkeys.unbind(saveKey);
+    // Command palette shortcut
+    hotkeys('ctrl+k, command+k', (event) => {
+      event.preventDefault();
+      setIsCommandPaletteOpen(prev => !prev);
+    });
+
+    return () => {
+        hotkeys.unbind('ctrl+s, command+s');
+        hotkeys.unbind('ctrl+k, command+k');
+    }
   }, [handleSaveFile]);
 
 
@@ -293,11 +304,17 @@ export function Ide() {
               isDirty={isFileDirty}
               onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
               isTerminalOpen={isTerminalOpen} 
+              onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
             />
         </div>
       </SidebarProvider>
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen}
+        setIsOpen={setIsCommandPaletteOpen}
+        vfsRoot={vfsRoot}
+        onSelectFile={handleSelectFile}
+        onToggleTerminal={() => setIsTerminalOpen(p => !p)}
+      />
     </div>
   );
 }
-
-    
