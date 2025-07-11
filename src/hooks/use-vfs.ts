@@ -300,9 +300,8 @@ export function useVfs() {
       await getGitStatus();
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not save your project changes."});
     }
-  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
+  }, [directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
