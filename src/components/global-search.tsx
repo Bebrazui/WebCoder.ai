@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
@@ -22,12 +23,18 @@ const searchInVfs = (root: VFSDirectory, query: string): SearchResult[] => {
     const results: SearchResult[] = [];
     const lowerCaseQuery = query.toLowerCase();
 
+    if (!lowerCaseQuery.trim()) return [];
+
     const traverse = (node: VFSNode) => {
         if (node.type === 'file') {
             if (typeof node.content === 'string' && !node.content.startsWith('data:')) {
-                const matchCount = (node.content.toLowerCase().match(new RegExp(lowerCaseQuery, 'g')) || []).length;
-                if (matchCount > 0) {
-                    results.push({ file: node, matchCount });
+                try {
+                    const matchCount = (node.content.toLowerCase().match(new RegExp(lowerCaseQuery, 'g')) || []).length;
+                    if (matchCount > 0) {
+                        results.push({ file: node, matchCount });
+                    }
+                } catch (e) {
+                    // Ignore regex errors from invalid user input
                 }
             }
         } else if (node.type === 'directory') {
@@ -54,22 +61,19 @@ export function GlobalSearch({ vfsRoot, onFileSelect }: GlobalSearchProps) {
     }, [debouncedQuery, vfsRoot]);
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="p-2 border-b">
-                <h2 className="text-lg font-headline font-semibold mb-2">Search</h2>
-                <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Search in files..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        className="pl-8"
-                    />
-                </div>
+        <div className="flex flex-col h-full p-2">
+            <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="text"
+                    placeholder="Search in files..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-8"
+                />
             </div>
-            <ScrollArea className="flex-grow">
-                 <div className="p-2 text-sm">
+            <ScrollArea className="flex-grow max-h-64">
+                 <div className="text-sm">
                     {query.trim() !== '' && searchResults.length === 0 && (
                         <p className="text-muted-foreground text-center p-4">No results found.</p>
                     )}
@@ -89,10 +93,6 @@ export function GlobalSearch({ vfsRoot, onFileSelect }: GlobalSearchProps) {
                                             </div>
                                         </div>
                                     </AccordionTrigger>
-                                    {/* We can add context lines here in the future */}
-                                    {/* <AccordionContent>
-                                        ... context lines ...
-                                    </AccordionContent> */}
                                 </AccordionItem>
                             ))}
                         </Accordion>

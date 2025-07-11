@@ -9,9 +9,6 @@ import {
   SidebarContent,
   SidebarInset,
   SidebarTrigger,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { FileExplorer } from "./file-explorer";
 import { EditorPane } from "./editor-pane";
@@ -20,8 +17,6 @@ import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
-import { File, Search } from "lucide-react";
-import { GlobalSearch } from "./global-search";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -51,8 +46,7 @@ export function Ide() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'explorer' | 'search'>('explorer');
-
+  
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
        const findFile = (root: VFSDirectory, path: string): VFSFile | null => {
@@ -235,53 +229,22 @@ export function Ide() {
     <div className="h-screen w-screen bg-background text-foreground flex">
       <SidebarProvider>
         <Sidebar>
-            <SidebarContent className="flex flex-col">
-                <div className="p-2">
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton 
-                                tooltip="Explorer" 
-                                isActive={activeView === 'explorer'}
-                                onClick={() => setActiveView('explorer')}>
-                                <File />
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                             <SidebarMenuButton 
-                                tooltip="Search" 
-                                isActive={activeView === 'search'}
-                                onClick={() => setActiveView('search')}>
-                                <Search />
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </div>
+            <SidebarContent className="p-0">
+               <FileExplorer 
+                vfsRoot={vfsRoot}
+                loading={loading}
+                onSelectFile={handleSelectFile}
+                onUploadFile={addFileToVfs}
+                onUploadZip={addZipToVfs}
+                onNewFile={createFileInVfs}
+                onNewFolder={createDirectoryInVfs}
+                onRenameNode={handleRenameNode}
+                onDeleteNode={handleDeleteNode}
+                onMoveNode={handleMoveNode}
+                onOpenFolder={handleOpenFolder}
+              />
             </SidebarContent>
         </Sidebar>
-
-        <div className="w-80 border-r bg-sidebar">
-          {activeView === 'explorer' && (
-             <FileExplorer 
-              vfsRoot={vfsRoot}
-              loading={loading}
-              onSelectFile={handleSelectFile}
-              onUploadFile={addFileToVfs}
-              onUploadZip={addZipToVfs}
-              onNewFile={createFileInVfs}
-              onNewFolder={createDirectoryInVfs}
-              onRenameNode={handleRenameNode}
-              onDeleteNode={handleDeleteNode}
-              onMoveNode={handleMoveNode}
-              onOpenFolder={handleOpenFolder}
-            />
-          )}
-          {activeView === 'search' && (
-            <GlobalSearch 
-              vfsRoot={vfsRoot}
-              onFileSelect={handleSelectFile}
-            />
-          )}
-        </div>
        
         <div className="flex-1 flex flex-col min-w-0 h-full">
             <header className="flex items-center gap-2 p-2 border-b shrink-0">

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef } from "react";
@@ -14,6 +15,8 @@ import {
   Edit,
   Trash2,
   FolderSearch,
+  Search,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -26,6 +29,8 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { GlobalSearch } from "./global-search";
 
 interface FileExplorerProps {
   vfsRoot: VFSDirectory;
@@ -56,6 +61,7 @@ export function FileExplorer({
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -84,10 +90,18 @@ export function FileExplorer({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full">
       <div className="p-2 border-b border-sidebar-border">
-          <h2 className="text-lg font-headline font-semibold">Explorer</h2>
-          <div className="grid grid-cols-3 gap-2 mt-2">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-lg font-headline font-semibold">Explorer</h2>
+            <CollapsibleTrigger asChild>
+               <Button variant="ghost" size="icon" className="h-7 w-7">
+                  {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                  <span className="sr-only">Toggle Search</span>
+               </Button>
+            </CollapsibleTrigger>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
               <Upload className="mr-2 h-4 w-4" /> File
             </Button>
@@ -101,6 +115,13 @@ export function FileExplorer({
             <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
           </div>
       </div>
+      
+      <CollapsibleContent>
+        <div className="border-b border-sidebar-border">
+          <GlobalSearch vfsRoot={vfsRoot} onFileSelect={onSelectFile} />
+        </div>
+      </CollapsibleContent>
+
       <ScrollArea className="flex-grow">
         <div className="p-2 text-sm">
           {loading ? (
@@ -137,7 +158,7 @@ export function FileExplorer({
           )}
         </div>
       </ScrollArea>
-    </div>
+    </Collapsible>
   );
 }
 
