@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
@@ -57,9 +57,10 @@ export function TerminalView() {
     const terminalRef = useRef<HTMLDivElement>(null);
     const term = useRef<Terminal | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
-    const [currentLine, setCurrentLine] = useState('');
 
     useEffect(() => {
+        let currentLine = '';
+
         if (terminalRef.current && !term.current) {
             const xterm = new Terminal({
                 cursorBlink: true,
@@ -99,15 +100,15 @@ export function TerminalView() {
                         }
                     }
                     xterm.write(`\r\n${PROMPT}`);
-                    setCurrentLine('');
+                    currentLine = '';
                 } else if (domEvent.key === 'Backspace') {
                      if (currentLine.length > 0) {
                         xterm.write('\b \b');
-                        setCurrentLine(currentLine.slice(0, -1));
+                        currentLine = currentLine.slice(0, -1);
                     }
                 } else if (!domEvent.ctrlKey && !domEvent.altKey && !domEvent.metaKey) {
                     xterm.write(key);
-                    setCurrentLine(currentLine + key);
+                    currentLine += key;
                 }
             });
 
@@ -141,7 +142,7 @@ export function TerminalView() {
                 term.current = null;
             };
         }
-    }, [currentLine]);
+    }, []); // Empty dependency array ensures this runs only once.
 
     return <div ref={terminalRef} className="h-full w-full p-2" />;
 }

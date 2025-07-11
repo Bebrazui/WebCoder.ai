@@ -38,6 +38,11 @@ const isAudioFile = (path: string) => {
 }
 
 const isPotentiallyBinary = (file: VFSFile) => {
+    // Explicitly handle .class files as binary
+    if (/\.class$/i.test(file.path)) {
+        return true;
+    }
+
     if (file.content.startsWith('data:')) {
         const mime = file.content.substring(5, file.content.indexOf(';'));
         // Treat audio as its own category, not binary for the picker

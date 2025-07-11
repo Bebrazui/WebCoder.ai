@@ -8,6 +8,8 @@ import {
   SidebarProvider,
   Sidebar,
   SidebarContent,
+  SidebarTrigger,
+  SidebarHeader
 } from "@/components/ui/sidebar";
 import { SidebarView } from "./sidebar-view";
 import { EditorPane } from "./editor-pane";
@@ -287,80 +289,84 @@ export function Ide() {
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
   return (
-    <div className="h-screen w-screen bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
-      <MenuBar 
-        onNewFile={handleNewFile}
-        onNewFolder={handleNewFolder}
-        onOpenFolder={handleOpenFolder}
-        onSaveFile={() => handleSaveFile(null)}
-        onDownloadZip={downloadVfsAsZip}
-        onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
-      />
-      <div className="flex min-h-0">
-        <SidebarProvider>
-          <Sidebar>
-              <SidebarContent className="p-0">
-                <SidebarView 
-                  vfsRoot={vfsRoot}
-                  loading={loading}
-                  gitStatus={gitStatus}
-                  isGitStatusLoading={isGitStatusLoading}
-                  onCommit={commit}
-                  onSelectFile={handleSelectFile}
-                  onUploadFile={addFileToVfs}
-                  onUploadZip={addZipToVfs}
-                  onNewFile={createFileInVfs}
-                  onNewFolder={createDirectoryInVfs}
-                  onRenameNode={handleRenameNode}
-                  onDeleteNode={handleDeleteNode}
-                  onMoveNode={handleMoveNode}
-                  onOpenFolder={handleOpenFolder}
-                  onDownloadZip={downloadVfsAsZip}
-                  onCloneRepository={handleCloneRepo}
-                />
-              </SidebarContent>
-          </Sidebar>
-        
-          <main className="flex-1 flex flex-col min-w-0 h-full">
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100} minSize={20}>
-                <EditorPane
-                    openFiles={openFiles}
-                    activeFilePath={activeFilePath}
-                    dirtyFiles={dirtyFiles}
-                    onFileSelect={setActiveFilePath}
-                    onFileChange={handleFileChange}
-                    onFileClose={handleFileClose}
-                    onFileSave={handleSaveFile}
-                />
-              </ResizablePanel>
-              {isTerminalOpen && (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={35} minSize={10}>
-                    <TerminalView />
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
-          </main>
-        </SidebarProvider>
-      </div>
-      <StatusBar 
-          activeFile={activeFile} 
-          isDirty={isFileDirty}
-          branch={currentBranch}
-          onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
-          isTerminalOpen={isTerminalOpen} 
+    <SidebarProvider>
+      <div className="h-screen w-screen bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
+        <MenuBar 
+          onNewFile={handleNewFile}
+          onNewFolder={handleNewFolder}
+          onOpenFolder={handleOpenFolder}
+          onSaveFile={() => handleSaveFile(null)}
+          onDownloadZip={downloadVfsAsZip}
           onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
         />
-      <CommandPalette 
-        isOpen={isCommandPaletteOpen}
-        setIsOpen={setIsCommandPaletteOpen}
-        vfsRoot={vfsRoot}
-        onSelectFile={handleSelectFile}
-        onToggleTerminal={() => setIsTerminalOpen(p => !p)}
-      />
-    </div>
+        <div className="flex min-h-0">
+            <Sidebar>
+                <SidebarHeader className="md:hidden flex justify-between">
+                    <h2 className="text-lg font-headline font-semibold">Explorer</h2>
+                    <SidebarTrigger />
+                </SidebarHeader>
+                <SidebarContent className="p-0">
+                  <SidebarView 
+                    vfsRoot={vfsRoot}
+                    loading={loading}
+                    gitStatus={gitStatus}
+                    isGitStatusLoading={isGitStatusLoading}
+                    onCommit={commit}
+                    onSelectFile={handleSelectFile}
+                    onUploadFile={addFileToVfs}
+                    onUploadZip={addZipToVfs}
+                    onNewFile={createFileInVfs}
+                    onNewFolder={createDirectoryInVfs}
+                    onRenameNode={handleRenameNode}
+                    onDeleteNode={handleDeleteNode}
+                    onMoveNode={handleMoveNode}
+                    onOpenFolder={handleOpenFolder}
+                    onDownloadZip={downloadVfsAsZip}
+                    onCloneRepository={handleCloneRepo}
+                  />
+                </SidebarContent>
+            </Sidebar>
+          
+            <main className="flex-1 flex flex-col min-w-0 h-full">
+              <ResizablePanelGroup direction="vertical">
+                <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100} minSize={20}>
+                  <EditorPane
+                      openFiles={openFiles}
+                      activeFilePath={activeFilePath}
+                      dirtyFiles={dirtyFiles}
+                      onFileSelect={setActiveFilePath}
+                      onFileChange={handleFileChange}
+                      onFileClose={handleFileClose}
+                      onFileSave={handleSaveFile}
+                  />
+                </ResizablePanel>
+                {isTerminalOpen && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel defaultSize={35} minSize={10}>
+                      <TerminalView />
+                    </ResizablePanel>
+                  </>
+                )}
+              </ResizablePanelGroup>
+            </main>
+        </div>
+        <StatusBar 
+            activeFile={activeFile} 
+            isDirty={isFileDirty}
+            branch={currentBranch}
+            onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
+            isTerminalOpen={isTerminalOpen} 
+            onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+          />
+        <CommandPalette 
+          isOpen={isCommandPaletteOpen}
+          setIsOpen={setIsCommandPaletteOpen}
+          vfsRoot={vfsRoot}
+          onSelectFile={handleSelectFile}
+          onToggleTerminal={() => setIsTerminalOpen(p => !p)}
+        />
+      </div>
+    </SidebarProvider>
   );
 }
