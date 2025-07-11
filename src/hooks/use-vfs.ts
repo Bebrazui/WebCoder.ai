@@ -80,6 +80,7 @@ export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
 
   useEffect(() => {
     localforage.config({
@@ -103,19 +104,28 @@ export function useVfs() {
         setLoading(false);
       }
     };
-    loadVfs();
-  }, [toast]);
+    
+    if (!directoryHandle) {
+      loadVfs();
+    }
+  }, [toast, directoryHandle]);
 
   const saveVfs = useCallback(async (root: VFSDirectory) => {
+    if (directoryHandle) {
+        // When using File System Access API, we don't save to localforage
+        // as the file system is the source of truth.
+        return;
+    }
     try {
       await localforage.setItem(VFS_KEY, root);
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
       toast({ variant: "destructive", title: "Error", description: "Could not save your project changes."});
     }
-  }, [toast]);
+  }, [toast, directoryHandle]);
   
   const addZipToVfs = useCallback((file: File) => {
+    setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -195,6 +205,7 @@ export function useVfs() {
         addZipToVfs(file);
         return;
     }
+    setDirectoryHandle(null); // When a file is uploaded, we switch off FS API mode.
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -242,9 +253,7 @@ export function useVfs() {
         const result = findNodeAndParent(newRoot, path);
 
         if (result && result.node.type === 'file') {
-            if (isTextFile(result.node)) {
-              result.node.content = newContent;
-            }
+            result.node.content = newContent;
             updatedFile = result.node;
             // Note: We don't save here anymore to support dirty states
             return newRoot;
@@ -254,19 +263,48 @@ export function useVfs() {
     return updatedFile;
   }, []);
 
-  const saveFileToVfs = useCallback((file: VFSFile) => {
-     setVfsRoot(currentRoot => {
-        const newRoot = JSON.parse(JSON.stringify(currentRoot));
-        const result = findNodeAndParent(newRoot, file.path);
-        if (result && result.node.type === 'file') {
-            result.node.content = file.content;
-            saveVfs(newRoot); // This now persists the changes
-            toast({ title: "File Saved", description: `${file.name} has been saved.`});
-            return newRoot;
+  const saveFileToVfs = useCallback(async (file: VFSFile) => {
+    if (directoryHandle) {
+        try {
+            const pathParts = file.path.split('/').filter(p => p);
+            let currentHandle: FileSystemDirectoryHandle | FileSystemFileHandle = directoryHandle;
+
+            for (let i = 0; i < pathParts.length; i++) {
+                const part = pathParts[i];
+                if (currentHandle.kind === 'directory') {
+                    if (i === pathParts.length - 1) { // file handle
+                        currentHandle = await currentHandle.getFileHandle(part);
+                    } else { // directory handle
+                        currentHandle = await currentHandle.getDirectoryHandle(part);
+                    }
+                }
+            }
+
+            if (currentHandle.kind === 'file') {
+                const writable = await currentHandle.createWritable();
+                await writable.write(file.content);
+                await writable.close();
+                toast({ title: "File Saved", description: `${file.name} has been saved to disk.`});
+            }
+        } catch (error) {
+            console.error("Failed to save file to disk:", error);
+            toast({ variant: "destructive", title: "Save Error", description: "Could not save file to your computer."});
         }
-        return currentRoot;
-    });
-  }, [saveVfs, toast]);
+    } else {
+        // Fallback to localforage if no directory is open
+        setVfsRoot(currentRoot => {
+            const newRoot = JSON.parse(JSON.stringify(currentRoot));
+            const result = findNodeAndParent(newRoot, file.path);
+            if (result && result.node.type === 'file') {
+                result.node.content = file.content;
+                saveVfs(newRoot); // This now persists the changes
+                toast({ title: "File Saved", description: `${file.name} has been saved.`});
+                return newRoot;
+            }
+            return currentRoot;
+        });
+    }
+  }, [saveVfs, toast, directoryHandle]);
 
   const createFileInVfs = useCallback((name: string, parent: VFSDirectory) => {
     setVfsRoot(currentRoot => {
@@ -416,12 +454,13 @@ export function useVfs() {
 
   const openFolderWithApi = useCallback(async (): Promise<boolean> => {
     try {
-        const dirHandle = await window.showDirectoryPicker();
+        const handle = await window.showDirectoryPicker();
+        setDirectoryHandle(handle);
         setLoading(true);
 
-        const processHandle = async (handle: FileSystemDirectoryHandle | FileSystemFileHandle, path: string): Promise<VFSNode | null> => {
-            if (handle.kind === 'file') {
-                const file = await handle.getFile();
+        const processHandle = async (currentHandle: FileSystemDirectoryHandle | FileSystemFileHandle, path: string): Promise<VFSNode | null> => {
+            if (currentHandle.kind === 'file') {
+                const file = await currentHandle.getFile();
                 const content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result as string);
@@ -432,12 +471,12 @@ export function useVfs() {
                         reader.readAsDataURL(file);
                     }
                 });
-                return createFile(handle.name, path, content);
+                return createFile(currentHandle.name, path, content);
             }
-            if (handle.kind === 'directory') {
-                const dir = createDirectory(handle.name, path);
+            if (currentHandle.kind === 'directory') {
+                const dir = createDirectory(currentHandle.name, path);
                 const children: VFSNode[] = [];
-                for await (const entry of handle.values()) {
+                for await (const entry of currentHandle.values()) {
                     const childPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
                     const childNode = await processHandle(entry, childPath);
                     if (childNode) {
@@ -450,12 +489,12 @@ export function useVfs() {
             return null;
         }
 
-        const newRoot = await processHandle(dirHandle, '/');
+        const newRoot = await processHandle(handle, '/');
         if (newRoot && newRoot.type === 'directory') {
-            newRoot.name = dirHandle.name; // Use the actual directory name for the root
+            newRoot.name = handle.name; // Use the actual directory name for the root
             setVfsRoot(newRoot);
-            saveVfs(newRoot); // Persist the new VFS structure
-            toast({ title: "Folder opened", description: `Opened "${dirHandle.name}" successfully.`});
+            // No need to saveVfs, as the file system is the source of truth
+            toast({ title: "Folder opened", description: `Opened "${handle.name}" successfully.`});
             return true;
         }
         return false;
@@ -471,7 +510,7 @@ export function useVfs() {
     } finally {
         setLoading(false);
     }
-  }, [saveVfs, toast]);
+  }, [toast]);
 
 
   return { 
@@ -489,3 +528,5 @@ export function useVfs() {
     openFolderWithApi,
   };
 }
+
+    

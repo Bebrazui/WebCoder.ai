@@ -1,6 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   SidebarProvider,
   Sidebar,
@@ -13,8 +15,16 @@ import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
-import { TerminalView } from "./terminal";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Collapsible, CollapsibleContent } from "./ui/collapsible";
+import { Skeleton } from "./ui/skeleton";
+
+const TerminalView = dynamic(
+  () => import('./terminal').then(mod => mod.TerminalView),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-full" />,
+  }
+);
 
 
 export function Ide() {
