@@ -31,13 +31,20 @@ Get started by uploading your files or a ZIP archive using the buttons in the ex
 `
 ));
 
-const isTextFile = (file: {name: string, type?: string}) => {
+const isTextFile = (file: {name: string, type?: string, content?: string}) => {
     // Check MIME type first if available
     if (file.type?.startsWith('text/')) {
         return true;
     }
-    // Fallback to file extension for broader text-like file matching
-    return /\.(json|js|jsx|ts|tsx|css|html|md|py|java|c|h|cpp|hpp|cs|go|php|rb|rs|swift|kt|yaml|yml|txt|gitignore|env|bat|sh|xml|svg)$/i.test(file.name);
+    // Check if content is not a data URI for binary data
+    if (file.content && file.content.startsWith('data:') && !file.content.startsWith('data:text')) {
+        const mime = file.content.substring(5, file.content.indexOf(';'));
+        if (!mime.startsWith('image')) { // Since images are handled separately
+            return false;
+        }
+    }
+    // Fallback to file extension for broader text-like file matching, or if it has no extension
+    return !/\.(jpg|jpeg|png|gif|webp|zip|exe|dll|bin|dat|sav|img|iso|tar|gz|7z)$/i.test(file.name);
 }
 
 
@@ -105,23 +112,6 @@ export function useVfs() {
       toast({ variant: "destructive", title: "Error", description: "Could not save your project changes."});
     }
   }, [toast]);
-
-  const findParentDir = (root: VFSDirectory, path: string): VFSDirectory | null => {
-    const parts = path.split('/').filter(p => p);
-    if (parts.length <= 1) return root;
-
-    let currentDir: VFSDirectory = root;
-    for (let i = 0; i < parts.length - 1; i++) {
-        const part = parts[i];
-        const nextDir = currentDir.children.find(c => c.name === part && c.type === 'directory');
-        if (nextDir && nextDir.type === 'directory') {
-            currentDir = nextDir;
-        } else {
-            return null;
-        }
-    }
-    return currentDir;
-  }
   
   const addZipToVfs = useCallback((file: File) => {
     const reader = new FileReader();
@@ -156,7 +146,25 @@ export function useVfs() {
                     currentDir = dir;
                 } else { // It's a file
                     const fileContent = await zipEntry.async('base64');
-                    const mime = 'application/octet-stream';
+                    // A simple heuristic to guess mime type from extension
+                    const getMimeType = (fileName: string) => {
+                      const ext = fileName.split('.').pop()?.toLowerCase();
+                      switch(ext) {
+                        case 'txt': return 'text/plain';
+                        case 'html': return 'text/html';
+                        case 'css': return 'text/css';
+                        case 'js': return 'application/javascript';
+                        case 'json': return 'application/json';
+                        case 'png': return 'image/png';
+                        case 'jpg':
+                        case 'jpeg':
+                          return 'image/jpeg';
+                        case 'gif': return 'image/gif';
+                        case 'svg': return 'image/svg+xml';
+                        default: return 'application/octet-stream';
+                      }
+                    }
+                    const mime = getMimeType(part);
                     const dataUri = `data:${mime};base64,${fileContent}`;
                     const newPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
                     const newFile = createFile(part, newPath, dataUri);
@@ -211,11 +219,13 @@ export function useVfs() {
         return currentRoot;
       });
     };
-
-    if (isTextFile(file)) {
-        reader.readAsText(file);
+    
+    // Always read as Data URL unless we are sure it is text.
+    // A more robust check might be needed for edge cases.
+    if (/^(text\/|application\/(javascript|json|xml))/.test(file.type)) {
+       reader.readAsText(file);
     } else {
-        reader.readAsDataURL(file);
+       reader.readAsDataURL(file);
     }
   }, [saveVfs, toast, addZipToVfs]);
 
@@ -226,17 +236,32 @@ export function useVfs() {
         const result = findNodeAndParent(newRoot, path);
 
         if (result && result.node.type === 'file') {
-            if (!result.node.content.startsWith('data:') || isTextFile(result.node)) {
+            // Only update if it's a text-editable file
+            if (isTextFile(result.node)) {
               result.node.content = newContent;
             }
             updatedFile = result.node;
-            saveVfs(newRoot);
+            // Note: We don't save here anymore to support dirty states
             return newRoot;
         }
         return currentRoot;
     });
     return updatedFile;
-  }, [saveVfs]);
+  }, []);
+
+  const saveFileToVfs = useCallback((file: VFSFile) => {
+     setVfsRoot(currentRoot => {
+        const newRoot = JSON.parse(JSON.stringify(currentRoot));
+        const result = findNodeAndParent(newRoot, file.path);
+        if (result && result.node.type === 'file') {
+            result.node.content = file.content;
+            saveVfs(newRoot); // This now persists the changes
+            toast({ title: "File Saved", description: `${file.name} has been saved.`});
+            return newRoot;
+        }
+        return currentRoot;
+    });
+  }, [saveVfs, toast]);
 
   const createFileInVfs = useCallback((name: string, parent: VFSDirectory) => {
     setVfsRoot(currentRoot => {
@@ -299,24 +324,21 @@ export function useVfs() {
         const pathParts = oldPath.split('/');
         pathParts[pathParts.length - 1] = newName;
         newPath = pathParts.join('/');
-        nodeToRename.name = newName;
-        nodeToRename.path = newPath;
-
+        
         // Recursively update children paths if it's a directory
-        const updateChildrenPaths = (dir: VFSDirectory) => {
-          dir.children.forEach(child => {
-            const childName = child.path.substring(dir.path.lastIndexOf('/') + 1);
-            child.path = dir.path === '/' ? `/${child.name}` : `${dir.path}/${child.name}`;
-            if (child.type === 'directory') {
-              updateChildrenPaths(child);
-            }
-          });
+        const updateChildrenPaths = (dir: VFSNode, newParentPath: string) => {
+          dir.path = `${newParentPath}/${dir.name}`;
+          if (dir.type === 'directory') {
+            dir.children.forEach(child => {
+              updateChildrenPaths(child, dir.path);
+            });
+          }
         };
         
-        if (nodeToRename.type === 'directory') {
-          updateChildrenPaths(nodeToRename);
-        }
-
+        nodeToRename.name = newName;
+        const parentPath = newPath.substring(0, newPath.lastIndexOf('/')) || '/';
+        updateChildrenPaths(nodeToRename, parentPath === '/' ? '' : parentPath);
+        
         saveVfs(newRoot);
         toast({ title: 'Renamed', description: `"${node.name}" is now "${newName}"` });
         return newRoot;
@@ -351,6 +373,7 @@ export function useVfs() {
     addFileToVfs, 
     addZipToVfs, 
     updateFileInVfs,
+    saveFileToVfs,
     createFileInVfs,
     createDirectoryInVfs,
     renameNodeInVfs,
