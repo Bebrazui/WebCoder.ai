@@ -20,8 +20,28 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [selectedText, setSelectedText] = useState("");
 
-  const handleEditorDidMount: OnMount = (editor) => {
+  const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
+
+    // --- Enable Rich IntelliSense and validation ---
+    monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions({
+      jsx: monacoInstance.languages.typescript.JsxEmit.React,
+      strict: true,
+      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
+      module: monacoInstance.languages.typescript.ModuleKind.ESNext,
+      allowNonTsExtensions: true,
+      esModuleInterop: true,
+    });
+    monacoInstance.languages.typescript.javascriptDefaults.setCompilerOptions({
+        jsx: monacoInstance.languages.typescript.JsxEmit.React,
+        strict: true,
+        target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
+        module: monacoInstance.languages.typescript.ModuleKind.ESNext,
+        allowNonTsExtensions: true,
+        esModuleInterop: true,
+    });
+    // --- End of IntelliSense setup ---
+
     editor.onMouseUp(() => {
       const selection = editor.getSelection();
       if (selection && !selection.isEmpty()) {
