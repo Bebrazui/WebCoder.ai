@@ -725,11 +725,12 @@ export function useVfs() {
     }
   }, [toast, getGitBranch, getGitStatus, saveVfs, syncLfsToVfs]);
 
-  const commit = useCallback(async (message: string) => {
+  const commit = useCallback(async (message: string, token: string) => {
     // Get the list of changed files
     const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
 
     for (const [filepath, head, workdir] of matrix) {
+        if (filepath === '.') continue;
         if (workdir === 0) { // Deleted
             await git.remove({ fs, dir: GIT_DIR, filepath });
         } else if (head === 0 || workdir > 0) { // New or modified
@@ -747,11 +748,39 @@ export function useVfs() {
         },
     });
     
-    // Refresh status
-    await getGitStatus();
+    toast({ title: 'Committed!', description: `Changes committed with SHA: ${sha.substring(0, 7)}`});
+    
+    // Attempt to push
+    try {
+        if (!token) {
+            toast({ variant: "destructive", title: 'Push Skipped', description: 'Please provide a GitHub token to push changes.' });
+            return;
+        }
 
-    return sha;
-  }, [getGitStatus]);
+        toast({ title: 'Pushing...', description: 'Attempting to push changes to the remote repository.'});
+
+        const pushResult = await git.push({
+            fs,
+            http,
+            dir: GIT_DIR,
+            corsProxy: CORS_PROXY,
+            onAuth: () => ({ username: token }),
+        });
+        
+        if (pushResult.ok) {
+           toast({ title: 'Push successful!', description: 'Your changes have been pushed to the remote repository.'});
+        } else {
+           throw new Error(pushResult.errors?.join('\n') || 'Unknown push error');
+        }
+
+    } catch (e: any) {
+        console.error("Push failed", e);
+        toast({ variant: 'destructive', title: 'Push Failed', description: e.message || 'An unknown error occurred during push.' });
+    } finally {
+        // Refresh status after commit and potential push
+        await getGitStatus();
+    }
+  }, [getGitStatus, toast]);
 
   return { 
     vfsRoot, 
@@ -774,3 +803,5 @@ export function useVfs() {
     commit,
   };
 }
+
+    

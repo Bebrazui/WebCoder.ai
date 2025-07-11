@@ -3,17 +3,19 @@
 
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GitBranch, GitCommit, LoaderCircle } from "lucide-react";
+import { GitBranch, GitCommit, LoaderCircle, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GitStatus } from "@/hooks/use-vfs";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface SourceControlViewProps {
     changedFiles: GitStatus[];
     isLoading: boolean;
-    onCommit: (message: string) => Promise<void>;
+    onCommit: (message: string, token: string) => Promise<void>;
 }
 
 const getStatusColor = (status: string) => {
@@ -35,6 +37,7 @@ const getStatusLetter = (status: string) => {
 
 export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceControlViewProps) {
     const [commitMessage, setCommitMessage] = useState("");
+    const [githubToken, setGithubToken] = useState("");
     const [isCommitting, setIsCommitting] = useState(false);
     const { toast } = useToast();
 
@@ -57,12 +60,8 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
 
         setIsCommitting(true);
         try {
-            await onCommit(commitMessage);
+            await onCommit(commitMessage, githubToken);
             setCommitMessage("");
-            toast({
-                title: "Committed",
-                description: "Your changes have been committed.",
-            });
         } catch (error: any) {
              toast({
                 variant: "destructive",
@@ -84,18 +83,36 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
                 </h2>
             </div>
 
-            <div className="p-2 space-y-2">
-                <Textarea 
-                    placeholder="Commit message..."
-                    value={commitMessage}
-                    onChange={(e) => setCommitMessage(e.target.value)}
-                    className="bg-background text-sm"
-                    rows={3}
-                />
+            <div className="p-2 space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="commit-message">Commit Message</Label>
+                    <Textarea 
+                        id="commit-message"
+                        placeholder="Your commit message..."
+                        value={commitMessage}
+                        onChange={(e) => setCommitMessage(e.target.value)}
+                        className="bg-background text-sm"
+                        rows={3}
+                    />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="github-token">GitHub Token (for Push)</Label>
+                    <div className="relative">
+                        <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            id="github-token"
+                            type="password"
+                            placeholder="ghp_..."
+                            value={githubToken}
+                            onChange={(e) => setGithubToken(e.target.value)}
+                            className="bg-background pl-8"
+                        />
+                    </div>
+                 </div>
                 <Button 
                     className="w-full" 
                     onClick={handleCommit} 
-                    disabled={isCommitting || isLoading}
+                    disabled={isCommitting || isLoading || changedFiles.length === 0}
                 >
                     {isCommitting ? (
                         <LoaderCircle className="animate-spin" />
@@ -134,3 +151,5 @@ export function SourceControlView({ changedFiles, isLoading, onCommit }: SourceC
         </div>
     );
 }
+
+    

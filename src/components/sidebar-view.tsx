@@ -15,7 +15,7 @@ import type { GitStatus } from "@/hooks/use-vfs";
 export interface SidebarViewProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
-    onCommit: (message: string) => Promise<void>;
+    onCommit: (message: string, token: string) => Promise<void>;
 }
 
 
@@ -76,3 +76,5 @@ export function SidebarView(props: SidebarViewProps) {
 
 // Re-export props for parent component
 export type { FileExplorerProps };
+
+    
