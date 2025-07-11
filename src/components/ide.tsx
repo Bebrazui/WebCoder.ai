@@ -8,7 +8,6 @@ import {
   SidebarProvider,
   Sidebar,
   SidebarContent,
-  SidebarInset,
 } from "@/components/ui/sidebar";
 import { SidebarView } from "./sidebar-view";
 import { EditorPane } from "./editor-pane";
@@ -18,6 +17,7 @@ import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Collapsible, CollapsibleContent } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
 import { CommandPalette } from "./command-palette";
+import { MenuBar } from "./menu-bar";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -263,66 +263,90 @@ export function Ide() {
     return success;
   }
 
+  const handleNewFile = () => {
+    const name = prompt("Enter new file name:");
+    if (name) {
+      createFileInVfs(name, vfsRoot);
+    }
+  };
+  
+  const handleNewFolder = () => {
+    const name = prompt("Enter new folder name:");
+    if (name) {
+      createDirectoryInVfs(name, vfsRoot);
+    }
+  };
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
   return (
-    <div className="h-screen w-screen bg-background text-foreground flex">
-      <SidebarProvider>
-        <Sidebar>
-            <SidebarContent className="p-0">
-               <SidebarView 
-                vfsRoot={vfsRoot}
-                loading={loading}
-                gitStatus={gitStatus}
-                isGitStatusLoading={isGitStatusLoading}
-                onCommit={commit}
-                onSelectFile={handleSelectFile}
-                onUploadFile={addFileToVfs}
-                onUploadZip={addZipToVfs}
-                onNewFile={createFileInVfs}
-                onNewFolder={createDirectoryInVfs}
-                onRenameNode={handleRenameNode}
-                onDeleteNode={handleDeleteNode}
-                onMoveNode={handleMoveNode}
-                onOpenFolder={handleOpenFolder}
-                onDownloadZip={downloadVfsAsZip}
-                onCloneRepository={handleCloneRepo}
+    <div className="h-screen w-screen bg-background text-foreground flex flex-col">
+      <MenuBar 
+        onNewFile={handleNewFile}
+        onNewFolder={handleNewFolder}
+        onOpenFolder={handleOpenFolder}
+        onSaveFile={() => handleSaveFile(null)}
+        onDownloadZip={downloadVfsAsZip}
+        onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+      />
+      <div className="flex flex-1 min-h-0">
+        <SidebarProvider>
+          <Sidebar>
+              <SidebarContent className="p-0">
+                <SidebarView 
+                  vfsRoot={vfsRoot}
+                  loading={loading}
+                  gitStatus={gitStatus}
+                  isGitStatusLoading={isGitStatusLoading}
+                  onCommit={commit}
+                  onSelectFile={handleSelectFile}
+                  onUploadFile={addFileToVfs}
+                  onUploadZip={addZipToVfs}
+                  onNewFile={createFileInVfs}
+                  onNewFolder={createDirectoryInVfs}
+                  onRenameNode={handleRenameNode}
+                  onDeleteNode={handleDeleteNode}
+                  onMoveNode={handleMoveNode}
+                  onOpenFolder={handleOpenFolder}
+                  onDownloadZip={downloadVfsAsZip}
+                  onCloneRepository={handleCloneRepo}
+                />
+              </SidebarContent>
+          </Sidebar>
+        
+          <div className="flex-1 flex flex-col min-w-0 h-full">
+              <main className="flex-1 p-4 min-h-0">
+                <Collapsible open={isTerminalOpen} onOpenChange={setIsTerminalOpen} className="flex flex-col h-full">
+                  <div className="flex-grow">
+                    <EditorPane
+                        openFiles={openFiles}
+                        activeFilePath={activeFilePath}
+                        dirtyFiles={dirtyFiles}
+                        onFileSelect={setActiveFilePath}
+                        onFileChange={handleFileChange}
+                        onFileClose={handleFileClose}
+                        onFileSave={handleSaveFile}
+                    />
+                  </div>
+                  <CollapsibleContent>
+                      <div className="h-64 mt-4">
+                          <TerminalView />
+                      </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </main>
+              <StatusBar 
+                activeFile={activeFile} 
+                isDirty={isFileDirty}
+                branch={currentBranch}
+                onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
+                isTerminalOpen={isTerminalOpen} 
+                onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
               />
-            </SidebarContent>
-        </Sidebar>
-       
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-            <main className="flex-1 p-4 min-h-0">
-              <Collapsible open={isTerminalOpen} onOpenChange={setIsTerminalOpen} className="flex flex-col h-full">
-                <div className="flex-grow">
-                  <EditorPane
-                      openFiles={openFiles}
-                      activeFilePath={activeFilePath}
-                      dirtyFiles={dirtyFiles}
-                      onFileSelect={setActiveFilePath}
-                      onFileChange={handleFileChange}
-                      onFileClose={handleFileClose}
-                      onFileSave={handleSaveFile}
-                  />
-                </div>
-                <CollapsibleContent>
-                    <div className="h-64 mt-4">
-                        <TerminalView />
-                    </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </main>
-            <StatusBar 
-              activeFile={activeFile} 
-              isDirty={isFileDirty}
-              branch={currentBranch}
-              onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
-              isTerminalOpen={isTerminalOpen} 
-              onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
-            />
-        </div>
-      </SidebarProvider>
+          </div>
+        </SidebarProvider>
+      </div>
       <CommandPalette 
         isOpen={isCommandPaletteOpen}
         setIsOpen={setIsCommandPaletteOpen}
@@ -333,5 +357,3 @@ export function Ide() {
     </div>
   );
 }
-
-    
