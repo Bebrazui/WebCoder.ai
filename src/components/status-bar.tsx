@@ -1,4 +1,3 @@
-
 "use client";
 
 import { getLanguage, type VFSFile } from "@/lib/vfs";
