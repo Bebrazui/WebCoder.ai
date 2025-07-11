@@ -34,8 +34,9 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { GlobalSearch } from "./global-search";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
-interface FileExplorerProps {
+export interface FileExplorerProps {
   vfsRoot: VFSDirectory;
   loading: boolean;
   onSelectFile: (file: VFSFile) => void;
@@ -99,22 +100,36 @@ export function FileExplorer({
 
   return (
     <>
-      <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full">
+      <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
         <div className="p-2 border-b border-sidebar-border">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-lg font-headline font-semibold">Explorer</h2>
-              <div className="flex items-center">
-                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}>
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">Download as ZIP</span>
-                 </Button>
-                 <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                       {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                       <span className="sr-only">Toggle Search</span>
-                    </Button>
-                 </CollapsibleTrigger>
-              </div>
+              <TooltipProvider>
+                <div className="flex items-center">
+                    <Tooltip>
+                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFile}><FilePlus className="h-4 w-4" /></Button></TooltipTrigger>
+                        <TooltipContent><p>New File</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewFolder}><FolderPlus className="h-4 w-4" /></Button></TooltipTrigger>
+                        <TooltipContent><p>New Folder</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDownloadZip}><Download className="h-4 w-4" /></Button></TooltipTrigger>
+                        <TooltipContent><p>Download as ZIP</p></TooltipContent>
+                    </Tooltip>
+                    <CollapsibleTrigger asChild>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Toggle Search</p></TooltipContent>
+                      </Tooltip>
+                    </CollapsibleTrigger>
+                </div>
+              </TooltipProvider>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" variant="secondary" onClick={onOpenFolder}>
@@ -252,7 +267,6 @@ const ExplorerNode = ({
     const sourcePath = e.dataTransfer.getData("text/plain");
     const targetDirPath = node.path;
     
-    // Prevent dropping a node into itself or its own children
     if (!sourcePath || sourcePath === targetDirPath || targetDirPath.startsWith(sourcePath + '/')) {
         return;
     }
@@ -356,7 +370,6 @@ const ExplorerNode = ({
     );
   }
 
-  // File Node
   return (
     <ContextMenu>
         <ContextMenuTrigger>
@@ -382,6 +395,3 @@ const ExplorerNode = ({
     </ContextMenu>
   );
 };
-    
-
-    

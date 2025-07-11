@@ -9,9 +9,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarInset,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { FileExplorer } from "./file-explorer";
+import { SidebarView } from "./sidebar-view";
 import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
@@ -98,13 +97,11 @@ export function Ide() {
   }, [openFiles, activeFilePath, saveFileToVfs]);
 
   useEffect(() => {
-    // Save file shortcut
     hotkeys('ctrl+s, command+s', (event) => {
       event.preventDefault();
       handleSaveFile(null);
     });
 
-    // Command palette shortcut
     hotkeys('ctrl+k, command+k', (event) => {
       event.preventDefault();
       setIsCommandPaletteOpen(prev => !prev);
@@ -271,7 +268,7 @@ export function Ide() {
       <SidebarProvider>
         <Sidebar>
             <SidebarContent className="p-0">
-               <FileExplorer 
+               <SidebarView 
                 vfsRoot={vfsRoot}
                 loading={loading}
                 onSelectFile={handleSelectFile}
@@ -290,10 +287,6 @@ export function Ide() {
         </Sidebar>
        
         <div className="flex-1 flex flex-col min-w-0 h-full">
-            <header className="flex items-center gap-2 p-2 border-b shrink-0">
-                <SidebarTrigger />
-                <h1 className="font-headline font-semibold text-lg tracking-tight">WebCoder.ai</h1>
-            </header>
             <main className="flex-1 p-4 min-h-0">
               <Collapsible open={isTerminalOpen} onOpenChange={setIsTerminalOpen} className="flex flex-col h-full">
                 <div className="flex-grow">
