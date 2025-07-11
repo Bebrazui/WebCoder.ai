@@ -14,7 +14,6 @@ import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Skeleton } from "./ui/skeleton";
 import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
