@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type { VFSFile } from '@/lib/vfs';
 import { ScrollArea } from './ui/scroll-area';
 import { dataURIToArrayBuffer } from '@/lib/utils';
