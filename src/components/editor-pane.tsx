@@ -126,7 +126,7 @@ export function EditorPane({
         if (isImageFile(file.path) || isAudioFile(file.path)) {
             viewMode = 'code'; // Special handling below, not a real mode
         } else if (/\.class$/i.test(file.path)) {
-            viewMode = 'hex';
+            viewMode = 'picker'; // Changed from 'hex' to 'picker'
         } else if (isPotentiallyBinary(file)) {
             viewMode = 'picker';
         } else {
