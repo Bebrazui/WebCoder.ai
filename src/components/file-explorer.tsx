@@ -159,7 +159,7 @@ export function FileExplorer({
 
         <ScrollArea className="flex-grow">
           <ContextMenu>
-            <ContextMenuTrigger className="h-full">
+            <ContextMenuTrigger className="block h-full w-full">
               <div className="p-2 text-sm h-full">
                 {loading ? (
                   <div className="space-y-2">
