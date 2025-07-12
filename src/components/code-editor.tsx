@@ -7,10 +7,16 @@ import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLanguage } from "@/lib/vfs";
 import { Button } from "@/components/ui/button";
-import { WandSparkles } from "lucide-react";
+import { WandSparkles, FileCode2, LoaderCircle } from "lucide-react";
 import { AiTransformDialog } from "./ai-transform-dialog";
 import { OutlineData } from "./outline-view";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useToast } from "@/hooks/use-toast";
+import * as prettier from "prettier/standalone";
+import * as prettierPluginBabel from "prettier/plugins/babel";
+import * as prettierPluginEstree from "prettier/plugins/estree";
+import * as prettierPluginTailwind from "prettier-plugin-tailwindcss";
+import * as prettierPluginHtml from "prettier/plugins/html";
 
 interface CodeEditorProps {
   path: string;
@@ -32,7 +38,9 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const monacoRef = useRef<typeof monaco | null>(null);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [selectedText, setSelectedText] = useState("");
+  const [isFormatting, setIsFormatting] = useState(false);
   const debouncedValue = useDebounce(value, 500);
+  const { toast } = useToast();
 
   const updateOutline = useCallback(async () => {
     if (!editorRef.current || !monacoRef.current) return;
@@ -95,8 +103,6 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   };
 
   useEffect(() => {
-    // When the file path changes, we need to update the model in monaco
-    // to ensure the correct language services are used.
     const editor = editorRef.current;
     if (editor) {
       const model = editor.getModel();
@@ -125,6 +131,31 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     }
   };
 
+  const handleFormat = async () => {
+    if (isFormatting) return;
+    setIsFormatting(true);
+    try {
+        const language = getLanguage(path);
+        const parser = language === 'typescript' || language === 'javascript' ? 'babel-ts' : language;
+        
+        const formattedCode = await prettier.format(value, {
+            parser: parser,
+            plugins: [prettierPluginBabel, prettierPluginEstree, prettierPluginTailwind, prettierPluginHtml],
+            // Prettier options
+            semi: true,
+            singleQuote: false,
+            trailingComma: "es5",
+        });
+        onChange(formattedCode);
+        toast({ title: "Code formatted", description: "Successfully formatted the code with Prettier." });
+    } catch (error) {
+        console.error("Formatting failed:", error);
+        toast({ variant: "destructive", title: "Formatting failed", description: "Could not format the code. It may contain syntax errors." });
+    } finally {
+        setIsFormatting(false);
+    }
+  };
+
   const language = getLanguage(path);
 
   return (
@@ -146,14 +177,22 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
           wordWrap: "bounded",
         }}
       />
-      {selectedText && (
-        <div className="absolute bottom-4 right-4 z-10">
-          <Button onClick={() => setIsAiDialogOpen(true)}>
-            <WandSparkles className="mr-2 h-4 w-4" />
-            AI Transform
-          </Button>
-        </div>
-      )}
+      <div className="absolute bottom-4 right-4 z-10 flex gap-2">
+        <Button onClick={handleFormat} disabled={isFormatting} variant="outline">
+          {isFormatting ? (
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+              <FileCode2 className="mr-2 h-4 w-4" />
+          )}
+          Format Document
+        </Button>
+        {selectedText && (
+            <Button onClick={() => setIsAiDialogOpen(true)}>
+                <WandSparkles className="mr-2 h-4 w-4" />
+                AI Transform
+            </Button>
+        )}
+      </div>
       <AiTransformDialog
         open={isAiDialogOpen}
         onOpenChange={setIsAiDialogOpen}
