@@ -1,0 +1,81 @@
+
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Python Script",
+      "type": "python",
+      "request": "launch",
+      "program": "python_scripts/my_script.py",
+      "args": {
+        "name": "From launch.json",
+        "value": 12345
+      }
+    },
+    {
+      "name": "Run Java App",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "MyJavaApp",
+      "sourcePaths": ["java_apps/src"],
+      "classPaths": ["java_apps/lib/*"],
+      "args": {
+        "name": "Java User",
+        "age": 42
+      }
+    },
+    {
+      "name": "Run Go App",
+      "type": "go",
+      "request": "launch",
+      "program": "go_apps/main.go",
+      "args": {
+        "name": "Go Developer",
+        "value": 987
+      }
+    },
+    {
+      "name": "Run Rust App",
+      "type": "rust",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--release"],
+        "projectPath": "rust_apps"
+      },
+      "args": {
+        "name": "Rustacean",
+        "value": 1010
+      }
+    },
+    {
+      "name": "Run C# App",
+      "type": "csharp",
+      "request": "launch",
+      "projectPath": "csharp_apps/my_csharp_app",
+      "args": {
+        "name": "C# Coder",
+        "value": 777
+      }
+    },
+    {
+      "name": "Run PHP Script",
+      "type": "php",
+      "request": "launch",
+      "program": "php_scripts/my_php_script.php",
+      "args": {
+        "name": "PHP Enthusiast",
+        "value": 555
+      }
+    },
+    {
+      "name": "Run Ruby Script",
+      "type": "ruby",
+      "request": "launch",
+      "program": "ruby_scripts/my_ruby_script.rb",
+      "args": {
+        "name": "Rubyist",
+        "value": 333
+      }
+    }
+  ]
+}
