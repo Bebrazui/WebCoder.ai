@@ -44,18 +44,16 @@ Get started by opening a local folder, or by uploading your files or a ZIP archi
 ));
 
 const isTextFile = (file: {name: string, type?: string, content?: string}) => {
-    // Explicitly treat image/audio files as non-text
-    if (/\.(png|jpg|jpeg|gif|webp|svg|mp3|wav|ogg|aac|flac|m4a)$/i.test(file.name)) {
+    if (/\.(png|jpg|jpeg|gif|webp|svg|mp3|wav|ogg|aac|flac|m4a|ico|class|zip|gz|tar|rar|7z|bin|exe|dll|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(file.name)) {
         return false;
     }
-    
-    // Check data URI mime type if available
+    if (file.type && (file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/') || file.type === 'application/octet-stream')) {
+        return false;
+    }
     if (file.content && file.content.startsWith('data:')) {
         const mime = file.content.substring(5, file.content.indexOf(';'));
         return mime.startsWith('text/') || !mime.includes('/');
     }
-    
-    // By default, assume it's a text file
     return true;
 }
 
