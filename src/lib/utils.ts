@@ -16,6 +16,7 @@ export function dataURIToArrayBuffer(dataURI: string): ArrayBuffer {
 
   const base64Marker = ';base64,';
   const base64Index = dataURI.indexOf(base64Marker);
+  
   if (base64Index === -1) {
     // Handle URL-encoded data URI
     const data = decodeURIComponent(dataURI.substring(dataURI.indexOf(',') + 1));
@@ -28,12 +29,19 @@ export function dataURIToArrayBuffer(dataURI: string): ArrayBuffer {
   }
 
   const base64 = dataURI.substring(base64Index + base64Marker.length);
-  const raw = window.atob(base64);
-  const rawLength = raw.length;
-  const array = new Uint8Array(new ArrayBuffer(rawLength));
 
-  for (let i = 0; i < rawLength; i++) {
-    array[i] = raw.charCodeAt(i);
+  // Isomorphic Base64 decoding
+  if (typeof window === 'undefined') {
+    // Node.js environment
+    return Buffer.from(base64, 'base64').buffer;
+  } else {
+    // Browser environment
+    const raw = window.atob(base64);
+    const rawLength = raw.length;
+    const array = new Uint8Array(new ArrayBuffer(rawLength));
+    for (let i = 0; i < rawLength; i++) {
+      array[i] = raw.charCodeAt(i);
+    }
+    return array.buffer;
   }
-  return array.buffer;
 }
