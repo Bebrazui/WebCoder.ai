@@ -19,6 +19,8 @@ import { CharacterCounter } from "./plugins/character-counter";
 import { MarkdownPreviewer } from "./plugins/markdown-previewer";
 import { PythonRunner } from "./plugins/python-runner";
 import { JavaRunner } from "./plugins/java-runner";
+import { GoRunner } from "./plugins/go-runner";
+import { RubyRunner } from "./plugins/ruby-runner";
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onGenerateReadme' | 'isGeneratingReadme'> {
     gitStatus: GitStatus[];
@@ -28,7 +30,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onG
     onSymbolSelect: (range: any) => void;
 }
 
-type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner" | "java-runner";
+type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner" | "java-runner" | "go-runner" | "ruby-runner";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -110,6 +112,20 @@ export function Sidebar(props: SidebarProps) {
       label: "Java Runner",
       main: false,
       component: <JavaRunner />
+    },
+    {
+      id: "go-runner",
+      icon: null,
+      label: "Go Runner",
+      main: false,
+      component: <GoRunner />
+    },
+    {
+      id: "ruby-runner",
+      icon: null,
+      label: "Ruby Runner",
+      main: false,
+      component: <RubyRunner />
     }
   ];
 

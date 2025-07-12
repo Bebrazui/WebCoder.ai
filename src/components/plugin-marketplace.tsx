@@ -27,6 +27,18 @@ const availablePlugins = [
     description: "Run a sample compiled Java app with custom input.",
   },
   {
+    id: "go-runner",
+    icon: <Code2 className="h-8 w-8 text-cyan-500" />,
+    name: "Go Runner",
+    description: "Run a sample compiled Go app with custom input.",
+  },
+  {
+    id: "ruby-runner",
+    icon: <Code2 className="h-8 w-8 text-red-500" />,
+    name: "Ruby Runner",
+    description: "Run a sample Ruby script with custom input.",
+  },
+  {
     id: "json-formatter",
     icon: <Braces className="h-8 w-8 text-amber-400" />,
     name: "JSON Formatter",

@@ -59,6 +59,7 @@ export function FileIcon({ filename, ...props }: FileIconProps) {
       return <FileText {...props} color="#cb171e" />;
     case "sh":
     case "bash":
+    case "bat":
       return <Terminal {...props} color="#4eae4a" />;
 
     // Images
