@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import * as prettier from "prettier/standalone";
 import * as prettierPluginBabel from "prettier/plugins/babel";
 import * as prettierPluginEstree from "prettier/plugins/estree";
-import * as prettierPluginTailwind from "prettier-plugin-tailwindcss";
 import * as prettierPluginHtml from "prettier/plugins/html";
 
 interface CodeEditorProps {
@@ -140,7 +139,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         
         const formattedCode = await prettier.format(value, {
             parser: parser,
-            plugins: [prettierPluginBabel, prettierPluginEstree, prettierPluginTailwind, prettierPluginHtml],
+            plugins: [prettierPluginBabel, prettierPluginEstree, prettierPluginHtml],
             // Prettier options
             semi: true,
             singleQuote: false,
