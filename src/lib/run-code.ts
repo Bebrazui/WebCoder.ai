@@ -69,18 +69,21 @@ const runners = {
 
         const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
             let results: string[] = [];
+            let list;
             try {
-                const list = await fs.readdir(dir, { withFileTypes: true });
-                for (const file of list) {
-                    const fullPath = path.resolve(dir, file.name);
-                    if (file.isDirectory()) {
-                        results = results.concat(await findJavaFilesRecursive(fullPath));
-                    } else if (file.name.endsWith('.java')) {
-                        results.push(fullPath);
-                    }
+                list = await fs.readdir(dir, { withFileTypes: true });
+            } catch (e) {
+                // If directory doesn't exist, just return empty array for this path.
+                return [];
+            }
+            
+            for (const file of list) {
+                const fullPath = path.resolve(dir, file.name);
+                if (file.isDirectory()) {
+                    results = results.concat(await findJavaFilesRecursive(fullPath));
+                } else if (file.name.endsWith('.java')) {
+                    results.push(fullPath);
                 }
-            } catch(e) {
-                // Ignore errors for non-existent directories, etc.
             }
             return results;
         };
@@ -88,8 +91,17 @@ const runners = {
         const sourceFiles: string[] = [];
         for (const srcPath of config.sourcePaths || []) {
             const fullSrcPath = path.join(tempDir, srcPath);
-            const files = await findJavaFilesRecursive(fullSrcPath);
-            sourceFiles.push(...files);
+             try {
+                // Check if path exists and is a directory before attempting to read
+                const stats = await fs.stat(fullSrcPath);
+                if (stats.isDirectory()) {
+                    const files = await findJavaFilesRecursive(fullSrcPath);
+                    sourceFiles.push(...files);
+                }
+            } catch (e) {
+                // Path does not exist, ignore it.
+                continue;
+            }
         }
         
         if (sourceFiles.length === 0) {
