@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
+import { useTheme } from './theme-provider';
 
 const PROMPT = '$ ';
 
@@ -53,10 +54,24 @@ const commands: Record<string, { description: string; output: string[] | ((term:
     }
 };
 
+const themes = {
+    dark: {
+        background: '#1e293b', // slate-800
+        foreground: '#f8fafc', // slate-50
+        cursor: '#f8fafc',
+    },
+    oceanic: {
+        background: '#0d1f2d',
+        foreground: '#c0d2e0',
+        cursor: '#c0d2e0',
+    }
+}
+
 export function TerminalView() {
     const terminalRef = useRef<HTMLDivElement>(null);
     const term = useRef<Terminal | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
+    const { theme } = useTheme();
 
     useEffect(() => {
         let currentLine = '';
@@ -67,11 +82,7 @@ export function TerminalView() {
                 convertEol: true,
                 fontFamily: `'Source Code Pro', monospace`,
                 fontSize: 14,
-                theme: {
-                    background: '#1e293b', // slate-800
-                    foreground: '#f8fafc', // slate-50
-                    cursor: '#f8fafc',
-                }
+                theme: themes[theme as keyof typeof themes] || themes.dark
             });
 
             fitAddon.current = new FitAddon();
@@ -143,6 +154,13 @@ export function TerminalView() {
             };
         }
     }, []); // Empty dependency array ensures this runs only once.
+
+    useEffect(() => {
+        if (term.current) {
+            term.current.options.theme = themes[theme as keyof typeof themes] || themes.dark;
+        }
+    }, [theme]);
+
 
     return <div ref={terminalRef} className="h-full w-full p-2" />;
 }

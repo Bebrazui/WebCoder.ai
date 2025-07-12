@@ -1,14 +1,13 @@
 
 "use client";
 
+import { useAppState } from "@/hooks/use-app-state";
 import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "dark" | "oceanic";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
-  defaultTheme?: Theme;
-  storageKey?: string;
 };
 
 type ThemeProviderState = {
@@ -25,34 +24,21 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
-  storageKey = "webcoder-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Return default theme during server-side rendering
-    if (typeof window === 'undefined') {
-      return defaultTheme;
-    }
-    // Get theme from local storage on the client
-    return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
-  });
-
-  useEffect(() => {
-    // This effect runs only on the client
-    const storedTheme = (localStorage.getItem(storageKey) as Theme) || defaultTheme;
-    if (storedTheme !== theme) {
-        setTheme(storedTheme);
-    }
-  }, [storageKey, defaultTheme]);
-
+  const { editorSettings, setEditorSettings } = useAppState();
+  const theme = editorSettings.theme;
+  
+  const setTheme = (newTheme: Theme) => {
+    setEditorSettings({ ...editorSettings, theme: newTheme });
+  };
+  
   useEffect(() => {
     const root = window.document.documentElement;
 
     root.classList.remove("dark", "oceanic");
     root.classList.add(theme);
-    localStorage.setItem(storageKey, theme);
-  }, [theme, storageKey]);
+  }, [theme]);
 
   const value = {
     theme,

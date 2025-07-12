@@ -20,7 +20,9 @@ import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
 import { useToast } from "@/hooks/use-toast";
 import type { OutlineData } from "./outline-view";
-import { useTheme } from "./theme-provider";
+import { SettingsSheet } from "./settings-sheet";
+import { useAppState } from "@/hooks/use-app-state";
+
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -62,7 +64,7 @@ export function Ide() {
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
+  const { editorSettings } = useAppState();
   
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
@@ -321,8 +323,6 @@ export function Ide() {
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
         isStatusBarVisible={isStatusBarVisible}
         onToggleStatusBar={() => setIsStatusBarVisible(p => !p)}
-        theme={theme}
-        onThemeChange={setTheme}
       />
       
       <main className="min-h-0">
@@ -399,6 +399,7 @@ export function Ide() {
         onSelectFile={handleSelectFile}
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
       />
+      <SettingsSheet />
     </div>
   );
 }

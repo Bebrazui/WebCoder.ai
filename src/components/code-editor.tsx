@@ -16,6 +16,7 @@ import * as prettier from "prettier/standalone";
 import * as prettierPluginBabel from "prettier/plugins/babel";
 import * as prettierPluginEstree from "prettier/plugins/estree";
 import * as prettierPluginHtml from "prettier/plugins/html";
+import { useAppState } from "@/hooks/use-app-state";
 
 interface CodeEditorProps {
   path: string;
@@ -40,6 +41,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const [isFormatting, setIsFormatting] = useState(false);
   const debouncedValue = useDebounce(value, 500);
   const { toast } = useToast();
+  const { editorSettings } = useAppState();
 
   const updateOutline = useCallback(async () => {
     if (!editorRef.current || !monacoRef.current || !onOutlineChange) return;
@@ -166,16 +168,16 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         value={value}
         onChange={(v) => onChange(v || "")}
         onMount={handleEditorDidMount}
-        theme="vs-dark"
+        theme={editorSettings.theme === 'oceanic' ? 'oceanic' : 'vs-dark'}
         language={language}
         loading={<Skeleton className="h-full w-full" />}
         options={{
-          fontFamily: "'Source Code Pro', monospace",
-          fontSize: 14,
+          fontFamily: editorSettings.fontFamily,
+          fontSize: editorSettings.fontSize,
+          wordWrap: editorSettings.wordWrap ? "on" : "off",
           minimap: { enabled: true },
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          wordWrap: "bounded",
         }}
       />
       <div className="absolute bottom-4 right-4 z-10 flex gap-2">

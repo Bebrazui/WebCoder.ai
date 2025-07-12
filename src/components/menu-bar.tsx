@@ -14,7 +14,10 @@ import {
     MenubarSubTrigger,
     MenubarCheckboxItem,
   } from "@/components/ui/menubar"
-import { Check } from "lucide-react";
+import { useAppState } from "@/hooks/use-app-state";
+import { Check, Settings } from "lucide-react";
+import { useTheme } from "./theme-provider";
+import { Button } from "./ui/button";
 
 interface MenuBarProps {
     onNewFile: () => void;
@@ -30,8 +33,6 @@ interface MenuBarProps {
     onToggleTerminal: () => void;
     isStatusBarVisible: boolean;
     onToggleStatusBar: () => void;
-    theme: string;
-    onThemeChange: (theme: string) => void;
 }
   
 export function MenuBar({
@@ -48,90 +49,96 @@ export function MenuBar({
     onToggleTerminal,
     isStatusBarVisible,
     onToggleStatusBar,
-    theme,
-    onThemeChange,
 }: MenuBarProps) {
+    const { theme, setTheme } = useTheme();
+    const { setIsSettingsOpen } = useAppState();
+
     return (
-        <Menubar className="rounded-none border-b border-border px-2 lg:px-4">
-            <MenubarMenu>
-                <MenubarTrigger>File</MenubarTrigger>
-                <MenubarContent>
-                    <MenubarItem onClick={onNewFile}>New File</MenubarItem>
-                    <MenubarItem onClick={onNewFolder}>New Folder</MenubarItem>
-                    <MenubarItem onClick={onOpenFolder}>Open Folder...</MenubarItem>
-                    <MenubarSeparator />
-                    <MenubarItem onClick={onSaveFile}>
-                        Save<MenubarShortcut>⌘S</MenubarShortcut>
-                    </MenubarItem>
-                    <MenubarSeparator />
-                    <MenubarItem onClick={onDownloadZip}>Download as ZIP...</MenubarItem>
-                    <MenubarSeparator />
-                    <MenubarItem disabled>Exit</MenubarItem>
-                </MenubarContent>
-            </MenubarMenu>
-            <MenubarMenu>
-                <MenubarTrigger>Edit</MenubarTrigger>
-                <MenubarContent>
-                    <MenubarItem onClick={() => onEditorAction('undo')}>Undo</MenubarItem>
-                    <MenubarItem onClick={() => onEditorAction('redo')}>Redo</MenubarItem>
-                    <MenubarSeparator />
-                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCutAction')}>Cut</MenubarItem>
-                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCopyAction')}>Copy</MenubarItem>
-                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardPasteAction')}>Paste</MenubarItem>
-                </MenubarContent>
-            </MenubarMenu>
-            <MenubarMenu>
-                <MenubarTrigger>Selection</MenubarTrigger>
-                 <MenubarContent>
-                    <MenubarItem onClick={() => onEditorAction('editor.action.selectAll')}>Select All</MenubarItem>
-                </MenubarContent>
-            </MenubarMenu>
-            <MenubarMenu>
-                <MenubarTrigger>View</MenubarTrigger>
-                <MenubarContent>
-                    <MenubarItem onClick={onCommandPaletteToggle}>
-                        Command Palette<MenubarShortcut>⌘K</MenubarShortcut>
-                    </MenubarItem>
-                    <MenubarSub>
-                        <MenubarSubTrigger>Theme</MenubarSubTrigger>
-                        <MenubarSubContent>
-                             <MenubarItem onClick={() => onThemeChange('dark')}>
-                                {theme === 'dark' && <Check className="mr-2 h-4 w-4" />}
-                                <span>Dark</span>
-                            </MenubarItem>
-                            <MenubarItem onClick={() => onThemeChange('oceanic')}>
-                                {theme === 'oceanic' && <Check className="mr-2 h-4 w-4" />}
-                                <span>Oceanic</span>
-                            </MenubarItem>
-                        </MenubarSubContent>
-                    </MenubarSub>
-                    <MenubarSeparator />
-                    <MenubarCheckboxItem checked={isSidebarVisible} onCheckedChange={onToggleSidebar}>
-                        Show Explorer
-                    </MenubarCheckboxItem>
-                     <MenubarCheckboxItem checked={isTerminalVisible} onCheckedChange={onToggleTerminal}>
-                        Show Terminal
-                    </MenubarCheckboxItem>
-                     <MenubarCheckboxItem checked={isStatusBarVisible} onCheckedChange={onToggleStatusBar}>
-                        Show Status Bar
-                    </MenubarCheckboxItem>
-                </MenubarContent>
-            </MenubarMenu>
-            <MenubarMenu>
-                <MenubarTrigger>Go</MenubarTrigger>
-                 <MenubarContent>
-                    <MenubarItem onClick={onCommandPaletteToggle}>Go to File...</MenubarItem>
-                    <MenubarItem disabled>Go to Symbol...</MenubarItem>
-                </MenubarContent>
-            </MenubarMenu>
-             <MenubarMenu>
-                <MenubarTrigger>Help</MenubarTrigger>
-                 <MenubarContent>
-                    <MenubarItem disabled>Welcome</MenubarItem>
-                    <MenubarItem onClick={onCommandPaletteToggle}>Show All Commands</MenubarItem>
-                    <MenubarItem disabled>Documentation</MenubarItem>
-                </MenubarContent>
-            </MenubarMenu>
-        </Menubar>
+        <div className="flex items-center justify-between border-b border-border pl-2 pr-1 h-11">
+            <Menubar className="border-0 p-0 h-auto bg-transparent">
+                <MenubarMenu>
+                    <MenubarTrigger>File</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem onClick={onNewFile}>New File</MenubarItem>
+                        <MenubarItem onClick={onNewFolder}>New Folder</MenubarItem>
+                        <MenubarItem onClick={onOpenFolder}>Open Folder...</MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={onSaveFile}>
+                            Save<MenubarShortcut>⌘S</MenubarShortcut>
+                        </MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={onDownloadZip}>Download as ZIP...</MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem disabled>Exit</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Edit</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem onClick={() => onEditorAction('undo')}>Undo</MenubarItem>
+                        <MenubarItem onClick={() => onEditorAction('redo')}>Redo</MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCutAction')}>Cut</MenubarItem>
+                        <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCopyAction')}>Copy</MenubarItem>
+                        <MenubarItem onClick={() => onEditorAction('editor.action.clipboardPasteAction')}>Paste</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Selection</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem onClick={() => onEditorAction('editor.action.selectAll')}>Select All</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>View</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem onClick={onCommandPaletteToggle}>
+                            Command Palette<MenubarShortcut>⌘K</MenubarShortcut>
+                        </MenubarItem>
+                        <MenubarSub>
+                            <MenubarSubTrigger>Theme</MenubarSubTrigger>
+                            <MenubarSubContent>
+                                <MenubarItem onClick={() => setTheme('dark')}>
+                                    {theme === 'dark' && <Check className="mr-2 h-4 w-4" />}
+                                    <span>Dark+</span>
+                                </MenubarItem>
+                                <MenubarItem onClick={() => setTheme('oceanic')}>
+                                    {theme === 'oceanic' && <Check className="mr-2 h-4 w-4" />}
+                                    <span>Oceanic</span>
+                                </MenubarItem>
+                            </MenubarSubContent>
+                        </MenubarSub>
+                        <MenubarSeparator />
+                        <MenubarCheckboxItem checked={isSidebarVisible} onCheckedChange={onToggleSidebar}>
+                            Show Explorer
+                        </MenubarCheckboxItem>
+                        <MenubarCheckboxItem checked={isTerminalVisible} onCheckedChange={onToggleTerminal}>
+                            Show Terminal
+                        </MenubarCheckboxItem>
+                        <MenubarCheckboxItem checked={isStatusBarVisible} onCheckedChange={onToggleStatusBar}>
+                            Show Status Bar
+                        </MenubarCheckboxItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Go</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem onClick={onCommandPaletteToggle}>Go to File...</MenubarItem>
+                        <MenubarItem disabled>Go to Symbol...</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Help</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem disabled>Welcome</MenubarItem>
+                        <MenubarItem onClick={onCommandPaletteToggle}>Show All Commands</MenubarItem>
+                        <MenubarItem disabled>Documentation</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+            </Menubar>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsSettingsOpen(true)}>
+                <Settings className="h-5 w-5" />
+            </Button>
+        </div>
     )
 }
