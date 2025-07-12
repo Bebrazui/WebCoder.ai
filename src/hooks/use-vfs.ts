@@ -161,14 +161,13 @@ export function useVfs() {
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
     try {
-        await pfs.rm('/');
+        const entries = await pfs.readdir('/');
+        for(const entry of entries) {
+            if (entry === '.' || entry === '..') continue;
+            await pfs.rm(`/${entry}`, { recursive: true });
+        }
     } catch (e) {
-        // May fail if directory doesn't exist, which is fine
-    }
-    try {
-        await pfs.mkdir('/');
-    } catch (e) {
-        // May fail if it already exists
+        // May fail, which is fine
     }
 
     const syncNode = async (node: VFSNode, parentPath: string) => {
@@ -177,7 +176,13 @@ export function useVfs() {
         const currentPath = parentPath === '/' ? `/${node.name}` : `${parentPath}/${node.name}`;
         
         if (node.type === 'directory') {
-            await pfs.mkdir(currentPath, { recursive: true });
+            try {
+                // Check if directory exists before creating
+                await pfs.stat(currentPath);
+            } catch (e) {
+                // Doesn't exist, so create it
+                await pfs.mkdir(currentPath, { recursive: true });
+            }
             for (const child of node.children) {
                 await syncNode(child, currentPath);
             }
@@ -245,7 +250,7 @@ export function useVfs() {
       loadVfs();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [directoryHandle, toast]);
+  }, [directoryHandle]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
@@ -784,5 +789,7 @@ export function useVfs() {
     commit,
   };
 }
+
+    
 
     
