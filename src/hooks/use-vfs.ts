@@ -161,9 +161,14 @@ export function useVfs() {
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
     try {
-      await fs.init(GIT_FS_NAME, {wipe: true});
+        await pfs.rm('/');
     } catch (e) {
-      // Can fail if folder doesn't exist, which is fine
+        // May fail if directory doesn't exist, which is fine
+    }
+    try {
+        await pfs.mkdir('/');
+    } catch (e) {
+        // May fail if it already exists
     }
 
     const syncNode = async (node: VFSNode, parentPath: string) => {
@@ -187,12 +192,24 @@ export function useVfs() {
             }
         }
     };
-    
-    // Sync children of the root to avoid a wrapping folder.
+
     for (const child of root.children) {
         await syncNode(child, '/');
     }
   }, []);
+
+  const saveVfs = useCallback(async (root: VFSDirectory) => {
+    if (directoryHandle) {
+        return; // Don't save to localforage if using File System Access API
+    }
+    try {
+      await localforage.setItem(VFS_KEY, root);
+      await syncVfsToLfs(root);
+      await getGitStatus();
+    } catch (error) {
+      console.error("Failed to save VFS to IndexedDB", error);
+    }
+  }, [directoryHandle, syncVfsToLfs, getGitStatus]);
 
   useEffect(() => {
     localforage.config({
@@ -208,14 +225,17 @@ export function useVfs() {
           setVfsRoot(savedRoot);
           await syncVfsToLfs(savedRoot);
         } else {
-          await localforage.setItem(VFS_KEY, defaultRoot);
-          await syncVfsToLfs(defaultRoot);
+          setVfsRoot(defaultRoot);
+          await saveVfs(defaultRoot);
         }
         await getGitBranch();
         await getGitStatus();
       } catch (error) {
         console.error("Failed to load VFS from IndexedDB", error);
         toast({ variant: "destructive", title: "Error", description: "Could not load your project from local storage."});
+        // Fallback to default if loading fails catastrophically
+        setVfsRoot(defaultRoot);
+        await saveVfs(defaultRoot);
       } finally {
         setLoading(false);
       }
@@ -224,20 +244,8 @@ export function useVfs() {
     if (!directoryHandle) {
       loadVfs();
     }
-  }, [toast, directoryHandle, syncVfsToLfs, getGitBranch, getGitStatus]);
-
-  const saveVfs = useCallback(async (root: VFSDirectory) => {
-    if (directoryHandle) {
-        return;
-    }
-    try {
-      await localforage.setItem(VFS_KEY, root);
-      await syncVfsToLfs(root);
-      await getGitStatus();
-    } catch (error) {
-      console.error("Failed to save VFS to IndexedDB", error);
-    }
-  }, [directoryHandle, syncVfsToLfs, getGitStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directoryHandle, toast]);
   
   const addZipToVfs = useCallback((file: File) => {
     setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
@@ -290,7 +298,7 @@ export function useVfs() {
 
         await Promise.all(promises);
         setVfsRoot(newRoot);
-        saveVfs(newRoot);
+        await saveVfs(newRoot);
         toast({ title: "ZIP unpacked", description: `Project ${newRoot.name} has been loaded.` });
 
       } catch (error) {
