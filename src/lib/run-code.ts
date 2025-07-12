@@ -70,7 +70,7 @@ const compileJava = async (config: any, tempDir: string) => {
         }
         
         for (const file of list) {
-            const fullPath = path.resolve(dir, file.name);
+            const fullPath = path.join(dir, file.name); // FIX: Was path.resolve, which caused incorrect pathing.
             if (file.isDirectory()) {
                 results = results.concat(await findJavaFilesRecursive(fullPath));
             } else if (file.name.endsWith('.java')) {
@@ -81,16 +81,20 @@ const compileJava = async (config: any, tempDir: string) => {
     };
 
     const sourceFiles: string[] = [];
-    for (const srcPath of config.sourcePaths || []) {
-        const fullSrcPath = path.join(tempDir, srcPath);
-         try {
-            const stats = await fs.stat(fullSrcPath);
-            if (stats.isDirectory()) {
-                const files = await findJavaFilesRecursive(fullSrcPath);
-                sourceFiles.push(...files);
+    if (config.sourcePaths && Array.isArray(config.sourcePaths)) {
+        for (const srcPath of config.sourcePaths) {
+            const fullSrcPath = path.join(tempDir, srcPath);
+             try {
+                const stats = await fs.stat(fullSrcPath);
+                if (stats.isDirectory()) {
+                    console.log(`Scanning for .java files in: ${fullSrcPath}`);
+                    const files = await findJavaFilesRecursive(fullSrcPath);
+                    sourceFiles.push(...files);
+                }
+            } catch (e) {
+                console.warn(`Source path ${fullSrcPath} not found or is not a directory. Skipping.`);
+                continue;
             }
-        } catch (e) {
-            continue;
         }
     }
     
