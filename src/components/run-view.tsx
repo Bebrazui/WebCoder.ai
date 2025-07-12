@@ -198,7 +198,7 @@ export function RunView() {
       }
   }, [getFullConfig, toast, vfsRoot.children]);
 
-  const handleAddLaunchJson = () => {
+  const handleAddLaunchJson = useCallback(() => {
       const content = `
 {
   "version": "0.2.0",
@@ -218,9 +218,9 @@ export function RunView() {
   ]
 }
       `.trim();
-      createFileInVfs('launch.json', vfsRoot as VFSDirectory);
+      createFileInVfs('launch.json', vfsRoot as VFSDirectory, content);
       toast({ title: '`launch.json` created', description: 'File was added to the root of your project.' });
-  };
+  }, [createFileInVfs, vfsRoot, toast]);
 
   const selectedConfig = useMemo(() => {
       return launchConfigs.find(c => c.name === selectedConfigName);

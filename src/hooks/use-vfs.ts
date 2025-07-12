@@ -423,7 +423,7 @@ export function useVfs() {
     }
   }, [saveVfs, toast, directoryHandle, getGitStatus]);
 
-  const createFileInVfs = useCallback((name: string, parent: VFSDirectory) => {
+  const createFileInVfs = useCallback((name: string, parent: VFSDirectory, content: string = '') => {
     setVfsRoot(currentRoot => {
       const newRoot = JSON.parse(JSON.stringify(currentRoot));
       const parentDirResult = findNodeAndParent(newRoot, parent.path);
@@ -435,10 +435,10 @@ export function useVfs() {
           return currentRoot;
         }
         const newPath = targetDir.path === '/' ? `/${name}` : `${targetDir.path}/${name}`;
-        const newFile = createFile(name, newPath, '');
+        const newFile = createFile(name, newPath, content);
         targetDir.children.push(newFile);
         saveVfs(newRoot);
-        toast({ title: 'File created', description: `Created ${name}` });
+        // toast({ title: 'File created', description: `Created ${name}` });
         return newRoot;
       }
       return currentRoot;
@@ -789,7 +789,3 @@ export function useVfs() {
     commit,
   };
 }
-
-    
-
-    
