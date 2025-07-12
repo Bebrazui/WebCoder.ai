@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     const pythonScriptPath = path.join(tempProjectPath, entryPoint);
 
     const result = await new Promise<{ success: boolean; data?: any; error?: string }>((resolve) => {
+      // Correctly pass the JSON string as a single argument
       const pythonProcess = spawn('python3', [pythonScriptPath, JSON.stringify(inputData)]);
       
       let pythonOutput = '';
@@ -60,19 +61,19 @@ export async function POST(req: NextRequest) {
             const resultData = JSON.parse(pythonOutput);
             resolve({ success: true, data: resultData });
           } catch (parseError: any) {
-            console.error('Ошибка парсинга JSON из Python:', parseError);
+            console.error('Error parsing JSON from Python:', parseError);
             const detailedError = `Error parsing Python script output as JSON. Output was:\n---\n${pythonOutput}\n---\nParse Error: ${parseError.message}`;
             resolve({ success: false, error: detailedError });
           }
         } else {
-          console.error(`Python-процесс завершился с ошибкой ${code}:`, pythonError);
-          resolve({ success: false, error: pythonError || 'Ошибка выполнения Python-скрипта' });
+          console.error(`Python process exited with error code ${code}:`, pythonError);
+          resolve({ success: false, error: pythonError || 'Python script execution failed' });
         }
       });
 
       pythonProcess.on('error', (err) => {
-        console.error('Ошибка запуска Python-процесса:', err);
-        resolve({ success: false, error: `Ошибка запуска Python: ${err.message}` });
+        console.error('Failed to start Python process:', err);
+        resolve({ success: false, error: `Failed to start Python process: ${err.message}` });
       });
     });
 
@@ -83,12 +84,11 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('Непредвиденная ошибка:', error);
-    // Standardize error response
-    if (error instanceof SyntaxError) { // Catches JSON.parse errors on the request body
+    console.error('Unexpected error:', error);
+    if (error instanceof SyntaxError) {
         return NextResponse.json({ success: false, error: `Invalid JSON in request body: ${error.message}` }, { status: 400 });
     }
-    return NextResponse.json({ success: false, error: 'Внутренняя ошибка сервера' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   } finally {
       if (tempProjectPath) {
           await fs.rm(tempProjectPath, { recursive: true, force: true });
