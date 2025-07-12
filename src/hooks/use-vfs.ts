@@ -167,28 +167,28 @@ export function useVfs() {
         // Can fail if folder doesn't exist, which is fine
     }
     
-    const syncNode = async (node: VFSNode, pathPrefix: string) => {
-        if (node.path === '/') return; // Don't process root container
-        const currentPath = path.join(pathPrefix, node.name);
-        if (!currentPath || currentPath === '..') return;
+    const syncNode = async (node: VFSNode, currentPath: string) => {
+        if (node.name === '.git') return;
+
+        const nodePath = path.join(currentPath, node.name);
 
         if (node.type === 'directory') {
-            if (node.name === '.git') return;
-            await pfs.mkdir(currentPath, { recursive: true });
+            await pfs.mkdir(nodePath, { recursive: true });
             for (const child of node.children) {
-                await syncNode(child, currentPath);
+                await syncNode(child, nodePath);
             }
         } else if (node.type === 'file') {
             try {
               const content = node.content.startsWith('data:') 
                   ? dataURIToArrayBuffer(node.content)
                   : new TextEncoder().encode(node.content);
-              await pfs.writeFile(currentPath, new Uint8Array(content));
+              await pfs.writeFile(nodePath, new Uint8Array(content));
             } catch (error) {
-              console.error(`Failed to write file ${currentPath} to lightning-fs`, error);
+              console.error(`Failed to write file ${nodePath} to lightning-fs`, error);
             }
         }
     };
+    
     // Sync children of the root to avoid a wrapping folder.
     for (const child of root.children) {
         await syncNode(child, '');
