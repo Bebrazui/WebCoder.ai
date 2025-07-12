@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,22 +24,21 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
     editorRef.current = editor;
 
     // --- Enable Rich IntelliSense and validation ---
-    monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions({
-      jsx: monacoInstance.languages.typescript.JsxEmit.React,
-      strict: true,
-      target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
-      module: monacoInstance.languages.typescript.ModuleKind.ESNext,
-      allowNonTsExtensions: true,
-      esModuleInterop: true,
-    });
-    monacoInstance.languages.typescript.javascriptDefaults.setCompilerOptions({
+    const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {
+      defaults.setCompilerOptions({
         jsx: monacoInstance.languages.typescript.JsxEmit.React,
         strict: true,
         target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
         module: monacoInstance.languages.typescript.ModuleKind.ESNext,
-        allowNonTsExtensions: true,
+        allowSyntheticDefaultImports: true,
         esModuleInterop: true,
-    });
+        allowJs: true,
+        allowNonTsExtensions: true,
+      });
+    };
+
+    setupCompilerOptions(monacoInstance.languages.typescript.typescriptDefaults);
+    setupCompilerOptions(monacoInstance.languages.typescript.javascriptDefaults);
     // --- End of IntelliSense setup ---
 
     editor.onMouseUp(() => {
@@ -54,6 +53,18 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
       }
     });
   };
+
+  useEffect(() => {
+    // When the file path changes, we need to update the model in monaco
+    // to ensure the correct language services are used.
+    const editor = editorRef.current;
+    if (editor) {
+      const model = editor.getModel();
+      if (model) {
+        monaco.editor.setModelLanguage(model, getLanguage(path));
+      }
+    }
+  }, [path]);
 
   const handleTransform = (newCode: string) => {
     const editor = editorRef.current;
