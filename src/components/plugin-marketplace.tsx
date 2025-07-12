@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 
-const utilityPlugins = [
+const availablePlugins = [
   {
     id: "sql-generator",
     icon: <Database className="h-8 w-8 text-cyan-400" />,
@@ -60,106 +60,17 @@ const utilityPlugins = [
   },
 ];
 
-const corePlugins = [
-  {
-    id: "ts-ls",
-    icon: <Type className="h-8 w-8 text-blue-500" />,
-    name: "TypeScript/JavaScript Language Service",
-    description: "Provides smart autocompletion, type-checking, and refactoring.",
-  },
-  {
-    id: "debugger",
-    icon: <Bug className="h-8 w-8 text-red-500" />,
-    name: "Node.js Debugger",
-    description: "Set breakpoints, step through code, and inspect variables.",
-  },
-  {
-    id: "linter",
-    icon: <AppWindow className="h-8 w-8 text-indigo-500" />,
-    name: "Linter & Formatter (ESLint/Prettier)",
-    description: "Automatically format code and find potential errors.",
-  },
-];
-
-const otherPlugins = [
-   {
-    id: "npm-integration",
-    icon: <Terminal className="h-8 w-8 text-lime-500" />,
-    name: "NPM/Yarn Integration",
-    description: "Run scripts and manage dependencies from the UI.",
-  },
-  {
-    id: "git-graph",
-    icon: <GitGraph className="h-8 w-8 text-orange-500" />,
-    name: "Git Graph",
-    description: "Visualize your Git history with an interactive graph.",
-  },
-  {
-    id: "snippets",
-    icon: <Box className="h-8 w-8 text-teal-500" />,
-    name: "Code Snippets",
-    description: "Create and use templates for frequently used code blocks.",
-  },
-  {
-    id: "themer",
-    icon: <Palette className="h-8 w-8 text-pink-500" />,
-    name: "Theme & Icon Pack",
-    description: "Customize the look and feel of your IDE.",
-  },
-];
-
-
 interface PluginMarketplaceProps {
     onSelectPlugin: (id: string) => void;
 }
 
 export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
-  const { toast } = useToast();
-
-  const handleInstall = (pluginName: string) => {
-    toast({
-      title: "Installation Not Implemented",
-      description: `Installing "${pluginName}" is a planned feature.`,
-    });
-  };
-  
-  const handleOpenThemeCustomizer = () => {
-    toast({
-        title: "Feature Not Implemented",
-        description: "The theme customizer is a planned feature. You can currently change themes via the View > Theme menu.",
-    });
-  }
-
-  const isUtilityPlugin = (id: string) => utilityPlugins.some(p => p.id === id);
 
   const PluginCard = ({
     plugin,
   }: {
     plugin: { id: string; icon: React.ReactNode; name: string; description: string };
   }) => {
-    
-    let actionButton: React.ReactNode;
-
-    if (plugin.id === 'themer') {
-        actionButton = (
-            <Button variant="outline" size="sm" onClick={handleOpenThemeCustomizer}>
-                Customize
-            </Button>
-        );
-    } else if (isUtilityPlugin(plugin.id)) {
-        actionButton = (
-            <Button variant="outline" size="sm" onClick={() => onSelectPlugin(plugin.id)}>
-                Open
-            </Button>
-        );
-    } else {
-        actionButton = (
-            <Button variant="outline" size="sm" onClick={() => handleInstall(plugin.name)}>
-                Install
-            </Button>
-        );
-    }
-    
     return (
         <div className="flex items-start gap-4 rounded-lg border p-4">
           <div className="mt-1">{plugin.icon}</div>
@@ -167,7 +78,9 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
             <h3 className="font-semibold">{plugin.name}</h3>
             <p className="text-sm text-muted-foreground">{plugin.description}</p>
           </div>
-          {actionButton}
+          <Button variant="outline" size="sm" onClick={() => onSelectPlugin(plugin.id)}>
+            Open
+          </Button>
         </div>
     );
   }
@@ -185,19 +98,7 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
           <div>
              <h3 className="text-base font-semibold mb-4">Developer Utilities</h3>
              <div className="space-y-4">
-                {utilityPlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
-             </div>
-          </div>
-           <div>
-             <h3 className="text-base font-semibold mb-4">Workflow & Customization</h3>
-             <div className="space-y-4">
-                {otherPlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
-             </div>
-          </div>
-          <div>
-             <h3 className="text-base font-semibold mb-4">Core Functionality (Planned)</h3>
-             <div className="space-y-4">
-                {corePlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
+                {availablePlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
              </div>
           </div>
         </div>
@@ -205,5 +106,3 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
     </div>
   );
 }
-
-    
