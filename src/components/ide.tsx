@@ -18,7 +18,6 @@ import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Skeleton } from "./ui/skeleton";
 import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
-import { generateReadme } from "@/ai/flows/generate-readme-flow";
 import { useToast } from "@/hooks/use-toast";
 import type { OutlineData } from "./outline-view";
 import { useTheme } from "./theme-provider";
@@ -52,7 +51,6 @@ export function Ide() {
     openFolderWithApi,
     downloadVfsAsZip,
     cloneRepository,
-    upsertFileInVfs,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -61,7 +59,6 @@ export function Ide() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [isStatusBarVisible, setIsStatusBarVisible] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isGeneratingReadme, setIsGeneratingReadme] = useState(false);
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
@@ -300,39 +297,6 @@ export function Ide() {
     }
   };
 
-  const handleGenerateReadme = async () => {
-    setIsGeneratingReadme(true);
-    try {
-      const buildFileTree = (node: VFSNode, indent = ''): string => {
-        let tree = `${indent}${node.name}\n`;
-        if (node.type === 'directory') {
-          node.children.forEach(child => {
-            tree += buildFileTree(child, indent + '  ');
-          });
-        }
-        return tree;
-      };
-
-      const fileTree = buildFileTree(vfsRoot);
-      const result = await generateReadme({ fileTree });
-      
-      const readmeFile = upsertFileInVfs('README.md', vfsRoot, result.readmeContent);
-      handleSelectFile(readmeFile);
-
-      toast({ title: 'README.md generated', description: 'The README.md file has been created/updated.' });
-
-    } catch (error) {
-      console.error('README generation failed:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Generation Failed',
-        description: 'The AI could not generate the README. Please try again.',
-      });
-    } finally {
-      setIsGeneratingReadme(false);
-    }
-  };
-
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
@@ -383,8 +347,6 @@ export function Ide() {
                   onOpenFolder={handleOpenFolder}
                   onDownloadZip={downloadVfsAsZip}
                   onCloneRepository={handleCloneRepo}
-                  onGenerateReadme={handleGenerateReadme}
-                  isGeneratingReadme={isGeneratingReadme}
                   outlineData={outlineData}
                   onSymbolSelect={handleSymbolSelect}
                 />

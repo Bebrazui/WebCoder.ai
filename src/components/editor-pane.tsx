@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
-import { JavaDecompilerViewer } from "./java-decompiler-viewer";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
 import { isTextFile, isImageFile, isAudioFile, isJavaClassFile } from "@/lib/vfs";
@@ -79,10 +78,6 @@ export function EditorPane({
 
     if (isAudioFile(file.name)) {
         return <AudioPlayer file={file} />;
-    }
-    
-    if (isJavaClassFile(file.name)) {
-        return <JavaDecompilerViewer file={file} />;
     }
 
     if (isTextFile(file)) {

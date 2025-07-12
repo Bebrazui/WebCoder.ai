@@ -5,22 +5,21 @@ import { useState } from "react";
 import { FileExplorer } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch, ListTree, Puzzle, Database } from "lucide-react";
+import { FileCode, GitBranch, ListTree, Puzzle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileExplorerProps } from "./file-explorer";
 import type { GitStatus } from "@/hooks/use-vfs";
 import { OutlineView, OutlineData } from "./outline-view";
 import { PluginMarketplace } from "./plugin-marketplace";
-import { SqlGenerator } from "./sql-generator";
 import { JsonFormatter } from "./plugins/json-formatter";
 import { Base64EncoderDecoder } from "./plugins/base64-encoder-decoder";
 import { UrlEncoderDecoder } from "./plugins/url-encoder-decoder";
 import { CharacterCounter } from "./plugins/character-counter";
 import { MarkdownPreviewer } from "./plugins/markdown-previewer";
+import { PythonRunner } from "./plugins/python-runner";
 
-
-export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
+export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onGenerateReadme' | 'isGeneratingReadme'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
     onCommit: (message: string, token: string) => Promise<void>;
@@ -28,7 +27,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
     onSymbolSelect: (range: any) => void;
 }
 
-type View = "explorer" | "source-control" | "outline" | "plugins" | "sql-generator" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer";
+type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -63,13 +62,6 @@ export function Sidebar(props: SidebarProps) {
       component: <PluginMarketplace onSelectPlugin={setActiveView} />
     },
      {
-      id: "sql-generator",
-      icon: <Database/>,
-      label: "AI SQL Generator",
-      main: false,
-      component: <SqlGenerator/>
-     },
-     {
       id: "json-formatter",
       icon: null,
       label: "JSON Formatter",
@@ -103,6 +95,13 @@ export function Sidebar(props: SidebarProps) {
       label: "Markdown Previewer",
       main: false,
       component: <MarkdownPreviewer />
+    },
+    {
+      id: "python-runner",
+      icon: null,
+      label: "Python Runner",
+      main: false,
+      component: <PythonRunner />
     }
   ];
 

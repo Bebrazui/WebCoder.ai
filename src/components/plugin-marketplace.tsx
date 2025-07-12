@@ -2,31 +2,23 @@
 "use client";
 
 import {
-  AppWindow,
   Binary,
   BookOpen,
-  Box,
   Braces,
-  Bug,
-  Database,
-  GitGraph,
   Link,
-  Palette,
   Pilcrow,
   Puzzle,
-  Terminal,
-  Type,
+  Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
 
 const availablePlugins = [
   {
-    id: "sql-generator",
-    icon: <Database className="h-8 w-8 text-cyan-400" />,
-    name: "AI SQL Generator",
-    description: "Generate SQL queries from natural language.",
+    id: "python-runner",
+    icon: <Code2 className="h-8 w-8 text-cyan-400" />,
+    name: "Python Runner",
+    description: "Run a sample Python script with custom input.",
   },
   {
     id: "json-formatter",
