@@ -21,6 +21,12 @@ const availablePlugins = [
     description: "Run a sample Python script with custom input.",
   },
   {
+    id: "java-runner",
+    icon: <Code2 className="h-8 w-8 text-orange-400" />,
+    name: "Java Runner",
+    description: "Run a sample compiled Java app with custom input.",
+  },
+  {
     id: "json-formatter",
     icon: <Braces className="h-8 w-8 text-amber-400" />,
     name: "JSON Formatter",
@@ -38,7 +44,7 @@ const availablePlugins = [
     name: "URL Encoder/Decoder",
     description: "Encode and decode URL components.",
   },
-  {
+   {
     id: "char-counter",
     icon: <Pilcrow className="h-8 w-8 text-purple-400" />,
     name: "Character Counter",

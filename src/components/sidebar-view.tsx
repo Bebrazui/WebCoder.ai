@@ -18,6 +18,7 @@ import { UrlEncoderDecoder } from "./plugins/url-encoder-decoder";
 import { CharacterCounter } from "./plugins/character-counter";
 import { MarkdownPreviewer } from "./plugins/markdown-previewer";
 import { PythonRunner } from "./plugins/python-runner";
+import { JavaRunner } from "./plugins/java-runner";
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onGenerateReadme' | 'isGeneratingReadme'> {
     gitStatus: GitStatus[];
@@ -27,7 +28,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onG
     onSymbolSelect: (range: any) => void;
 }
 
-type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner";
+type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner" | "java-runner";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -102,6 +103,13 @@ export function Sidebar(props: SidebarProps) {
       label: "Python Runner",
       main: false,
       component: <PythonRunner />
+    },
+    {
+      id: "java-runner",
+      icon: null,
+      label: "Java Runner",
+      main: false,
+      component: <JavaRunner />
     }
   ];
 
