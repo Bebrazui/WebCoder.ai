@@ -164,7 +164,7 @@ export function EditorPane({
             className="h-full mt-0"
           >
              {renderFileContent(file)}
-          </Tabs.Content>
+          </TabsContent>
         ))}
       </div>
     </Tabs>
