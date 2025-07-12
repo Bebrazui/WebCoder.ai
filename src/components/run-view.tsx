@@ -90,10 +90,16 @@ export function RunView() {
     
     let parsedInput;
     try {
-      let jsonToParse = detectedLanguage.defaultInput;
+      let jsonToParse: string;
+
       if (editorSettings.manualJsonInput) {
-          jsonToParse = inputValue.trim() === '' ? detectedLanguage.defaultInput : inputValue;
+        // When manual input is on, use the textarea value, but fall back to default if empty.
+        jsonToParse = inputValue.trim() === '' ? detectedLanguage.defaultInput : inputValue;
+      } else {
+        // When manual input is off, ALWAYS use the default input.
+        jsonToParse = detectedLanguage.defaultInput;
       }
+
       parsedInput = JSON.parse(jsonToParse);
     } catch (e) {
       toast({
@@ -262,5 +268,3 @@ export function RunView() {
     </div>
   );
 }
-
-    
