@@ -3,6 +3,18 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Run Java App",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "Main",
+      "sourcePaths": ["."],
+      "classPaths": [],
+      "args": {
+        "name": "Java User",
+        "age": 42
+      }
+    },
+    {
       "name": "Run Python Script",
       "type": "python",
       "request": "launch",
@@ -10,18 +22,6 @@
       "args": {
         "name": "From launch.json",
         "value": 12345
-      }
-    },
-    {
-      "name": "Run Java App",
-      "type": "java",
-      "request": "launch",
-      "mainClass": "Main",
-      "sourcePaths": ["./"],
-      "classPaths": [],
-      "args": {
-        "name": "Java User",
-        "age": 42
       }
     },
     {
