@@ -28,7 +28,7 @@ const TEXT_EXTENSIONS = new Set([
     'txt', 'md', 'mdx', 'json', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx',
     'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'php', 'rb', 'rs', 'swift', 'kt',
     'yml', 'yaml', 'sh', 'bat', 'toml', 'gitignore', 'npmrc', 'log', 'sql', 'csv', 'env',
-    'conf', 'ini', 'cfg', 'properties', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc', 'mod', 'sum'
+    'conf', 'ini', 'cfg', 'properties', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc', 'mod', 'sum', 'csproj'
 ]);
 
 /**
@@ -94,6 +94,7 @@ export function getLanguage(path: string): string {
         case 'hpp':
             return 'cpp';
         case 'cs':
+        case 'csproj':
             return 'csharp';
         case 'go':
             return 'go';

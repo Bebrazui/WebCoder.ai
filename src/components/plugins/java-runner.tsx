@@ -9,14 +9,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2, LoaderCircle, ServerCrash, Hammer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "../ui/input";
+import { useVfs } from "@/hooks/use-vfs";
 
 export function JavaRunner() {
   const [inputValue, setInputValue] = useState('{"name": "Пользователь", "age": 25}');
+  const [entryPoint, setEntryPoint] = useState('MyJavaApp');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { vfsRoot } = useVfs();
 
   const handleRunApp = async () => {
     let parsedInput;
@@ -27,6 +31,15 @@ export function JavaRunner() {
         variant: "destructive",
         title: "Invalid Input",
         description: "The input must be a valid JSON object.",
+      });
+      return;
+    }
+    
+    if (!entryPoint.trim()) {
+       toast({
+        variant: "destructive",
+        title: "Invalid Entry Point",
+        description: "Please specify the main class name.",
       });
       return;
     }
@@ -41,7 +54,11 @@ export function JavaRunner() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataFromFrontend: parsedInput }),
+        body: JSON.stringify({ 
+            projectFiles: vfsRoot.children,
+            entryPoint: entryPoint,
+            inputData: parsedInput 
+        }),
       });
 
       const responseData = await response.json();
@@ -70,18 +87,24 @@ export function JavaRunner() {
         <div className="p-4 space-y-4">
             <Alert>
                 <Hammer className="h-4 w-4" />
-                <AlertTitle>Prerequisites</AlertTitle>
+                <AlertTitle>On-Demand Compilation & Execution</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Java project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-java</code> in your local terminal.</p>
-                    <p className="mt-2">This command will compile all <code className="font-mono bg-muted p-1 rounded-sm">.java</code> files inside <code className="font-mono bg-muted p-1 rounded-sm">java_apps/src</code>, allowing for multi-file projects.</p>
-                    <p className="mt-2">You also need to place any required <code className="font-mono bg-muted p-1 rounded-sm">.jar</code> files (like <code className="font-mono bg-muted p-1 rounded-sm">org.json.jar</code>) inside the <code className="font-mono bg-muted p-1 rounded-sm">java_apps/lib</code> directory.</p>
+                    <p>This tool sends your current project files to a secure server environment, compiles them, and runs the application. Your files are not stored on the server after execution.</p>
+                     <p className="mt-2">Ensure your Java files are in a <code className="font-mono bg-muted p-1 rounded-sm">src</code> directory and any JAR dependencies are in a <code className="font-mono bg-muted p-1 rounded-sm">lib</code> directory.</p>
                 </AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground">
-                This tool runs a compiled Java app on the server. You can pass a JSON object as input. The entry point must be the `main` method in the `MyJavaApp` class.
-            </p>
+             <div className="space-y-2">
+                <Label htmlFor="entry-point">Main Class Name</Label>
+                <Input
+                id="entry-point"
+                placeholder="e.g., com.example.Main or MyJavaApp"
+                value={entryPoint}
+                onChange={(e) => setEntryPoint(e.target.value)}
+                className="font-mono text-sm"
+                />
+            </div>
           <div className="space-y-2">
-            <Label htmlFor="input-data">Input JSON</Label>
+            <Label htmlFor="input-data">Input JSON for App</Label>
             <Textarea
               id="input-data"
               placeholder='{ "key": "value" }'
@@ -93,7 +116,7 @@ export function JavaRunner() {
           
           <Button onClick={handleRunApp} disabled={isLoading} className="w-full">
             {isLoading ? <LoaderCircle className="animate-spin" /> : <Code2 />}
-            Run Java App
+            Compile & Run Java App
           </Button>
 
           {error && (

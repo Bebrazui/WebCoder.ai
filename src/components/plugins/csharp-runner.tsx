@@ -9,14 +9,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2, LoaderCircle, ServerCrash, Hammer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "../ui/input";
+import { useVfs } from "@/hooks/use-vfs";
 
 export function CsharpRunner() {
   const [inputValue, setInputValue] = useState('{"name": "C# Dev", "value": 20}');
+  const [entryPoint, setEntryPoint] = useState('my_csharp_app');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { vfsRoot } = useVfs();
+
 
   const handleRunApp = async () => {
     let parsedInput;
@@ -27,6 +32,15 @@ export function CsharpRunner() {
         variant: "destructive",
         title: "Invalid Input",
         description: "The input must be a valid JSON object.",
+      });
+      return;
+    }
+    
+    if (!entryPoint.trim()) {
+       toast({
+        variant: "destructive",
+        title: "Invalid Project Name",
+        description: "Please specify the C# project folder name.",
       });
       return;
     }
@@ -41,7 +55,11 @@ export function CsharpRunner() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataFromFrontend: parsedInput }),
+        body: JSON.stringify({ 
+            projectFiles: vfsRoot.children,
+            entryPoint: entryPoint, // Here, entryPoint is the project directory name
+            inputData: parsedInput 
+        }),
       });
 
       const responseData = await response.json();
@@ -70,17 +88,24 @@ export function CsharpRunner() {
         <div className="p-4 space-y-4">
             <Alert>
                 <Hammer className="h-4 w-4" />
-                <AlertTitle>Prerequisites</AlertTitle>
+                <AlertTitle>On-Demand Compilation & Execution</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the C# project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-csharp</code> in your local terminal.</p>
-                     <p className="mt-2">This command will build the entire project located in <code className="font-mono bg-muted p-1 rounded-sm">csharp_apps/my_csharp_app</code>.</p>
+                    <p>This tool sends your current project files to a secure server, publishes it using <code className="font-mono bg-muted p-1 rounded-sm">dotnet publish</code>, and runs the self-contained application.</p>
+                    <p className="mt-2">Your project folder should contain a valid <code className="font-mono bg-muted p-1 rounded-sm">.csproj</code> file.</p>
                 </AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground">
-                This tool runs a compiled C# .NET app on the server. You can pass a JSON object as input.
-            </p>
+            <div className="space-y-2">
+                <Label htmlFor="entry-point">Project Folder Name</Label>
+                <Input
+                id="entry-point"
+                placeholder="e.g., my_csharp_app"
+                value={entryPoint}
+                onChange={(e) => setEntryPoint(e.target.value)}
+                className="font-mono text-sm"
+                />
+            </div>
           <div className="space-y-2">
-            <Label htmlFor="input-data">Input JSON</Label>
+            <Label htmlFor="input-data">Input JSON for App</Label>
             <Textarea
               id="input-data"
               placeholder='{ "key": "value" }'
@@ -92,7 +117,7 @@ export function CsharpRunner() {
           
           <Button onClick={handleRunApp} disabled={isLoading} className="w-full">
             {isLoading ? <LoaderCircle className="animate-spin" /> : <Code2 />}
-            Run C# App
+            Publish & Run C# App
           </Button>
 
           {error && (

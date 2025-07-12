@@ -6,17 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Code2, LoaderCircle, ServerCrash } from "lucide-react";
+import { Code2, LoaderCircle, ServerCrash, Hammer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "../ui/input";
+import { useVfs } from "@/hooks/use-vfs";
 
 export function PhpRunner() {
   const [inputValue, setInputValue] = useState('{"name": "Developer", "value": 50}');
+  const [entryPoint, setEntryPoint] = useState('my_php_script.php');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { vfsRoot } = useVfs();
+
 
   const handleRunScript = async () => {
     let parsedInput;
@@ -31,6 +36,15 @@ export function PhpRunner() {
       return;
     }
 
+    if (!entryPoint.trim()) {
+       toast({
+        variant: "destructive",
+        title: "Invalid Entry Point",
+        description: "Please specify the entry point script.",
+      });
+      return;
+    }
+
     setIsLoading(true);
     setResult(null);
     setError(null);
@@ -41,7 +55,11 @@ export function PhpRunner() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataFromFrontend: parsedInput }),
+        body: JSON.stringify({ 
+            projectFiles: vfsRoot.children,
+            entryPoint: entryPoint,
+            inputData: parsedInput 
+        }),
       });
 
       const responseData = await response.json();
@@ -68,11 +86,25 @@ export function PhpRunner() {
 
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-4">
-            <p className="text-sm text-muted-foreground">
-                This tool runs a PHP script on the server. You can pass a JSON object as input.
-            </p>
+            <Alert>
+                <Hammer className="h-4 w-4" />
+                <AlertTitle>On-Demand Execution</AlertTitle>
+                <AlertDescription>
+                    <p>This tool sends your current project files to a secure server environment to run the PHP script. Your files are not stored on the server after execution.</p>
+                </AlertDescription>
+            </Alert>
           <div className="space-y-2">
-            <Label htmlFor="input-data">Input JSON</Label>
+            <Label htmlFor="entry-point">Entry Point Script</Label>
+            <Input
+              id="entry-point"
+              placeholder="e.g., index.php or src/main.php"
+              value={entryPoint}
+              onChange={(e) => setEntryPoint(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="input-data">Input JSON for Script</Label>
             <Textarea
               id="input-data"
               placeholder='{ "key": "value" }'

@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2, LoaderCircle, ServerCrash, Hammer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useVfs } from "@/hooks/use-vfs";
 
 export function RustRunner() {
   const [inputValue, setInputValue] = useState('{"name": "Rustacean", "value": 10}');
@@ -17,6 +18,8 @@ export function RustRunner() {
   const [error, setError] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { vfsRoot } = useVfs();
+
 
   const handleRunApp = async () => {
     let parsedInput;
@@ -41,7 +44,10 @@ export function RustRunner() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataFromFrontend: parsedInput }),
+        body: JSON.stringify({ 
+            projectFiles: vfsRoot.children,
+            inputData: parsedInput 
+        }),
       });
 
       const responseData = await response.json();
@@ -70,17 +76,14 @@ export function RustRunner() {
         <div className="p-4 space-y-4">
             <Alert>
                 <Hammer className="h-4 w-4" />
-                <AlertTitle>Prerequisites</AlertTitle>
+                <AlertTitle>On-Demand Compilation & Execution</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Rust project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-rust</code> in your local terminal.</p>
-                    <p className="mt-2">This command uses Cargo to build the entire crate in the <code className="font-mono bg-muted p-1 rounded-sm">rust_apps</code> directory, fully supporting multi-file projects.</p>
+                     <p>This tool sends your current project files to a secure server environment, compiles them using Cargo, and runs the application. Your files are not stored on the server after execution.</p>
+                     <p className="mt-2">Ensure you have a valid <code className="font-mono bg-muted p-1 rounded-sm">Cargo.toml</code> file and your source code is in a <code className="font-mono bg-muted p-1 rounded-sm">src</code> directory.</p>
                 </AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground">
-                This tool runs a compiled Rust app on the server. You can pass a JSON object as input.
-            </p>
           <div className="space-y-2">
-            <Label htmlFor="input-data">Input JSON</Label>
+            <Label htmlFor="input-data">Input JSON for App</Label>
             <Textarea
               id="input-data"
               placeholder='{ "key": "value" }'
@@ -92,7 +95,7 @@ export function RustRunner() {
           
           <Button onClick={handleRunApp} disabled={isLoading} className="w-full">
             {isLoading ? <LoaderCircle className="animate-spin" /> : <Code2 />}
-            Run Rust App
+            Compile & Run Rust App
           </Button>
 
           {error && (

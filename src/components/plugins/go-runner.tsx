@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code2, LoaderCircle, ServerCrash, Hammer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useVfs } from "@/hooks/use-vfs";
 
 export function GoRunner() {
   const [inputValue, setInputValue] = useState('{"name": "Go разработчик", "value": 42}');
@@ -17,6 +18,8 @@ export function GoRunner() {
   const [error, setError] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { vfsRoot } = useVfs();
+
 
   const handleRunApp = async () => {
     let parsedInput;
@@ -41,7 +44,10 @@ export function GoRunner() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataFromFrontend: parsedInput }),
+        body: JSON.stringify({ 
+            projectFiles: vfsRoot.children,
+            inputData: parsedInput 
+        }),
       });
 
       const responseData = await response.json();
@@ -70,17 +76,14 @@ export function GoRunner() {
         <div className="p-4 space-y-4">
             <Alert>
                 <Hammer className="h-4 w-4" />
-                <AlertTitle>Prerequisites</AlertTitle>
+                <AlertTitle>On-Demand Compilation & Execution</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Go project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-go</code> in your local terminal.</p>
-                    <p className="mt-2">This command will build all <code className="font-mono bg-muted p-1 rounded-sm">.go</code> files within the <code className="font-mono bg-muted p-1 rounded-sm">go_apps</code> directory.</p>
+                    <p>This tool sends your current project files to a secure server environment, compiles them, and runs the application. Your files are not stored on the server after execution.</p>
+                     <p className="mt-2">Ensure your Go files (including <code className="font-mono bg-muted p-1 rounded-sm">go.mod</code> if needed) are in the root of the project explorer.</p>
                 </AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground">
-                This tool runs a compiled Go app on the server. You can pass a JSON object as input.
-            </p>
           <div className="space-y-2">
-            <Label htmlFor="input-data">Input JSON</Label>
+            <Label htmlFor="input-data">Input JSON for App</Label>
             <Textarea
               id="input-data"
               placeholder='{ "key": "value" }'
@@ -92,7 +95,7 @@ export function GoRunner() {
           
           <Button onClick={handleRunApp} disabled={isLoading} className="w-full">
             {isLoading ? <LoaderCircle className="animate-spin" /> : <Code2 />}
-            Run Go App
+            Compile & Run Go App
           </Button>
 
           {error && (
