@@ -163,7 +163,7 @@ export function useVfs() {
     await fs.init(GIT_FS_NAME, { wipe: true });
     
     const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
-        const currentPath = `${pathPrefix}/${node.name}`;
+        const currentPath = pathPrefix ? `${pathPrefix}/${node.name}` : node.name;
         if (node.type === 'directory') {
             if (node.name === '.git') return;
             await pfs.mkdir(currentPath, { recursive: true });
