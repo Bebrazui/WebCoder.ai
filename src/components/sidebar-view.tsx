@@ -5,13 +5,19 @@ import { useState } from "react";
 import { FileExplorer } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch, ListTree, Database } from "lucide-react";
+import { FileCode, GitBranch, ListTree, Database, Braces, Binary, Link, Pilcrow, BookOpen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileExplorerProps } from "./file-explorer";
 import type { GitStatus } from "@/hooks/use-vfs";
 import { OutlineView, OutlineData } from "./outline-view";
 import { SqlGenerator } from "./sql-generator";
+import { JsonFormatter } from "./plugins/json-formatter";
+import { Base64EncoderDecoder } from "./plugins/base64-encoder-decoder";
+import { UrlEncoderDecoder } from "./plugins/url-encoder-decoder";
+import { CharacterCounter } from "./plugins/character-counter";
+import { MarkdownPreviewer } from "./plugins/markdown-previewer";
+
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
@@ -25,7 +31,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
 
-  type View = "explorer" | "source-control" | "outline" | "sql-generator";
+  type View = "explorer" | "source-control" | "outline" | "sql-generator" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer";
 
   const views: { id: View, icon: React.ReactNode, label: string, component: React.ReactNode }[] = [
     {
@@ -51,6 +57,36 @@ export function Sidebar(props: SidebarProps) {
       icon: <Database />,
       label: "SQL Generator",
       component: <SqlGenerator />
+    },
+     {
+      id: "json-formatter",
+      icon: <Braces />,
+      label: "JSON Formatter",
+      component: <JsonFormatter />
+    },
+    {
+      id: "base64-tool",
+      icon: <Binary />,
+      label: "Base64 Tool",
+      component: <Base64EncoderDecoder />
+    },
+    {
+      id: "url-tool",
+      icon: <Link />,
+      label: "URL Encoder/Decoder",
+      component: <UrlEncoderDecoder />
+    },
+    {
+      id: "char-counter",
+      icon: <Pilcrow />,
+      label: "Character Counter",
+      component: <CharacterCounter />
+    },
+    {
+      id: "markdown-previewer",
+      icon: <BookOpen />,
+      label: "Markdown Previewer",
+      component: <MarkdownPreviewer />
     }
   ];
 

@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -85,4 +86,37 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* For Markdown Previewer */
+.prose {
+    color: hsl(var(--foreground));
+}
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    color: hsl(var(--foreground));
+}
+.prose a {
+    color: hsl(var(--primary));
+}
+.prose blockquote {
+    color: hsl(var(--muted-foreground));
+    border-left-color: hsl(var(--border));
+}
+.prose code {
+    color: hsl(var(--primary-foreground));
+    background-color: hsl(var(--primary));
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    border-radius: 6px;
+}
+.prose pre {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+}
+.prose strong {
+    color: hsl(var(--foreground));
+}
+.prose hr {
+    border-top-color: hsl(var(--border));
 }
