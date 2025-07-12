@@ -11,7 +11,6 @@ import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { dataURIToArrayBuffer } from "@/lib/utils";
-import path from "path";
 
 
 const VFS_KEY = "webcoder-vfs-root";
@@ -162,36 +161,36 @@ export function useVfs() {
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
     try {
-        await fs.init(GIT_FS_NAME, { wipe: true });
+      await fs.init(GIT_FS_NAME, {wipe: true});
     } catch (e) {
-        // Can fail if folder doesn't exist, which is fine
+      // Can fail if folder doesn't exist, which is fine
     }
-    
-    const syncNode = async (node: VFSNode, currentPath: string) => {
+
+    const syncNode = async (node: VFSNode, parentPath: string) => {
         if (node.name === '.git') return;
 
-        const nodePath = path.join(currentPath, node.name);
-
+        const currentPath = parentPath === '/' ? `/${node.name}` : `${parentPath}/${node.name}`;
+        
         if (node.type === 'directory') {
-            await pfs.mkdir(nodePath, { recursive: true });
+            await pfs.mkdir(currentPath, { recursive: true });
             for (const child of node.children) {
-                await syncNode(child, nodePath);
+                await syncNode(child, currentPath);
             }
         } else if (node.type === 'file') {
             try {
-              const content = node.content.startsWith('data:') 
-                  ? dataURIToArrayBuffer(node.content)
-                  : new TextEncoder().encode(node.content);
-              await pfs.writeFile(nodePath, new Uint8Array(content));
+                const content = node.content.startsWith('data:') 
+                    ? dataURIToArrayBuffer(node.content)
+                    : new TextEncoder().encode(node.content);
+                await pfs.writeFile(currentPath, new Uint8Array(content));
             } catch (error) {
-              console.error(`Failed to write file ${nodePath} to lightning-fs`, error);
+                console.error(`Failed to write file ${currentPath} to lightning-fs`, error);
             }
         }
     };
     
     // Sync children of the root to avoid a wrapping folder.
     for (const child of root.children) {
-        await syncNode(child, '');
+        await syncNode(child, '/');
     }
   }, []);
 
@@ -777,3 +776,5 @@ export function useVfs() {
     commit,
   };
 }
+
+    
