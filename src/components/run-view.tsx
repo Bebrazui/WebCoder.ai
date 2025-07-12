@@ -5,12 +5,13 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
-import type { VFSFile, VFSNode } from "@/lib/vfs";
+import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState } from "@/hooks/use-app-state";
 
@@ -51,7 +52,7 @@ const defaultJavaConfig: LaunchConfig = {
 
 export function RunView() {
   const { toast } = useToast();
-  const { vfsRoot } = useVfs();
+  const { vfsRoot, createFileInVfs } = useVfs();
   const { editorSettings } = useAppState();
   
   const [isLoading, setIsLoading] = useState(false);
@@ -62,20 +63,21 @@ export function RunView() {
   const [launchConfigs, setLaunchConfigs] = useState<LaunchConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
+  const [manualSourcePath, setManualSourcePath] = useState('');
 
-  // New state for Java compilation
   const [isCompiled, setIsCompiled] = useState(false);
 
-  // Effect to find launch.json and parse it, or create a default Java config
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
         if (node.name === 'launch.json' && node.type === 'file') {
             return node;
         }
-        if (node.type === 'directory') {
+        if (node.type === 'directory' && node.path === '/') {
             for (const child of node.children) {
-                const found = findLaunchFile(child);
-                if (found) return found;
+                // Only search at root level for now
+                if (child.name === 'launch.json' && child.type === 'file') {
+                    return child;
+                }
             }
         }
         return null;
@@ -94,7 +96,6 @@ export function RunView() {
         }
     }
 
-    // Auto-detect Java config if needed
     const hasJavaConfig = configs.some(c => c.type === 'java');
     if (!hasJavaConfig && findJavaFiles(vfsRoot)) {
         configs.push(defaultJavaConfig);
@@ -109,9 +110,8 @@ export function RunView() {
     }
   }, [vfsRoot, toast]);
 
-  // Effect to update JSON input when config changes
   useEffect(() => {
-    setIsCompiled(false); // Reset compiled state when config changes
+    setIsCompiled(false);
     if (selectedConfigName) {
         const config = launchConfigs.find(c => c.name === selectedConfigName);
         if (config && config.args) {
@@ -119,9 +119,12 @@ export function RunView() {
         } else {
             setJsonInput('{}');
         }
+        // Reset manual path when config changes
+        if (config?.type !== 'java') {
+            setManualSourcePath('');
+        }
     }
   }, [selectedConfigName, launchConfigs]);
-
 
   const getFullConfig = useCallback(() => {
       if (!selectedConfigName) return null;
@@ -139,10 +142,15 @@ export function RunView() {
           toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
           return null;
       }
+      
+      const fullConfig = { ...config, args: argsToUse };
 
-      return { ...config, args: argsToUse };
-  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, toast]);
+      if (fullConfig.type === 'java' && manualSourcePath.trim()) {
+          fullConfig.sourcePaths = [manualSourcePath.trim()];
+      }
 
+      return fullConfig;
+  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, manualSourcePath, toast]);
 
   const handleAction = useCallback(async (action: 'compile' | 'run') => {
       const fullConfig = getFullConfig();
@@ -190,6 +198,30 @@ export function RunView() {
       }
   }, [getFullConfig, toast, vfsRoot.children]);
 
+  const handleAddLaunchJson = () => {
+      const content = `
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Java App",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "Main",
+      "sourcePaths": ["."],
+      "classPaths": [],
+      "args": {
+        "name": "Java User",
+        "age": 42
+      }
+    }
+  ]
+}
+      `.trim();
+      createFileInVfs('launch.json', vfsRoot as VFSDirectory);
+      toast({ title: '`launch.json` created', description: 'File was added to the root of your project.' });
+  };
+
   const selectedConfig = useMemo(() => {
       return launchConfigs.find(c => c.name === selectedConfigName);
   }, [launchConfigs, selectedConfigName]);
@@ -208,12 +240,16 @@ export function RunView() {
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-4">
             {!launchFile && launchConfigs.length === 0 ? (
-                <Alert variant="destructive">
-                    <FileWarning className="h-4 w-4" />
+                <Alert variant="default" className="flex flex-col items-center text-center gap-4">
+                    <FileWarning className="h-8 w-8" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       Create a `launch.json` file in your project to define run configurations, or add files for auto-detection.
+                       Create a `launch.json` file to define run configurations.
                     </AlertDescription>
+                    <Button onClick={handleAddLaunchJson} size="sm">
+                        <FilePlus className="mr-2 h-4 w-4" />
+                        Add launch.json
+                    </Button>
                 </Alert>
             ) : launchConfigs.length === 0 ? (
                  <Alert variant="destructive">
@@ -251,6 +287,22 @@ export function RunView() {
                         </Alert>
                     )}
 
+                    {isJavaConfig && (
+                        <div className="space-y-2">
+                             <Label htmlFor="manual-source-path">Manual Source Path (optional)</Label>
+                             <div className="relative">
+                                <FolderInput className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    id="manual-source-path"
+                                    placeholder="e.g. ProjectFolder/src"
+                                    value={manualSourcePath}
+                                    onChange={(e) => setManualSourcePath(e.target.value)}
+                                    className="pl-8"
+                                />
+                             </div>
+                        </div>
+                    )}
+
                     {editorSettings.manualJsonInput && (
                         <div className="space-y-2">
                             <Label htmlFor="input-data">JSON Arguments</Label>
@@ -267,7 +319,7 @@ export function RunView() {
                 </div>
             )}
             
-            {isJavaConfig ? (
+            {launchConfigs.length > 0 && isJavaConfig ? (
                 <div className="grid grid-cols-2 gap-4">
                      <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
                         {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
@@ -279,7 +331,7 @@ export function RunView() {
                     </Button>
                 </div>
             ) : (
-                 <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName} className="w-full">
+                 launchConfigs.length > 0 && <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName} className="w-full">
                     {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                     Run
                 </Button>

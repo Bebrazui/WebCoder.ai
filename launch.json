@@ -17,7 +17,7 @@
       "type": "java",
       "request": "launch",
       "mainClass": "Main",
-      "sourcePaths": ["."],
+      "sourcePaths": ["./"],
       "classPaths": [],
       "args": {
         "name": "Java User",

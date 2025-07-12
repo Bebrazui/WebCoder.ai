@@ -69,6 +69,7 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
             }
         }
     } catch (e) {
+        // Log error but don't stop, the path might just not exist.
         console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
     }
     return results;
@@ -84,18 +85,21 @@ const findSourceRoot = async (baseDir: string): Promise<string | null> => {
             if (files.some(f => f.endsWith('.java'))) {
                 return currentDir;
             }
-            const subdirs = files
-                .map(f => path.join(currentDir, f))
-                .filter(async f => (await fs.stat(f)).isDirectory());
-            
-            for (const subdir of subdirs) {
-                const stat = await fs.stat(subdir);
-                if (stat.isDirectory()) {
-                    queue.push(subdir);
+            const subdirs = [];
+            for(const file of files) {
+                const fullPath = path.join(currentDir, file);
+                try {
+                    const stat = await fs.stat(fullPath);
+                    if(stat.isDirectory()) {
+                        subdirs.push(fullPath);
+                    }
+                } catch (e) {
+                    // ignore stat errors
                 }
             }
+            queue.push(...subdirs);
         } catch (e) {
-             console.warn(`Could not process directory ${currentDir}, skipping. Error: ${e}`);
+             // ignore readdir errors
         }
     }
     return null;
@@ -106,17 +110,25 @@ const compileJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(tempDir, 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
-    // Use sourcePaths from config, or intelligently find them
     let sourceFiles: string[] = [];
-    let sourceRoot = tempDir; // default to the temp project root
+    let sourceRoot = tempDir; 
 
-    if (config.sourcePaths && Array.isArray(config.sourcePaths)) {
-        for (const srcPath of config.sourcePaths) {
+    // Prefer manual source path if provided.
+    const sourcePaths = config.sourcePaths && Array.isArray(config.sourcePaths) ? config.sourcePaths : [];
+    
+    if (sourcePaths.length > 0) {
+        console.log(`Using configured sourcePaths: ${sourcePaths.join(', ')}`);
+        for (const srcPath of sourcePaths) {
             const fullSrcPath = path.join(tempDir, srcPath);
              try {
                 const stats = await fs.stat(fullSrcPath);
                 if (stats.isDirectory()) {
                     sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
+                    // If files are found, we assume the first valid path is the root.
+                    if(sourceFiles.length > 0 && sourceRoot === tempDir) {
+                        sourceRoot = fullSrcPath;
+                        console.log(`Setting source root based on path: ${sourceRoot}`);
+                    }
                 }
             } catch (e) {
                 // path doesn't exist, ignore
@@ -136,15 +148,15 @@ const compileJava = async (config: any, tempDir: string) => {
     }
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: 'No Java source files found.', code: 1 };
+        return { stdout: '', stderr: 'No Java source files found. Try specifying the source directory manually.', code: 1 };
     }
-    console.log(`Found Java files to compile: ${sourceFiles.join(', ')}`);
+    console.log(`Found ${sourceFiles.length} Java files to compile in root: ${sourceRoot}`);
 
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
     const cp = `${buildPath}${path.delimiter}${classPaths}`;
     
-    // The source files should be relative to the sourceRoot for javac
     const relativeSourceFiles = sourceFiles.map(f => path.relative(sourceRoot, f));
+    console.log(`Compiling files: ${relativeSourceFiles.join(', ')}`);
 
     return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...relativeSourceFiles], sourceRoot);
 };
