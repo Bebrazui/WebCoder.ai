@@ -1,0 +1,28 @@
+
+{
+    "steps": [
+        {
+            "name": "Run C# Preprocessor",
+            "language": "csharp",
+            "entryPoint": "my_csharp_app",
+            "input": {
+                "name": "Initial Data",
+                "value": 10
+            }
+        },
+        {
+            "name": "Process with Python",
+            "language": "python",
+            "entryPoint": "my_script.py",
+            "input": {
+            }
+        },
+        {
+            "name": "Finalize with Go",
+            "language": "go",
+            "entryPoint": ".",
+            "input": {
+            }
+        }
+    ]
+}
