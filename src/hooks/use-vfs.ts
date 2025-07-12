@@ -162,8 +162,10 @@ export function useVfs() {
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
     await fs.init(GIT_FS_NAME, { wipe: true });
     
-    const syncNode = async (node: VFSNode, pathPrefix: string = '') => {
-        const currentPath = pathPrefix ? `${pathPrefix}/${node.name}` : node.name;
+    const syncNode = async (node: VFSNode, pathPrefix: string) => {
+        const currentPath = pathPrefix === '' ? node.name : `${pathPrefix}/${node.name}`;
+        if (!currentPath || currentPath === '..') return;
+
         if (node.type === 'directory') {
             if (node.name === '.git') return;
             await pfs.mkdir(currentPath, { recursive: true });
@@ -769,3 +771,5 @@ export function useVfs() {
     commit,
   };
 }
+
+    
