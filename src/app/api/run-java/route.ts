@@ -42,20 +42,27 @@ async function compileJavaProject(projectPath: string): Promise<{ success: boole
     // Find all .java files
     const findJavaFiles = async (dir: string): Promise<string[]> => {
         let javaFiles: string[] = [];
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                javaFiles = javaFiles.concat(await findJavaFiles(fullPath));
-            } else if (entry.isFile() && entry.name.endsWith('.java')) {
-                javaFiles.push(fullPath);
+        try {
+            const entries = await fs.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    javaFiles = javaFiles.concat(await findJavaFiles(fullPath));
+                } else if (entry.isFile() && entry.name.endsWith('.java')) {
+                    javaFiles.push(fullPath);
+                }
             }
+        } catch (e) {
+            // src directory might not exist, which is a valid case if only sending a jar.
+            // We can ignore this error.
         }
         return javaFiles;
     }
     const javaFiles = await findJavaFiles(sourcesPath);
     if (javaFiles.length === 0) {
-        return { success: false, error: "No .java files found in /src directory." };
+        // This is not an error if the user intends to run a pre-compiled JAR.
+        // The error will be caught during the 'java' execution if no main class is found.
+        return { success: true };
     }
 
     const classPathSeparator = process.platform === 'win32' ? ';' : ':';
