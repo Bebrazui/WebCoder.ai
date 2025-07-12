@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import localforage from "localforage";
 import JSZip from "jszip";
 import type { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
-import { createDirectory, createFile } from "@/lib/vfs";
+import { createDirectory, createFile, isTextFile as isTextFileUtil } from "@/lib/vfs";
 import { useToast } from "./use-toast";
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
@@ -42,21 +42,6 @@ This is a web-based code editor with AI capabilities.
 Get started by opening a local folder, or by uploading your files or a ZIP archive using the buttons in the explorer.
 `
 ));
-
-const isTextFile = (file: {name: string, type?: string, content?: string}) => {
-    if (/\.(png|jpg|jpeg|gif|webp|svg|mp3|wav|ogg|aac|flac|m4a|ico|class|zip|gz|tar|rar|7z|bin|exe|dll|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(file.name)) {
-        return false;
-    }
-    if (file.type && (file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/') || file.type === 'application/octet-stream')) {
-        return false;
-    }
-    if (file.content && file.content.startsWith('data:')) {
-        const mime = file.content.substring(5, file.content.indexOf(';'));
-        return mime.startsWith('text/') || !mime.includes('/');
-    }
-    return true;
-}
-
 
 const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; parent: VFSDirectory | null } | null => {
   const parts = path.split('/').filter(p => p);
@@ -280,35 +265,17 @@ export function useVfs() {
                     }
                     currentDir = dir;
                 } else { // It's a file
-                    const fileContent = await zipEntry.async('base64');
-                    // A simple heuristic to guess mime type from extension
-                    const getMimeType = (fileName: string) => {
-                      const ext = fileName.split('.').pop()?.toLowerCase();
-                      switch(ext) {
-                        case 'txt': return 'text/plain';
-                        case 'html': return 'text/html';
-                        case 'css': return 'text/css';
-                        case 'js': return 'application/javascript';
-                        case 'json': return 'application/json';
-                        case 'png': return 'image/png';
-                        case 'jpg':
-                        case 'jpeg':
-                          return 'image/jpeg';
-                        case 'gif': return 'image/gif';
-                        case 'svg': return 'image/svg+xml';
-                        case 'mp3': return 'audio/mpeg';
-                        case 'wav': return 'audio/wav';
-                        case 'ogg': return 'audio/ogg';
-                        case 'aac': return 'audio/aac';
-                        case 'flac': return 'audio/flac';
-                        case 'm4a': return 'audio/mp4';
-                        default: return 'application/octet-stream';
-                      }
+                    const fileIsText = isTextFileUtil({name: part});
+                    let fileContent: string;
+                    if (fileIsText) {
+                        fileContent = await zipEntry.async('text');
+                    } else {
+                        const base64Content = await zipEntry.async('base64');
+                        const mime = 'application/octet-stream'; // Simple default
+                        fileContent = `data:${mime};base64,${base64Content}`;
                     }
-                    const mime = getMimeType(part);
-                    const dataUri = `data:${mime};base64,${fileContent}`;
                     const newPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
-                    const newFile = createFile(part, newPath, dataUri);
+                    const newFile = createFile(part, newPath, fileContent);
                     currentDir.children.push(newFile);
                 }
             }
@@ -368,7 +335,7 @@ export function useVfs() {
       });
     };
     
-    if (isTextFile({name: file.name, type: file.type})) {
+    if (isTextFileUtil({name: file.name, type: file.type})) {
        reader.readAsText(file);
     } else {
        reader.readAsDataURL(file);
@@ -624,7 +591,7 @@ export function useVfs() {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result as string);
                     reader.onerror = reject;
-                    if (isTextFile({name: file.name, type: file.type})) {
+                    if (isTextFileUtil({name: file.name, type: file.type})) {
                         reader.readAsText(file);
                     } else {
                         reader.readAsDataURL(file);

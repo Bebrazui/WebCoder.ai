@@ -19,6 +19,7 @@ import { FileIcon } from "./file-icon";
 import { JavaDecompilerViewer } from "./java-decompiler-viewer";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
+import { isTextFile, isImageFile, isAudioFile, isJavaClassFile } from "@/lib/vfs";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -31,52 +32,6 @@ interface EditorPaneProps {
   onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onOutlineChange: (outline: OutlineData[]) => void;
 }
-
-const isImageFile = (path: string) => {
-    return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(path);
-}
-
-const isAudioFile = (path:string) => {
-    return /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(path);
-}
-
-const isJavaClassFile = (path: string) => {
-    return /\.class$/i.test(path);
-}
-
-// Determines if a file is likely text-based and should be opened in the code editor
-const isTextBased = (file: VFSFile) => {
-    // Has a common text extension
-    if (/\.(txt|md|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|hpp|cs|go|php|rb|rs|swift|kt|yml|yaml|sh|toml|gitignore|npmrc|log)$/i.test(file.path)) {
-        return true;
-    }
-    // Is not a data URI
-    if (!file.content.startsWith('data:')) {
-        return true;
-    }
-    // Is a text-based data URI
-    const mime = file.content.substring(5, file.content.indexOf(';'));
-    if (mime.startsWith('text/')) {
-        return true;
-    }
-    // Default to not text-based for other data URIs
-    return false;
-};
-
-const AudioPlayer = ({ file }: { file: VFSFile }) => {
-    return (
-        <div className="flex flex-col items-center justify-center h-full bg-muted/20 p-4">
-            <div className="w-full max-w-md text-center">
-                <FileIcon filename={file.name} className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">{file.name}</h3>
-                <audio controls src={file.content} className="w-full">
-                    Your browser does not support the audio element.
-                </audio>
-            </div>
-        </div>
-    );
-};
-
 
 export function EditorPane({
   openFiles,
@@ -101,22 +56,36 @@ export function EditorPane({
     );
   }
 
+  const AudioPlayer = ({ file }: { file: VFSFile }) => {
+    return (
+        <div className="flex flex-col items-center justify-center h-full bg-muted/20 p-4">
+            <div className="w-full max-w-md text-center">
+                <FileIcon filename={file.name} className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">{file.name}</h3>
+                <audio controls src={file.content} className="w-full">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+    );
+  };
+
   const renderFileContent = (file: VFSFile) => {
-    if (isImageFile(file.path)) {
+    if (isImageFile(file.name)) {
         return <div className="relative h-full w-full flex items-center justify-center bg-muted/20 p-4">
             <Image src={file.content} alt={file.name} layout="fill" objectFit="contain" />
         </div>
     }
 
-    if (isAudioFile(file.path)) {
+    if (isAudioFile(file.name)) {
         return <AudioPlayer file={file} />;
     }
     
-    if (isJavaClassFile(file.path)) {
+    if (isJavaClassFile(file.name)) {
         return <JavaDecompilerViewer file={file} />;
     }
 
-    if (isTextBased(file)) {
+    if (isTextFile(file)) {
       return <CodeEditor
         path={file.path}
         value={file.content}
@@ -195,7 +164,7 @@ export function EditorPane({
             className="h-full mt-0"
           >
              {renderFileContent(file)}
-          </TabsContent>
+          </Tabs.Content>
         ))}
       </div>
     </Tabs>
