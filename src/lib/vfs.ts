@@ -18,11 +18,21 @@ export function createDirectory(name: string, path: string): VFSDirectory {
   return { type: "directory", name, path, children: [] };
 }
 
+const isImageFile = (filename: string) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
+
+// 1x1 transparent PNG
+const TRANSPARENT_PNG_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+
 export function createFile(
   name: string,
   path: string,
   content: string
 ): VFSFile {
+  // If a new image file is being created with empty content, give it a default transparent pixel.
+  if (content === "" && isImageFile(name)) {
+    return { type: "file", name, path, content: TRANSPARENT_PNG_DATA_URI };
+  }
   return { type: "file", name, path, content };
 }
 
