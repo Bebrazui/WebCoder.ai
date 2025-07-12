@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -63,6 +63,9 @@ export function RunView() {
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
 
+  // New state for Java compilation
+  const [isCompiled, setIsCompiled] = useState(false);
+
   // Effect to find launch.json and parse it, or create a default Java config
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
@@ -108,6 +111,7 @@ export function RunView() {
 
   // Effect to update JSON input when config changes
   useEffect(() => {
+    setIsCompiled(false); // Reset compiled state when config changes
     if (selectedConfigName) {
         const config = launchConfigs.find(c => c.name === selectedConfigName);
         if (config && config.args) {
@@ -119,72 +123,78 @@ export function RunView() {
   }, [selectedConfigName, launchConfigs]);
 
 
-  const handleRun = useCallback(async () => {
-    if (!selectedConfigName) {
-        toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a launch configuration.' });
-        return;
-    }
+  const getFullConfig = useCallback(() => {
+      if (!selectedConfigName) return null;
+      const config = launchConfigs.find(c => c.name === selectedConfigName);
+      if (!config) return null;
 
-    const config = launchConfigs.find(c => c.name === selectedConfigName);
-    if (!config) {
-        toast({ variant: 'destructive', title: 'Configuration Not Found', description: `Could not find configuration: ${selectedConfigName}` });
-        return;
-    }
-    
-    let argsToUse;
-    try {
-        if (editorSettings.manualJsonInput && jsonInput.trim()) {
-            argsToUse = JSON.parse(jsonInput);
-        } else {
-            argsToUse = config.args || {};
-        }
-    } catch(e: any) {
-        toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
-        return;
-    }
-
-    setIsLoading(true);
-    setResult(null);
-    setError(null);
-
-    const fullConfig = { ...config, args: argsToUse };
-
-    try {
-      const apiEndpoint = `/api/run-${config.type}`;
-      
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            projectFiles: vfsRoot.children,
-            config: fullConfig,
-        }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok || !responseData.success) {
-        throw new Error(responseData.error || 'An unknown error occurred.');
+      let argsToUse;
+      try {
+          if (editorSettings.manualJsonInput && jsonInput.trim()) {
+              argsToUse = JSON.parse(jsonInput);
+          } else {
+              argsToUse = config.args || {};
+          }
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
+          return null;
       }
-      
-      setResult(responseData.data);
-      toast({
-          title: "Execution Successful",
-          description: `'${config.name}' ran successfully.`
-      });
 
-    } catch (err: any) {
-      console.error(`Failed to run '${config.name}':`, err);
-      setError(err.message || "Failed to communicate with the server.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedConfigName, launchConfigs, jsonInput, vfsRoot, toast, editorSettings.manualJsonInput]);
+      return { ...config, args: argsToUse };
+  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, toast]);
 
+
+  const handleAction = useCallback(async (action: 'compile' | 'run') => {
+      const fullConfig = getFullConfig();
+      if (!fullConfig) {
+          toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
+          return;
+      }
+
+      setIsLoading(true);
+      setResult(null);
+      setError(null);
+
+      const apiEndpoint = action === 'compile' ? `/api/compile-java` : `/api/run-${fullConfig.type}`;
+
+      try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectFiles: vfsRoot.children,
+                config: fullConfig,
+            }),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok || !responseData.success) {
+            throw new Error(responseData.error || 'An unknown error occurred.');
+        }
+
+        if (action === 'compile') {
+            setIsCompiled(true);
+            toast({ title: "Compilation Successful", description: "Your Java code has been compiled." });
+            setResult(responseData.data);
+        } else {
+            setResult(responseData.data);
+            toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+        }
+      } catch (err: any) {
+        console.error(`Failed to ${action} '${fullConfig.name}':`, err);
+        setError(err.message || "Failed to communicate with the server.");
+        if(action === 'compile') setIsCompiled(false);
+      } finally {
+        setIsLoading(false);
+      }
+  }, [getFullConfig, toast, vfsRoot.children]);
 
   const selectedConfig = useMemo(() => {
       return launchConfigs.find(c => c.name === selectedConfigName);
   }, [launchConfigs, selectedConfigName]);
+
+  const isJavaConfig = selectedConfig?.type === 'java';
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
@@ -236,7 +246,7 @@ export function RunView() {
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
                             <AlertDescription>
-                                Running: {selectedConfig.program || selectedConfig.mainClass || selectedConfig.projectPath || '...'}
+                                {selectedConfig.program || selectedConfig.mainClass || selectedConfig.projectPath || '...'}
                             </AlertDescription>
                         </Alert>
                     )}
@@ -257,10 +267,33 @@ export function RunView() {
                 </div>
             )}
             
-            <Button onClick={handleRun} disabled={isLoading || !selectedConfigName} className="w-full">
-                {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                Run
-            </Button>
+            {isJavaConfig ? (
+                <div className="grid grid-cols-2 gap-4">
+                     <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                        Compile
+                    </Button>
+                     <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                        Run
+                    </Button>
+                </div>
+            ) : (
+                 <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName} className="w-full">
+                    {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                    Run
+                </Button>
+            )}
+
+            {isCompiled && isJavaConfig && (
+                 <Alert variant="default" className="border-green-500/50 text-green-700 dark:text-green-400">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <AlertTitle>Compiled Successfully</AlertTitle>
+                    <AlertDescription>
+                        Ready to run the application.
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {error && (
                 <Alert variant="destructive">

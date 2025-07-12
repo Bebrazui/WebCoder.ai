@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Project files and a valid launch configuration with mainClass and sourcePaths are required.' }, { status: 400 });
         }
         
-        // The 'java' runner now defaults to the run-only action
-        return await runLanguage('java', projectFiles, config);
+        // Use the 'compile-java' action
+        return await runLanguage('compile-java', projectFiles, config);
 
     } catch (error: any) {
-        console.error(`Error in /api/run-${'java'}:`, error);
+        console.error(`Error in /api/compile-java:`, error);
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });
     }
 }

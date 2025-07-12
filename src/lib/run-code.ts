@@ -7,7 +7,7 @@ import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
 
-type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp';
+type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'compile-java';
 
 // --- Utility Functions ---
 
@@ -54,6 +54,64 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
     });
 }
 
+// --- Java Specific Helpers ---
+const compileJava = async (config: any, tempDir: string) => {
+    const buildPath = path.join(tempDir, 'build');
+    await fs.mkdir(buildPath, { recursive: true });
+
+    const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
+        let results: string[] = [];
+        let list;
+        try {
+            list = await fs.readdir(dir, { withFileTypes: true });
+        } catch (e) {
+            console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
+            return [];
+        }
+        
+        for (const file of list) {
+            const fullPath = path.resolve(dir, file.name);
+            if (file.isDirectory()) {
+                results = results.concat(await findJavaFilesRecursive(fullPath));
+            } else if (file.name.endsWith('.java')) {
+                results.push(fullPath);
+            }
+        }
+        return results;
+    };
+
+    const sourceFiles: string[] = [];
+    for (const srcPath of config.sourcePaths || []) {
+        const fullSrcPath = path.join(tempDir, srcPath);
+         try {
+            const stats = await fs.stat(fullSrcPath);
+            if (stats.isDirectory()) {
+                const files = await findJavaFilesRecursive(fullSrcPath);
+                sourceFiles.push(...files);
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+    
+    if (sourceFiles.length === 0) {
+        return { stdout: '', stderr: 'No Java source files found.', code: 1 };
+    }
+    console.log(`Found Java files to compile: ${sourceFiles.join(', ')}`);
+
+    const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
+    const cp = `${buildPath}${path.delimiter}${classPaths}`;
+
+    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...sourceFiles], tempDir);
+};
+
+const runJava = async (config: any, tempDir: string) => {
+    const buildPath = path.join(tempDir, 'build');
+    const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
+    const cp = `${buildPath}${path.delimiter}${classPaths}`;
+    return executeCommand('java', ['-cp', cp, config.mainClass!, JSON.stringify(config.args)], tempDir);
+};
+
 
 // --- Language Runners ---
 
@@ -63,59 +121,8 @@ const runners = {
         return executeCommand('python3', [scriptPath, JSON.stringify(config.args)], tempDir);
     },
 
-    java: async (config: any, tempDir: string) => {
-        const buildPath = path.join(tempDir, 'build');
-        await fs.mkdir(buildPath, { recursive: true });
-
-        const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
-            let results: string[] = [];
-            let list;
-            try {
-                list = await fs.readdir(dir, { withFileTypes: true });
-            } catch (e) {
-                // If directory doesn't exist, just return empty array for this path.
-                return [];
-            }
-            
-            for (const file of list) {
-                const fullPath = path.resolve(dir, file.name);
-                if (file.isDirectory()) {
-                    results = results.concat(await findJavaFilesRecursive(fullPath));
-                } else if (file.name.endsWith('.java')) {
-                    results.push(fullPath);
-                }
-            }
-            return results;
-        };
-
-        const sourceFiles: string[] = [];
-        for (const srcPath of config.sourcePaths || []) {
-            const fullSrcPath = path.join(tempDir, srcPath);
-             try {
-                // Check if path exists and is a directory before attempting to read
-                const stats = await fs.stat(fullSrcPath);
-                if (stats.isDirectory()) {
-                    const files = await findJavaFilesRecursive(fullSrcPath);
-                    sourceFiles.push(...files);
-                }
-            } catch (e) {
-                // Path does not exist, ignore it.
-                continue;
-            }
-        }
-        
-        if (sourceFiles.length === 0) {
-            return { stdout: '', stderr: 'No Java source files found.', code: 1 };
-        }
-
-        const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-        const cp = `${buildPath}${path.delimiter}${classPaths}`;
-
-        const compileResult = await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...sourceFiles], tempDir);
-        if (compileResult.code !== 0) return compileResult;
-
-        return executeCommand('java', ['-cp', cp, config.mainClass!, JSON.stringify(config.args)], tempDir);
-    },
+    java: runJava,
+    'compile-java': compileJava,
 
     go: async (config: any, tempDir: string) => {
         const programDir = path.dirname(path.join(tempDir, config.program!));
@@ -195,16 +202,18 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         }
 
         try {
-            // It's possible for stdout to be empty for a successful run
+            // For compilation, we might not have a JSON output, just success message
+            if (language === 'compile-java') {
+                 return NextResponse.json({ success: true, data: { message: "Compilation successful.", details: result.stdout } });
+            }
             if (!result.stdout.trim()) {
                  return NextResponse.json({ success: true, data: { message: "Process executed successfully with no output." } });
             }
             const parsedOutput = JSON.parse(result.stdout);
             return NextResponse.json({ success: true, data: parsedOutput });
         } catch (e) {
-            // If output is not JSON, it might be an error or just plain text output.
             const errorMessage = result.stderr || `Could not parse process output as JSON. Raw output:\n${result.stdout}`;
-            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 }); // status 200 for controlled errors
+            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 });
         }
     } catch (error: any) {
         console.error(`Error in runLanguage for ${language}:`, error);
