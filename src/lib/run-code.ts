@@ -55,46 +55,83 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
 }
 
 // --- Java Specific Helpers ---
-const compileJava = async (config: any, tempDir: string) => {
-    const buildPath = path.join(tempDir, 'build');
-    await fs.mkdir(buildPath, { recursive: true });
 
-    const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
-        let results: string[] = [];
-        let list;
-        try {
-            list = await fs.readdir(dir, { withFileTypes: true });
-        } catch (e) {
-            console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
-            return [];
-        }
-        
+const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
+    let results: string[] = [];
+    try {
+        const list = await fs.readdir(dir, { withFileTypes: true });
         for (const file of list) {
-            const fullPath = path.join(dir, file.name); // FIX: Was path.resolve, which caused incorrect pathing.
+            const fullPath = path.join(dir, file.name);
             if (file.isDirectory()) {
                 results = results.concat(await findJavaFilesRecursive(fullPath));
             } else if (file.name.endsWith('.java')) {
                 results.push(fullPath);
             }
         }
-        return results;
-    };
+    } catch (e) {
+        console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
+    }
+    return results;
+};
 
-    const sourceFiles: string[] = [];
+
+const findSourceRoot = async (baseDir: string): Promise<string | null> => {
+    const queue: string[] = [baseDir];
+    while(queue.length > 0) {
+        const currentDir = queue.shift()!;
+        try {
+            const files = await fs.readdir(currentDir);
+            if (files.some(f => f.endsWith('.java'))) {
+                return currentDir;
+            }
+            const subdirs = files
+                .map(f => path.join(currentDir, f))
+                .filter(async f => (await fs.stat(f)).isDirectory());
+            
+            for (const subdir of subdirs) {
+                const stat = await fs.stat(subdir);
+                if (stat.isDirectory()) {
+                    queue.push(subdir);
+                }
+            }
+        } catch (e) {
+             console.warn(`Could not process directory ${currentDir}, skipping. Error: ${e}`);
+        }
+    }
+    return null;
+}
+
+
+const compileJava = async (config: any, tempDir: string) => {
+    const buildPath = path.join(tempDir, 'build');
+    await fs.mkdir(buildPath, { recursive: true });
+
+    // Use sourcePaths from config, or intelligently find them
+    let sourceFiles: string[] = [];
+    let sourceRoot = tempDir; // default to the temp project root
+
     if (config.sourcePaths && Array.isArray(config.sourcePaths)) {
         for (const srcPath of config.sourcePaths) {
             const fullSrcPath = path.join(tempDir, srcPath);
              try {
                 const stats = await fs.stat(fullSrcPath);
                 if (stats.isDirectory()) {
-                    console.log(`Scanning for .java files in: ${fullSrcPath}`);
-                    const files = await findJavaFilesRecursive(fullSrcPath);
-                    sourceFiles.push(...files);
+                    sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
                 }
             } catch (e) {
-                console.warn(`Source path ${fullSrcPath} not found or is not a directory. Skipping.`);
-                continue;
+                // path doesn't exist, ignore
             }
+        }
+    }
+
+    // If no files found via configured paths, try to find them automatically
+    if (sourceFiles.length === 0) {
+        console.log("No files found in sourcePaths, attempting to find source root automatically...");
+        const foundRoot = await findSourceRoot(tempDir);
+        if(foundRoot) {
+            console.log(`Auto-detected Java source root: ${foundRoot}`);
+            sourceRoot = foundRoot;
+            sourceFiles = await findJavaFilesRecursive(sourceRoot);
         }
     }
     
@@ -105,8 +142,11 @@ const compileJava = async (config: any, tempDir: string) => {
 
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
     const cp = `${buildPath}${path.delimiter}${classPaths}`;
+    
+    // The source files should be relative to the sourceRoot for javac
+    const relativeSourceFiles = sourceFiles.map(f => path.relative(sourceRoot, f));
 
-    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...sourceFiles], tempDir);
+    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...relativeSourceFiles], sourceRoot);
 };
 
 const runJava = async (config: any, tempDir: string) => {

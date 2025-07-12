@@ -40,9 +40,9 @@ const defaultJavaConfig: LaunchConfig = {
     name: "Run Java App (auto-detected)",
     type: "java",
     request: "launch",
-    mainClass: "MyJavaApp",
-    sourcePaths: ["java_apps/src"],
-    classPaths: ["java_apps/lib/*"],
+    mainClass: "Main",
+    sourcePaths: ["."], // Search from the root of the project
+    classPaths: [],
     args: {
       name: "Java User",
       age: 42

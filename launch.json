@@ -16,9 +16,9 @@
       "name": "Run Java App",
       "type": "java",
       "request": "launch",
-      "mainClass": "MyJavaApp",
-      "sourcePaths": ["java_apps/src"],
-      "classPaths": ["java_apps/lib/*"],
+      "mainClass": "Main",
+      "sourcePaths": ["."],
+      "classPaths": [],
       "args": {
         "name": "Java User",
         "age": 42
