@@ -6,6 +6,16 @@ import { ScrollArea } from './ui/scroll-area';
 import { dataURIToArrayBuffer } from '@/lib/utils';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
+import { LoaderCircle, Sparkles, Download, FileQuestion } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { inspectBinaryData } from '@/ai/flows/inspect-binary-data';
+import { useToast } from '@/hooks/use-toast';
 
 interface HexViewerProps {
   file: VFSFile;
@@ -13,19 +23,73 @@ interface HexViewerProps {
 
 const BYTES_PER_LINE = 16;
 
+const AIAnalysisDialog = ({ open, onOpenChange, hexData, context, analysisResult, isLoading }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    hexData: string;
+    context: string;
+    analysisResult: string | null;
+    isLoading: boolean;
+}) => {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[625px]">
+                <DialogHeader>
+                    <DialogTitle>AI Hex Inspector Analysis</DialogTitle>
+                    <DialogDescription>
+                        The AI has analyzed the selected binary data.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+                    <div>
+                        <h3 className="font-semibold text-sm mb-1">Selected Hex Data:</h3>
+                        <pre className="p-2 bg-muted rounded-md text-xs max-h-24 overflow-auto font-code">
+                            <code>{hexData.match(/.{1,2}/g)?.join(' ')}</code>
+                        </pre>
+                    </div>
+                     <div>
+                        <h3 className="font-semibold text-sm mb-1">Context:</h3>
+                        <p className="text-sm text-muted-foreground">{context}</p>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-sm mb-1">AI Analysis:</h3>
+                         {isLoading ? (
+                            <div className="flex items-center gap-2">
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                                <span>Analyzing...</span>
+                            </div>
+                        ) : (
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <p>{analysisResult || "No analysis available."}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+
 export function HexViewer({ file }: HexViewerProps) {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
+  const [isAIAnalysisOpen, setIsAIAnalysisOpen] = useState(false);
+  const [isAIAnalysisLoading, setIsAIAnalysisLoading] = useState(false);
+  const [aiAnalysisResult, setAIAnalysisResult] = useState<string | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const { buffer, error } = useMemo(() => {
     try {
       return { buffer: dataURIToArrayBuffer(file.content), error: null };
     } catch (e) {
-      return { buffer: null, error: e instanceof Error ? e.message : 'Invalid data URI' };
+      const msg = e instanceof Error ? e.message : 'Invalid data URI';
+      console.error(`Failed to parse data URI for ${file.name}:`, msg);
+      return { buffer: null, error: msg };
     }
-  }, [file.content]);
+  }, [file.content, file.name]);
 
   const lines = useMemo(() => {
     if (!buffer) return [];
@@ -55,7 +119,7 @@ export function HexViewer({ file }: HexViewerProps) {
   }, [buffer]);
 
   const getByteOffsetFromElement = (element: HTMLElement | null): number | null => {
-    while (element && viewerRef.current && !element.dataset.offset) {
+    while (element && viewerRef.current && element !== viewerRef.current && !element.dataset.offset) {
       element = element.parentElement;
     }
     return element?.dataset.offset ? parseInt(element.dataset.offset, 10) : null;
@@ -84,8 +148,10 @@ export function HexViewer({ file }: HexViewerProps) {
     setIsSelecting(false);
   };
   
-  const handleMouseLeave = () => {
-    setIsSelecting(false);
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isSelecting && e.relatedTarget && !viewerRef.current?.contains(e.relatedTarget as Node)) {
+        setIsSelecting(false);
+    }
   }
 
   const handleDownload = () => {
@@ -101,26 +167,41 @@ export function HexViewer({ file }: HexViewerProps) {
     }
   }
 
+  const selectedHexData = useMemo(() => {
+    if (selectionStart === null || selectionEnd === null || !buffer) return '';
+    const start = Math.min(selectionStart, selectionEnd);
+    const end = Math.max(selectionStart, selectionEnd);
+    const selectedBytes = new Uint8Array(buffer.slice(start, end + 1));
+    return Array.from(selectedBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  }, [selectionStart, selectionEnd, buffer]);
+  
+  const handleInspect = async () => {
+    if (!selectedHexData) return;
+    setIsAIAnalysisOpen(true);
+    setIsAIAnalysisLoading(true);
+    setAIAnalysisResult(null);
+
+    try {
+        const result = await inspectBinaryData({
+            hexData: selectedHexData,
+            context: `This data comes from a file named "${file.name}".`
+        });
+        setAIAnalysisResult(result.analysis);
+    } catch(e) {
+        console.error("AI Analysis failed:", e);
+        toast({ variant: "destructive", title: "AI Analysis Failed", description: "Could not analyze the data." });
+        setAIAnalysisResult("The AI analysis failed. Please try again.");
+    } finally {
+        setIsAIAnalysisLoading(false);
+    }
+  };
+
   useEffect(() => {
     const handleCopy = (event: ClipboardEvent) => {
-      if (selectionStart === null || selectionEnd === null) return;
-      
-      const start = Math.min(selectionStart, selectionEnd);
-      const end = Math.max(selectionStart, selectionEnd);
-
-      if (start === end && selectionStart !== null) { // if only one byte is selected
-          const byte = new DataView(buffer!).getUint8(selectionStart);
-          const hex = byte.toString(16).padStart(2, '0');
-          event.clipboardData?.setData('text/plain', hex);
-          event.preventDefault();
-          return;
+      if (selectedHexData) {
+        event.clipboardData?.setData('text/plain', selectedHexData.match(/.{1,2}/g)?.join(' ') || '');
+        event.preventDefault();
       }
-      
-      const selectedBytes = new Uint8Array(buffer!.slice(start, end + 1));
-      const hexString = Array.from(selectedBytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
-      
-      event.clipboardData?.setData('text/plain', hexString);
-      event.preventDefault();
     };
 
     const viewerElement = viewerRef.current;
@@ -129,13 +210,15 @@ export function HexViewer({ file }: HexViewerProps) {
     return () => {
         viewerElement?.removeEventListener('copy', handleCopy);
     };
-  }, [selectionStart, selectionEnd, buffer]);
+  }, [selectedHexData]);
   
   if (error || !buffer) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-4 text-center text-destructive">
+        <FileQuestion className="h-16 w-16 mb-4" />
         <h2 className="text-xl font-medium">Error loading binary data</h2>
-        <p>{error}</p>
+        <p>Could not display file: {file.name}</p>
+        <p className="text-sm mt-2">{error}</p>
       </div>
     );
   }
@@ -155,7 +238,16 @@ export function HexViewer({ file }: HexViewerProps) {
                     <h3 className="font-semibold">{file.name}</h3>
                     <p className="text-xs text-muted-foreground">{buffer.byteLength.toLocaleString()} bytes</p>
                 </div>
-                <Button onClick={handleDownload} size="sm">Download</Button>
+                 <div className="flex items-center gap-2">
+                    <Button onClick={handleDownload} size="sm" variant="outline">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                    </Button>
+                    <Button onClick={handleInspect} size="sm" disabled={!selectedHexData}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Inspect with AI
+                    </Button>
+                 </div>
             </div>
        </div>
       <ScrollArea className="flex-grow">
@@ -218,6 +310,14 @@ export function HexViewer({ file }: HexViewerProps) {
           </div>
         </div>
       </ScrollArea>
+       <AIAnalysisDialog 
+            open={isAIAnalysisOpen}
+            onOpenChange={setIsAIAnalysisOpen}
+            hexData={selectedHexData}
+            context={`This data comes from a file named "${file.name}".`}
+            analysisResult={aiAnalysisResult}
+            isLoading={isAIAnalysisLoading}
+       />
     </div>
   );
 }
