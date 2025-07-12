@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSNode, VFSFile } from "@/lib/vfs";
+import { useAppState } from "@/hooks/use-app-state";
 
 type LanguageSupport = {
   id: 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp';
@@ -45,6 +46,7 @@ const flattenVfs = (nodes: VFSNode[]): VFSNode[] => {
 export function RunView() {
   const { toast } = useToast();
   const { vfsRoot } = useVfs();
+  const { editorSettings } = useAppState();
   
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -88,7 +90,9 @@ export function RunView() {
     
     let parsedInput;
     try {
-      parsedInput = JSON.parse(inputValue);
+      // Use manual input if enabled, otherwise use the language's default input.
+      const jsonToParse = editorSettings.manualJsonInput ? inputValue : detectedLanguage.defaultInput;
+      parsedInput = JSON.parse(jsonToParse);
     } catch (e) {
       toast({
         variant: "destructive",
@@ -136,7 +140,7 @@ export function RunView() {
     } finally {
       setIsLoading(false);
     }
-  }, [detectedLanguage, inputValue, vfsRoot, toast, scenarioFile]);
+  }, [detectedLanguage, inputValue, vfsRoot, toast, scenarioFile, editorSettings.manualJsonInput]);
 
   const handleRunScenario = async () => {
     if (!scenarioFile) return;
@@ -213,7 +217,7 @@ export function RunView() {
                 </Alert>
             )}
 
-            {!scenarioFile && (
+            {!scenarioFile && editorSettings.manualJsonInput && (
                 <div className="space-y-2">
                     <Label htmlFor="input-data">Input JSON for App</Label>
                     <Textarea

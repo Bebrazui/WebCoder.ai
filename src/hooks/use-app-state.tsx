@@ -8,6 +8,7 @@ export interface EditorSettings {
   fontFamily: string;
   fontSize: number;
   wordWrap: boolean;
+  manualJsonInput: boolean;
 }
 
 interface AppState {
@@ -22,6 +23,7 @@ const defaultEditorSettings: EditorSettings = {
   fontFamily: "'Source Code Pro', monospace",
   fontSize: 14,
   wordWrap: true,
+  manualJsonInput: false,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
@@ -34,7 +36,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     try {
         const item = window.localStorage.getItem('webcoder-editor-settings');
-        return item ? JSON.parse(item) : defaultEditorSettings;
+        // Make sure to merge with defaults to not break on adding new settings
+        const savedSettings = item ? JSON.parse(item) : {};
+        return { ...defaultEditorSettings, ...savedSettings };
     } catch (error) {
         console.error(error);
         return defaultEditorSettings;
