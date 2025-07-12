@@ -58,7 +58,7 @@ export function SqlGenerator() {
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
       <div className="p-2 border-b border-border">
-        <h2 className="text-lg font-headline font-semibold">SQL Generator</h2>
+        <h2 className="text-lg font-headline font-semibold">AI SQL Generator</h2>
       </div>
 
       <ScrollArea className="flex-grow">
@@ -92,8 +92,8 @@ export function SqlGenerator() {
               <div className="flex justify-between items-center">
                 <Label>Generated SQL</Label>
                 <Button variant="ghost" size="sm" onClick={handleCopy}>
-                  {hasCopied ? <ClipboardCheck /> : <Clipboard />}
-                  {hasCopied ? 'Copied!' : 'Copy'}
+                  {hasCopied ? <ClipboardCheck className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
+                  <span className="ml-2">{hasCopied ? 'Copied!' : 'Copy'}</span>
                 </Button>
               </div>
               <div className="h-64 rounded-md border border-input bg-muted">
