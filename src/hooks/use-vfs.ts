@@ -11,6 +11,7 @@ import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { dataURIToArrayBuffer } from "@/lib/utils";
+import path from "path";
 
 
 const VFS_KEY = "webcoder-vfs-root";
@@ -160,10 +161,15 @@ export function useVfs() {
 
 
   const syncVfsToLfs = useCallback(async (root: VFSDirectory) => {
-    await fs.init(GIT_FS_NAME, { wipe: true });
+    try {
+        await fs.init(GIT_FS_NAME, { wipe: true });
+    } catch (e) {
+        // Can fail if folder doesn't exist, which is fine
+    }
     
     const syncNode = async (node: VFSNode, pathPrefix: string) => {
-        const currentPath = pathPrefix === '' ? node.name : `${pathPrefix}/${node.name}`;
+        if (node.path === '/') return; // Don't process root container
+        const currentPath = path.join(pathPrefix, node.name);
         if (!currentPath || currentPath === '..') return;
 
         if (node.type === 'directory') {
@@ -771,5 +777,3 @@ export function useVfs() {
     commit,
   };
 }
-
-    
