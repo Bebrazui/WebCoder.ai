@@ -101,22 +101,22 @@ export function RunView() {
     }
     
     let argsToUse = config.args;
-    if (editorSettings.manualJsonInput) {
-        try {
-            // Only try to parse if there's input, otherwise use the config default.
-            if (jsonInput.trim()) {
-                argsToUse = JSON.parse(jsonInput);
-            }
-        } catch(e: any) {
-            toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: e.message });
-            return;
+    try {
+        if (editorSettings.manualJsonInput && jsonInput.trim()) {
+            argsToUse = JSON.parse(jsonInput);
+        } else if (!jsonInput.trim() && !config.args) {
+            argsToUse = {}; // Default to empty object if no args defined and no input
         }
+    } catch(e: any) {
+        toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
+        return;
     }
-
 
     setIsLoading(true);
     setResult(null);
     setError(null);
+
+    const fullConfig = { ...config, args: argsToUse };
 
     try {
       const apiEndpoint = `/api/run-${config.type}`;
@@ -126,7 +126,7 @@ export function RunView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             projectFiles: vfsRoot.children,
-            config: { ...config, args: argsToUse },
+            config: fullConfig,
         }),
       });
 
@@ -205,7 +205,7 @@ export function RunView() {
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
                             <AlertDescription>
-                                Running: {selectedConfig.program || selectedConfig.mainClass || selectedConfig.projectPath}
+                                Running: {selectedConfig.program || selectedConfig.mainClass || selectedConfig.projectPath || '...'}
                             </AlertDescription>
                         </Alert>
                     )}
@@ -256,5 +256,3 @@ export function RunView() {
     </div>
   );
 }
-
-    
