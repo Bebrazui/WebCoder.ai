@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
-import { VFSFile, VFSDirectory, VFSNode } from '@/lib/vfs';
+import { VFSNode } from '@/lib/vfs';
 
 async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-project-'));
@@ -29,6 +29,7 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
 }
 
 export async function POST(req: NextRequest) {
+  let tempProjectPath = '';
   try {
     const { projectFiles, entryPoint, inputData } = await req.json();
 
@@ -36,10 +37,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Project files and entry point are required.' }, { status: 400 });
     }
 
-    const tempProjectPath = await createProjectInTempDir(projectFiles);
+    tempProjectPath = await createProjectInTempDir(projectFiles);
     const pythonScriptPath = path.join(tempProjectPath, entryPoint);
 
-    const result = await new Promise<{ success: boolean; data?: any; error?: string; pythonOutput?: string }>((resolve) => {
+    const result = await new Promise<{ success: boolean; data?: any; error?: string }>((resolve) => {
       const pythonProcess = spawn('python3', [pythonScriptPath, JSON.stringify(inputData)]);
       
       let pythonOutput = '';
@@ -54,14 +55,14 @@ export async function POST(req: NextRequest) {
       });
 
       pythonProcess.on('close', (code) => {
-        fs.rm(tempProjectPath, { recursive: true, force: true }); // Cleanup
         if (code === 0) {
           try {
             const resultData = JSON.parse(pythonOutput);
             resolve({ success: true, data: resultData });
-          } catch (parseError) {
+          } catch (parseError: any) {
             console.error('Ошибка парсинга JSON из Python:', parseError);
-            resolve({ success: false, error: 'Некорректный вывод Python', pythonOutput });
+            const detailedError = `Error parsing Python script output as JSON. Output was:\n---\n${pythonOutput}\n---\nParse Error: ${parseError.message}`;
+            resolve({ success: false, error: detailedError });
           }
         } else {
           console.error(`Python-процесс завершился с ошибкой ${code}:`, pythonError);
@@ -70,7 +71,6 @@ export async function POST(req: NextRequest) {
       });
 
       pythonProcess.on('error', (err) => {
-        fs.rm(tempProjectPath, { recursive: true, force: true }); // Cleanup
         console.error('Ошибка запуска Python-процесса:', err);
         resolve({ success: false, error: `Ошибка запуска Python: ${err.message}` });
       });
@@ -79,11 +79,19 @@ export async function POST(req: NextRequest) {
     if (result.success) {
       return NextResponse.json({ success: true, data: result.data });
     } else {
-      return NextResponse.json({ success: false, error: result.error, pythonOutput: result.pythonOutput }, { status: 500 });
+      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
     }
 
   } catch (error: any) {
     console.error('Непредвиденная ошибка:', error);
+    // Standardize error response
+    if (error instanceof SyntaxError) { // Catches JSON.parse errors on the request body
+        return NextResponse.json({ success: false, error: `Invalid JSON in request body: ${error.message}` }, { status: 400 });
+    }
     return NextResponse.json({ success: false, error: 'Внутренняя ошибка сервера' }, { status: 500 });
+  } finally {
+      if (tempProjectPath) {
+          await fs.rm(tempProjectPath, { recursive: true, force: true });
+      }
   }
 }

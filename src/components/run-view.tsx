@@ -66,11 +66,9 @@ export function RunView() {
   }, [flattenedFiles]);
 
   useEffect(() => {
-    // This effect ensures the inputValue is always set to a valid default
-    // when the detected language changes and we are not in scenario mode.
     if (detectedLanguage && !scenarioFile) {
         setInputValue(detectedLanguage.defaultInput);
-    } else {
+    } else if (!scenarioFile) {
         setInputValue('');
     }
   }, [detectedLanguage, scenarioFile]);
@@ -91,30 +89,31 @@ export function RunView() {
     }
     
     let parsedInput;
+    let jsonToParse = '';
+
     try {
-      let jsonToParse: string;
+        if (editorSettings.manualJsonInput) {
+            jsonToParse = inputValue.trim() === '' ? detectedLanguage.defaultInput : inputValue;
+        } else {
+            jsonToParse = detectedLanguage.defaultInput;
+        }
 
-      if (editorSettings.manualJsonInput) {
-        // If manual input is on, use it. Fallback to default if it's empty.
-        jsonToParse = inputValue.trim() === '' ? detectedLanguage.defaultInput : inputValue;
-      } else {
-        // If manual input is off, always use the default.
-        jsonToParse = detectedLanguage.defaultInput;
-      }
+        if (!jsonToParse) { // Final safety net
+            jsonToParse = '{}';
+        }
 
-      // Final safety check to prevent parsing an empty string
-      if (!jsonToParse.trim()) {
-          jsonToParse = detectedLanguage.defaultInput;
-      }
+        parsedInput = JSON.parse(jsonToParse);
 
-      parsedInput = JSON.parse(jsonToParse);
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Input",
-        description: "The input must be a valid JSON object.",
-      });
-      return;
+    } catch (e: any) {
+        const errorMessage = `Invalid Input JSON: ${e.message}. Using content: "${jsonToParse}"`;
+        console.error(errorMessage);
+        setError(errorMessage);
+        toast({
+            variant: "destructive",
+            title: "Invalid Input",
+            description: e.message,
+        });
+        return;
     }
 
     setIsLoading(true);
