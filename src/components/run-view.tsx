@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Hammer, Code2 } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -17,18 +17,19 @@ type LanguageSupport = {
   name: string;
   entryPointLabel: string;
   defaultEntryPoint: string;
+  defaultInput: string;
   detect: (files: VFSNode[]) => boolean;
   getApiEndpoint: () => string;
 };
 
 const supportedLanguages: LanguageSupport[] = [
-  { id: 'python', name: 'Python', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_script.py', detect: (files) => files.some(f => f.name.endsWith('.py')), getApiEndpoint: () => '/api/run-python' },
-  { id: 'java', name: 'Java', entryPointLabel: 'Main Class Name', defaultEntryPoint: 'MyJavaApp', detect: (files) => files.some(f => f.name.endsWith('.java')), getApiEndpoint: () => '/api/run-java' },
-  { id: 'go', name: 'Go', entryPointLabel: 'Package path (use .)', defaultEntryPoint: '.', detect: (files) => files.some(f => f.name.endsWith('.go')), getApiEndpoint: () => '/api/run-go' },
-  { id: 'ruby', name: 'Ruby', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_ruby_script.rb', detect: (files) => files.some(f => f.name.endsWith('.rb')), getApiEndpoint: () => '/api/run-ruby' },
-  { id: 'php', name: 'PHP', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_php_script.php', detect: (files) => files.some(f => f.name.endsWith('.php')), getApiEndpoint: () => '/api/run-php' },
-  { id: 'rust', name: 'Rust', entryPointLabel: 'Cargo Project (use .)', defaultEntryPoint: '.', detect: (files) => files.some(f => f.name === 'Cargo.toml'), getApiEndpoint: () => '/api/run-rust' },
-  { id: 'csharp', name: 'C#', entryPointLabel: 'Project Folder Name', defaultEntryPoint: 'my_csharp_app', detect: (files) => files.some(f => f.name.endsWith('.csproj')), getApiEndpoint: () => '/api/run-csharp' },
+  { id: 'python', name: 'Python', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_script.py', defaultInput: '{"name": "World", "value": 123}', detect: (files) => files.some(f => f.name.endsWith('.py')), getApiEndpoint: () => '/api/run-python' },
+  { id: 'java', name: 'Java', entryPointLabel: 'Main Class Name', defaultEntryPoint: 'MyJavaApp', defaultInput: '{"name": "World", "age": 30}', detect: (files) => files.some(f => f.name.endsWith('.java')), getApiEndpoint: () => '/api/run-java' },
+  { id: 'go', name: 'Go', entryPointLabel: 'Package path (use .)', defaultEntryPoint: '.', defaultInput: '{"name": "World", "value": 456}', detect: (files) => files.some(f => f.name.endsWith('.go')), getApiEndpoint: () => '/api/run-go' },
+  { id: 'ruby', name: 'Ruby', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_ruby_script.rb', defaultInput: '{"name": "World", "value": 789}', detect: (files) => files.some(f => f.name.endsWith('.rb')), getApiEndpoint: () => '/api/run-ruby' },
+  { id: 'php', name: 'PHP', entryPointLabel: 'Entry Point Script', defaultEntryPoint: 'my_php_script.php', defaultInput: '{"name": "World", "value": 101}', detect: (files) => files.some(f => f.name.endsWith('.php')), getApiEndpoint: () => '/api/run-php' },
+  { id: 'rust', name: 'Rust', entryPointLabel: 'Cargo Project (use .)', defaultEntryPoint: '.', defaultInput: '{"name": "World", "value": 202}', detect: (files) => files.some(f => f.name === 'Cargo.toml'), getApiEndpoint: () => '/api/run-rust' },
+  { id: 'csharp', name: 'C#', entryPointLabel: 'Project Folder Name', defaultEntryPoint: 'my_csharp_app', defaultInput: '{"name": "World", "value": 303}', detect: (files) => files.some(f => f.name.endsWith('.csproj')), getApiEndpoint: () => '/api/run-csharp' },
 ];
 
 export function RunView() {
@@ -38,6 +39,7 @@ export function RunView() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inputValue, setInputValue] = useState('');
 
   const detectedLanguage = useMemo(() => {
     const flattenedFiles = (function flatten(nodes: VFSNode[]): VFSNode[] {
@@ -53,7 +55,13 @@ export function RunView() {
     return supportedLanguages.find(lang => lang.detect(flattenedFiles)) || null;
   }, [vfsRoot]);
 
-  const [inputValue, setInputValue] = useState('{"name": "World", "value": 123}');
+  useEffect(() => {
+    if (detectedLanguage) {
+      setInputValue(detectedLanguage.defaultInput);
+    } else {
+      setInputValue('');
+    }
+  }, [detectedLanguage]);
   
   const handleRun = useCallback(async () => {
     if (!detectedLanguage) {
