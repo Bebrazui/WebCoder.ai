@@ -11,8 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "compile-java": "javac -d java_apps/build -cp \"java_apps/lib/*\" java_apps/src/MyJavaApp.java",
-    "compile-go": "go build -o go_apps/my_go_app go_apps/main.go",
+    "compile-java": "find java_apps/src -name \"*.java\" > java_apps/sources.txt && javac -d java_apps/build -cp \"java_apps/lib/*\" @java_apps/sources.txt && rm java_apps/sources.txt",
+    "compile-go": "go build -o go_apps/my_go_app ./go_apps",
     "compile-rust": "cd rust_apps && cargo build --release && cd .. && cp rust_apps/target/release/rust_apps rust_apps/my_rust_app",
     "compile-csharp": "cd csharp_apps/my_csharp_app && dotnet publish -c Release -o ../build"
   },

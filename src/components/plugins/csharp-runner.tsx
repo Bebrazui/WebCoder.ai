@@ -72,7 +72,8 @@ export function CsharpRunner() {
                 <Hammer className="h-4 w-4" />
                 <AlertTitle>Prerequisites</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the C# code by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-csharp</code> in your local terminal.</p>
+                    <p>Before running, ensure you have compiled the C# project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-csharp</code> in your local terminal.</p>
+                     <p className="mt-2">This command will build the entire project located in <code className="font-mono bg-muted p-1 rounded-sm">csharp_apps/my_csharp_app</code>.</p>
                 </AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground">

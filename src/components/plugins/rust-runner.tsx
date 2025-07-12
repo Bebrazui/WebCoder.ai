@@ -72,7 +72,8 @@ export function RustRunner() {
                 <Hammer className="h-4 w-4" />
                 <AlertTitle>Prerequisites</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Rust code by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-rust</code> in your local terminal.</p>
+                    <p>Before running, ensure you have compiled the Rust project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-rust</code> in your local terminal.</p>
+                    <p className="mt-2">This command uses Cargo to build the entire crate in the <code className="font-mono bg-muted p-1 rounded-sm">rust_apps</code> directory, fully supporting multi-file projects.</p>
                 </AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground">

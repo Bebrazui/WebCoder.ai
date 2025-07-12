@@ -72,12 +72,13 @@ export function JavaRunner() {
                 <Hammer className="h-4 w-4" />
                 <AlertTitle>Prerequisites</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Java code by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-java</code> in your local terminal.</p>
-                    <p className="mt-2">You also need to place the <code className="font-mono bg-muted p-1 rounded-sm">org.json.jar</code> file inside the <code className="font-mono bg-muted p-1 rounded-sm">java_apps/lib</code> directory.</p>
+                    <p>Before running, ensure you have compiled the Java project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-java</code> in your local terminal.</p>
+                    <p className="mt-2">This command will compile all <code className="font-mono bg-muted p-1 rounded-sm">.java</code> files inside <code className="font-mono bg-muted p-1 rounded-sm">java_apps/src</code>, allowing for multi-file projects.</p>
+                    <p className="mt-2">You also need to place any required <code className="font-mono bg-muted p-1 rounded-sm">.jar</code> files (like <code className="font-mono bg-muted p-1 rounded-sm">org.json.jar</code>) inside the <code className="font-mono bg-muted p-1 rounded-sm">java_apps/lib</code> directory.</p>
                 </AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground">
-                This tool runs a compiled Java app on the server. You can pass a JSON object as input.
+                This tool runs a compiled Java app on the server. You can pass a JSON object as input. The entry point must be the `main` method in the `MyJavaApp` class.
             </p>
           <div className="space-y-2">
             <Label htmlFor="input-data">Input JSON</Label>

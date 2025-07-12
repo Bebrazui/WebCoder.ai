@@ -72,7 +72,8 @@ export function GoRunner() {
                 <Hammer className="h-4 w-4" />
                 <AlertTitle>Prerequisites</AlertTitle>
                 <AlertDescription>
-                    <p>Before running, ensure you have compiled the Go code by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-go</code> in your local terminal.</p>
+                    <p>Before running, ensure you have compiled the Go project by running <code className="font-mono bg-muted p-1 rounded-sm">npm run compile-go</code> in your local terminal.</p>
+                    <p className="mt-2">This command will build all <code className="font-mono bg-muted p-1 rounded-sm">.go</code> files within the <code className="font-mono bg-muted p-1 rounded-sm">go_apps</code> directory.</p>
                 </AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground">
