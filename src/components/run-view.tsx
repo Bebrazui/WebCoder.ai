@@ -22,6 +22,33 @@ interface LaunchConfig {
     [key: string]: any; // Allow other properties
 }
 
+const findJavaFiles = (node: VFSNode): boolean => {
+    if (node.type === 'file' && node.name.endsWith('.java')) {
+        return true;
+    }
+    if (node.type === 'directory') {
+        for (const child of node.children) {
+            if (findJavaFiles(child)) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+
+const defaultJavaConfig: LaunchConfig = {
+    name: "Run Java App (auto-detected)",
+    type: "java",
+    request: "launch",
+    mainClass: "MyJavaApp",
+    sourcePaths: ["java_apps/src"],
+    classPaths: ["java_apps/lib/*"],
+    args: {
+      name: "Java User",
+      age: 42
+    }
+};
+
 export function RunView() {
   const { toast } = useToast();
   const { vfsRoot } = useVfs();
@@ -36,7 +63,7 @@ export function RunView() {
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
 
-  // Effect to find launch.json and parse it
+  // Effect to find launch.json and parse it, or create a default Java config
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
         if (node.name === 'launch.json' && node.type === 'file') {
@@ -53,27 +80,31 @@ export function RunView() {
     const file = findLaunchFile(vfsRoot);
     setLaunchFile(file);
 
+    let configs: LaunchConfig[] = [];
     if (file) {
         try {
             const parsed = JSON.parse(file.content);
-            const configs = parsed.configurations || [];
-            setLaunchConfigs(configs);
-            if (configs.length > 0 && !selectedConfigName) {
-                setSelectedConfigName(configs[0].name);
-            } else if (configs.length === 0) {
-                 setSelectedConfigName(null);
-            }
+            configs = parsed.configurations || [];
         } catch (e) {
             console.error("Error parsing launch.json:", e);
             toast({ variant: 'destructive', title: 'Invalid launch.json', description: 'Could not parse launch.json file.' });
-            setLaunchConfigs([]);
-            setSelectedConfigName(null);
         }
-    } else {
-        setLaunchConfigs([]);
-        setSelectedConfigName(null);
     }
-  }, [vfsRoot, toast, selectedConfigName]);
+
+    // Auto-detect Java config if needed
+    const hasJavaConfig = configs.some(c => c.type === 'java');
+    if (!hasJavaConfig && findJavaFiles(vfsRoot)) {
+        configs.push(defaultJavaConfig);
+    }
+    
+    setLaunchConfigs(configs);
+
+    if (configs.length > 0 && (!selectedConfigName || !configs.some(c => c.name === selectedConfigName))) {
+        setSelectedConfigName(configs[0].name);
+    } else if (configs.length === 0) {
+         setSelectedConfigName(null);
+    }
+  }, [vfsRoot, toast]);
 
   // Effect to update JSON input when config changes
   useEffect(() => {
@@ -82,7 +113,7 @@ export function RunView() {
         if (config && config.args) {
             setJsonInput(JSON.stringify(config.args, null, 2));
         } else {
-            setJsonInput('');
+            setJsonInput('{}');
         }
     }
   }, [selectedConfigName, launchConfigs]);
@@ -100,12 +131,12 @@ export function RunView() {
         return;
     }
     
-    let argsToUse = config.args;
+    let argsToUse;
     try {
         if (editorSettings.manualJsonInput && jsonInput.trim()) {
             argsToUse = JSON.parse(jsonInput);
-        } else if (!jsonInput.trim() && !config.args) {
-            argsToUse = {}; // Default to empty object if no args defined and no input
+        } else {
+            argsToUse = config.args || {};
         }
     } catch(e: any) {
         toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
@@ -166,12 +197,12 @@ export function RunView() {
 
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-4">
-            {!launchFile ? (
+            {!launchFile && launchConfigs.length === 0 ? (
                 <Alert variant="destructive">
                     <FileWarning className="h-4 w-4" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       Create a `launch.json` file in the root of your project to enable the runner.
+                       Create a `launch.json` file in your project to define run configurations, or add files for auto-detection.
                     </AlertDescription>
                 </Alert>
             ) : launchConfigs.length === 0 ? (
@@ -179,7 +210,7 @@ export function RunView() {
                     <FileWarning className="h-4 w-4" />
                     <AlertTitle>No Configurations</AlertTitle>
                     <AlertDescription>
-                       Your `launch.json` file does not contain any valid run configurations.
+                       Your `launch.json` is empty or no runnable files were detected.
                     </AlertDescription>
                 </Alert>
             ) : (
