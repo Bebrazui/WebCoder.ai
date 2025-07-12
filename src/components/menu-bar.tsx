@@ -12,6 +12,7 @@ import {
     MenubarSub,
     MenubarSubContent,
     MenubarSubTrigger,
+    MenubarCheckboxItem,
   } from "@/components/ui/menubar"
 import { Check } from "lucide-react";
 
@@ -22,6 +23,13 @@ interface MenuBarProps {
     onSaveFile: () => void;
     onDownloadZip: () => void;
     onCommandPaletteToggle: () => void;
+    onEditorAction: (actionId: string) => void;
+    isSidebarVisible: boolean;
+    onToggleSidebar: () => void;
+    isTerminalVisible: boolean;
+    onToggleTerminal: () => void;
+    isStatusBarVisible: boolean;
+    onToggleStatusBar: () => void;
     theme: string;
     onThemeChange: (theme: string) => void;
 }
@@ -33,6 +41,13 @@ export function MenuBar({
     onSaveFile,
     onDownloadZip,
     onCommandPaletteToggle,
+    onEditorAction,
+    isSidebarVisible,
+    onToggleSidebar,
+    isTerminalVisible,
+    onToggleTerminal,
+    isStatusBarVisible,
+    onToggleStatusBar,
     theme,
     onThemeChange,
 }: MenuBarProps) {
@@ -51,24 +66,24 @@ export function MenuBar({
                     <MenubarSeparator />
                     <MenubarItem onClick={onDownloadZip}>Download as ZIP...</MenubarItem>
                     <MenubarSeparator />
-                    <MenubarItem>Exit</MenubarItem>
+                    <MenubarItem disabled>Exit</MenubarItem>
                 </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
                 <MenubarTrigger>Edit</MenubarTrigger>
                 <MenubarContent>
-                    <MenubarItem disabled>Undo</MenubarItem>
-                    <MenubarItem disabled>Redo</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('undo')}>Undo</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('redo')}>Redo</MenubarItem>
                     <MenubarSeparator />
-                    <MenubarItem disabled>Cut</MenubarItem>
-                    <MenubarItem disabled>Copy</MenubarItem>
-                    <MenubarItem disabled>Paste</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCutAction')}>Cut</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCopyAction')}>Copy</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('editor.action.clipboardPasteAction')}>Paste</MenubarItem>
                 </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
                 <MenubarTrigger>Selection</MenubarTrigger>
                  <MenubarContent>
-                    <MenubarItem disabled>Select All</MenubarItem>
+                    <MenubarItem onClick={() => onEditorAction('editor.action.selectAll')}>Select All</MenubarItem>
                 </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
@@ -91,15 +106,21 @@ export function MenuBar({
                         </MenubarSubContent>
                     </MenubarSub>
                     <MenubarSeparator />
-                    <MenubarItem disabled>Explorer</MenubarItem>
-                    <MenubarItem disabled>Source Control</MenubarItem>
-                    <MenubarItem disabled>Terminal</MenubarItem>
+                    <MenubarCheckboxItem checked={isSidebarVisible} onCheckedChange={onToggleSidebar}>
+                        Show Explorer
+                    </MenubarCheckboxItem>
+                     <MenubarCheckboxItem checked={isTerminalVisible} onCheckedChange={onToggleTerminal}>
+                        Show Terminal
+                    </MenubarCheckboxItem>
+                     <MenubarCheckboxItem checked={isStatusBarVisible} onCheckedChange={onToggleStatusBar}>
+                        Show Status Bar
+                    </MenubarCheckboxItem>
                 </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
                 <MenubarTrigger>Go</MenubarTrigger>
                  <MenubarContent>
-                    <MenubarItem disabled>Go to File...</MenubarItem>
+                    <MenubarItem onClick={onCommandPaletteToggle}>Go to File...</MenubarItem>
                     <MenubarItem disabled>Go to Symbol...</MenubarItem>
                 </MenubarContent>
             </MenubarMenu>
@@ -107,12 +128,10 @@ export function MenuBar({
                 <MenubarTrigger>Help</MenubarTrigger>
                  <MenubarContent>
                     <MenubarItem disabled>Welcome</MenubarItem>
-                    <MenubarItem disabled>Show All Commands</MenubarItem>
+                    <MenubarItem onClick={onCommandPaletteToggle}>Show All Commands</MenubarItem>
                     <MenubarItem disabled>Documentation</MenubarItem>
                 </MenubarContent>
             </MenubarMenu>
         </Menubar>
     )
 }
-
-    

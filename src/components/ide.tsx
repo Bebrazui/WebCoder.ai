@@ -20,7 +20,6 @@ import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
 import { generateReadme } from "@/ai/flows/generate-readme-flow";
 import { useToast } from "@/hooks/use-toast";
-import { useDebounce } from "@/hooks/use-debounce";
 import type { OutlineData } from "./outline-view";
 import { useTheme } from "./theme-provider";
 
@@ -59,6 +58,8 @@ export function Ide() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isStatusBarVisible, setIsStatusBarVisible] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isGeneratingReadme, setIsGeneratingReadme] = useState(false);
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
@@ -109,6 +110,11 @@ export function Ide() {
       });
     }
   }, [openFiles, activeFilePath, saveFileToVfs]);
+
+  const triggerEditorAction = (actionId: string) => {
+    editorRef.current?.focus();
+    editorRef.current?.trigger('menu-bar', actionId, null);
+  };
 
   useEffect(() => {
     hotkeys('ctrl+s, command+s', (event) => {
@@ -344,38 +350,49 @@ export function Ide() {
         onSaveFile={() => handleSaveFile(null)}
         onDownloadZip={downloadVfsAsZip}
         onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+        onEditorAction={triggerEditorAction}
+        isSidebarVisible={isSidebarVisible}
+        onToggleSidebar={() => setIsSidebarVisible(p => !p)}
+        isTerminalVisible={isTerminalOpen}
+        onToggleTerminal={() => setIsTerminalOpen(p => !p)}
+        isStatusBarVisible={isStatusBarVisible}
+        onToggleStatusBar={() => setIsStatusBarVisible(p => !p)}
         theme={theme}
         onThemeChange={setTheme}
       />
       
       <main className="min-h-0">
         <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
-            <Sidebar
-              vfsRoot={vfsRoot}
-              loading={loading}
-              gitStatus={gitStatus}
-              isGitStatusLoading={isGitStatusLoading}
-              onCommit={commit}
-              onSelectFile={handleSelectFile}
-              onUploadFile={addFileToVfs}
-              onUploadZip={addZipToVfs}
-              onNewFile={createFileInVfs}
-              onNewFolder={createDirectoryInVfs}
-              onRenameNode={handleRenameNode}
-              onDeleteNode={handleDeleteNode}
-              onMoveNode={handleMoveNode}
-              onOpenFolder={handleOpenFolder}
-              onDownloadZip={downloadVfsAsZip}
-              onCloneRepository={handleCloneRepo}
-              onGenerateReadme={handleGenerateReadme}
-              isGeneratingReadme={isGeneratingReadme}
-              outlineData={outlineData}
-              onSymbolSelect={handleSymbolSelect}
-            />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={80}>
+          {isSidebarVisible && (
+            <>
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+                <Sidebar
+                  vfsRoot={vfsRoot}
+                  loading={loading}
+                  gitStatus={gitStatus}
+                  isGitStatusLoading={isGitStatusLoading}
+                  onCommit={commit}
+                  onSelectFile={handleSelectFile}
+                  onUploadFile={addFileToVfs}
+                  onUploadZip={addZipToVfs}
+                  onNewFile={createFileInVfs}
+                  onNewFolder={createDirectoryInVfs}
+                  onRenameNode={handleRenameNode}
+                  onDeleteNode={handleDeleteNode}
+                  onMoveNode={handleMoveNode}
+                  onOpenFolder={handleOpenFolder}
+                  onDownloadZip={downloadVfsAsZip}
+                  onCloneRepository={handleCloneRepo}
+                  onGenerateReadme={handleGenerateReadme}
+                  isGeneratingReadme={isGeneratingReadme}
+                  outlineData={outlineData}
+                  onSymbolSelect={handleSymbolSelect}
+                />
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
+          )}
+          <ResizablePanel defaultSize={isSidebarVisible ? 80 : 100}>
             <ResizablePanelGroup direction="vertical">
               <ResizablePanel defaultSize={isTerminalOpen ? 65 : 100} minSize={20}>
                 <EditorPane
@@ -403,14 +420,16 @@ export function Ide() {
         </ResizablePanelGroup>
       </main>
 
-      <StatusBar 
-          activeFile={activeFile} 
-          isDirty={isFileDirty}
-          branch={currentBranch}
-          onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
-          isTerminalOpen={isTerminalOpen} 
-          onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
-        />
+      {isStatusBarVisible && (
+          <StatusBar 
+              activeFile={activeFile} 
+              isDirty={isFileDirty}
+              branch={currentBranch}
+              onTerminalToggle={() => setIsTerminalOpen(prev => !prev)}
+              isTerminalOpen={isTerminalOpen} 
+              onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+            />
+      )}
       <CommandPalette 
         isOpen={isCommandPaletteOpen}
         setIsOpen={setIsCommandPaletteOpen}
@@ -421,5 +440,3 @@ export function Ide() {
     </div>
   );
 }
-
-    
