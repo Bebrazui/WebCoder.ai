@@ -5,24 +5,26 @@ import { useState } from "react";
 import { FileExplorer } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch } from "lucide-react";
+import { FileCode, GitBranch, ListTree } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileExplorerProps } from "./file-explorer";
 import type { GitStatus } from "@/hooks/use-vfs";
-
+import { OutlineView, OutlineData } from "./outline-view";
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
     onCommit: (message: string, token: string) => Promise<void>;
+    outlineData: OutlineData[];
+    onSymbolSelect: (range: any) => void;
 }
 
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
 
-  type View = "explorer" | "source-control";
+  type View = "explorer" | "source-control" | "outline";
 
   const views: { id: View, icon: React.ReactNode, label: string, component: React.ReactNode }[] = [
     {
@@ -36,6 +38,12 @@ export function Sidebar(props: SidebarProps) {
       icon: <GitBranch />,
       label: "Source Control",
       component: <SourceControlView changedFiles={props.gitStatus} isLoading={props.isGitStatusLoading} onCommit={props.onCommit} />
+    },
+    {
+      id: "outline",
+      icon: <ListTree />,
+      label: "Outline",
+      component: <OutlineView symbols={props.outlineData} onSymbolSelect={props.onSymbolSelect} />
     }
   ];
 

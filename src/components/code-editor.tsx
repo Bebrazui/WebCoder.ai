@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,20 +9,57 @@ import { getLanguage } from "@/lib/vfs";
 import { Button } from "@/components/ui/button";
 import { WandSparkles } from "lucide-react";
 import { AiTransformDialog } from "./ai-transform-dialog";
+import { OutlineData } from "./outline-view";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface CodeEditorProps {
   path: string;
   value: string;
   onChange: (value: string) => void;
+  onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onOutlineChange: (outline: OutlineData[]) => void;
 }
 
-export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
+const mapSymbol = (symbol: monaco.languages.DocumentSymbol): OutlineData => ({
+    name: symbol.name,
+    kind: symbol.kind,
+    range: symbol.range,
+    children: symbol.children ? symbol.children.map(mapSymbol) : [],
+});
+
+export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChange }: CodeEditorProps) {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof monaco | null>(null);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [selectedText, setSelectedText] = useState("");
+  const debouncedValue = useDebounce(value, 500);
+
+  const updateOutline = useCallback(async () => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
+    try {
+        const breadcrumbs = monacoRef.current.languages.typescript.getJavaScriptWorker().then(worker => worker(model.uri));
+        const symbols = await (await monacoRef.current.editor.getDocumentSymbolProvider(model))?.provideDocumentSymbols(model, {
+            dispose: () => {}
+        });
+
+        if (symbols) {
+            onOutlineChange(symbols.map(mapSymbol));
+        } else {
+            onOutlineChange([]);
+        }
+    } catch (e) {
+        onOutlineChange([]); // Clear outline on error
+    }
+  }, [onOutlineChange]);
+
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
+    monacoRef.current = monacoInstance;
+    onEditorReady(editor);
 
     // --- Enable Rich IntelliSense and validation ---
     const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {
@@ -52,6 +90,8 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
         setSelectedText("");
       }
     });
+    
+    updateOutline();
   };
 
   useEffect(() => {
@@ -60,11 +100,16 @@ export function CodeEditor({ path, value, onChange }: CodeEditorProps) {
     const editor = editorRef.current;
     if (editor) {
       const model = editor.getModel();
-      if (model) {
-        monaco.editor.setModelLanguage(model, getLanguage(path));
+      if (model && monacoRef.current) {
+        monacoRef.current.editor.setModelLanguage(model, getLanguage(path));
       }
     }
-  }, [path]);
+    updateOutline();
+  }, [path, updateOutline]);
+  
+  useEffect(() => {
+    updateOutline();
+  }, [debouncedValue, updateOutline]);
 
   const handleTransform = (newCode: string) => {
     const editor = editorRef.current;

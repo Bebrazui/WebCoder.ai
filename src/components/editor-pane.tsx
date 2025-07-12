@@ -17,6 +17,8 @@ import Image from 'next/image';
 import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
 import { JavaDecompilerViewer } from "./java-decompiler-viewer";
+import type * as monaco from "monaco-editor";
+import { OutlineData } from "./outline-view";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -26,6 +28,8 @@ interface EditorPaneProps {
   onFileChange: (path: string, newContent: string) => void;
   onFileClose: (path: string) => void;
   onFileSave: (path: string) => void;
+  onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onOutlineChange: (outline: OutlineData[]) => void;
 }
 
 const isImageFile = (path: string) => {
@@ -82,6 +86,8 @@ export function EditorPane({
   onFileChange,
   onFileClose,
   onFileSave,
+  onEditorReady,
+  onOutlineChange,
 }: EditorPaneProps) {
 
   if (openFiles.length === 0) {
@@ -115,6 +121,8 @@ export function EditorPane({
         path={file.path}
         value={file.content}
         onChange={(newContent) => onFileChange(file.path, newContent)}
+        onEditorReady={onEditorReady}
+        onOutlineChange={onOutlineChange}
       />
     }
 

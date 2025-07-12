@@ -1,9 +1,10 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import hotkeys from "hotkeys-js";
+import type * as monaco from "monaco-editor";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -19,6 +20,8 @@ import { CommandPalette } from "./command-palette";
 import { MenuBar } from "./menu-bar";
 import { generateReadme } from "@/ai/flows/generate-readme-flow";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
+import type { OutlineData } from "./outline-view";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -57,6 +60,8 @@ export function Ide() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isGeneratingReadme, setIsGeneratingReadme] = useState(false);
+  const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
   
   const handleSelectFile = useCallback((file: VFSFile) => {
@@ -323,6 +328,11 @@ export function Ide() {
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
+  const handleSymbolSelect = useCallback((range: monaco.IRange) => {
+    editorRef.current?.revealRangeInCenter(range, monaco.editor.ScrollType.Smooth);
+    editorRef.current?.focus();
+  }, []);
+
   return (
     <div className="h-screen w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
       <MenuBar 
@@ -356,6 +366,8 @@ export function Ide() {
               onCloneRepository={handleCloneRepo}
               onGenerateReadme={handleGenerateReadme}
               isGeneratingReadme={isGeneratingReadme}
+              outlineData={outlineData}
+              onSymbolSelect={handleSymbolSelect}
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
@@ -370,6 +382,8 @@ export function Ide() {
                     onFileChange={handleFileChange}
                     onFileClose={handleFileClose}
                     onFileSave={handleSaveFile}
+                    onEditorReady={(editor) => { editorRef.current = editor }}
+                    onOutlineChange={setOutlineData}
                 />
               </ResizablePanel>
               {isTerminalOpen && (
