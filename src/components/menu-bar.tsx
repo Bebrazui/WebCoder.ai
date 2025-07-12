@@ -9,7 +9,11 @@ import {
     MenubarSeparator,
     MenubarShortcut,
     MenubarTrigger,
+    MenubarSub,
+    MenubarSubContent,
+    MenubarSubTrigger,
   } from "@/components/ui/menubar"
+import { Check } from "lucide-react";
 
 interface MenuBarProps {
     onNewFile: () => void;
@@ -18,6 +22,8 @@ interface MenuBarProps {
     onSaveFile: () => void;
     onDownloadZip: () => void;
     onCommandPaletteToggle: () => void;
+    theme: string;
+    onThemeChange: (theme: string) => void;
 }
   
 export function MenuBar({
@@ -26,7 +32,9 @@ export function MenuBar({
     onOpenFolder,
     onSaveFile,
     onDownloadZip,
-    onCommandPaletteToggle
+    onCommandPaletteToggle,
+    theme,
+    onThemeChange,
 }: MenuBarProps) {
     return (
         <Menubar className="rounded-none border-b border-border px-2 lg:px-4">
@@ -69,6 +77,20 @@ export function MenuBar({
                     <MenubarItem onClick={onCommandPaletteToggle}>
                         Command Palette<MenubarShortcut>⌘K</MenubarShortcut>
                     </MenubarItem>
+                    <MenubarSub>
+                        <MenubarSubTrigger>Theme</MenubarSubTrigger>
+                        <MenubarSubContent>
+                             <MenubarItem onClick={() => onThemeChange('dark')}>
+                                {theme === 'dark' && <Check className="mr-2 h-4 w-4" />}
+                                <span>Dark</span>
+                            </MenubarItem>
+                            <MenubarItem onClick={() => onThemeChange('oceanic')}>
+                                {theme === 'oceanic' && <Check className="mr-2 h-4 w-4" />}
+                                <span>Oceanic</span>
+                            </MenubarItem>
+                        </MenubarSubContent>
+                    </MenubarSub>
+                    <MenubarSeparator />
                     <MenubarItem disabled>Explorer</MenubarItem>
                     <MenubarItem disabled>Source Control</MenubarItem>
                     <MenubarItem disabled>Terminal</MenubarItem>
@@ -92,3 +114,5 @@ export function MenuBar({
         </Menubar>
     )
 }
+
+    

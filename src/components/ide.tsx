@@ -22,6 +22,7 @@ import { generateReadme } from "@/ai/flows/generate-readme-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { OutlineData } from "./outline-view";
+import { useTheme } from "./theme-provider";
 
 const TerminalView = dynamic(
   () => import('./terminal').then(mod => mod.TerminalView),
@@ -63,6 +64,7 @@ export function Ide() {
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
@@ -342,6 +344,8 @@ export function Ide() {
         onSaveFile={() => handleSaveFile(null)}
         onDownloadZip={downloadVfsAsZip}
         onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
+        theme={theme}
+        onThemeChange={setTheme}
       />
       
       <main className="min-h-0">
@@ -417,3 +421,5 @@ export function Ide() {
     </div>
   );
 }
+
+    

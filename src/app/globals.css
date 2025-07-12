@@ -77,6 +77,40 @@ body {
     --sidebar-border: 200 20% 27%;
     --sidebar-ring: 201 25% 59%;
   }
+  .oceanic {
+    --background: 210 30% 15%;
+    --foreground: 190 40% 95%;
+    --card: 210 30% 15%;
+    --card-foreground: 190 40% 95%;
+    --popover: 210 30% 12%;
+    --popover-foreground: 190 40% 95%;
+    --primary: 180 50% 45%;
+    --primary-foreground: 180 50% 95%;
+    --secondary: 210 30% 25%;
+    --secondary-foreground: 190 40% 95%;
+    --muted: 210 30% 20%;
+    --muted-foreground: 200 30% 65%;
+    --accent: 170 50% 50%;
+    --accent-foreground: 170 50% 10%;
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 30% 25%;
+    --input: 210 30% 25%;
+    --ring: 180 50% 45%;
+    --chart-1: 200 70% 60%;
+    --chart-2: 160 60% 55%;
+    --chart-3: 30 80% 65%;
+    --chart-4: 280 65% 70%;
+    --chart-5: 340 75% 65%;
+    --sidebar-background: 210 30% 10%;
+    --sidebar-foreground: 190 40% 95%;
+    --sidebar-primary: 170 50% 50%;
+    --sidebar-primary-foreground: 170 50% 10%;
+    --sidebar-accent: 210 30% 20%;
+    --sidebar-accent-foreground: 190 40% 95%;
+    --sidebar-border: 210 30% 25%;
+    --sidebar-ring: 180 50% 45%;
+  }
 }
 
 @layer base {
@@ -120,3 +154,5 @@ body {
 .prose hr {
     border-top-color: hsl(var(--border));
 }
+
+    

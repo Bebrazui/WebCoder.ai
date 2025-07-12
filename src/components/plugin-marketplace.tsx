@@ -119,9 +119,16 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
   const handleInstall = (pluginName: string) => {
     toast({
       title: "Installation Not Implemented",
-      description: `Installing "${pluginName}" is not yet supported.`,
+      description: `Installing "${pluginName}" is a planned feature.`,
     });
   };
+  
+  const handleOpenThemeCustomizer = () => {
+    toast({
+        title: "Feature Not Implemented",
+        description: "The theme customizer is a planned feature. You can currently change themes via the View > Theme menu.",
+    });
+  }
 
   const isUtilityPlugin = (id: string) => utilityPlugins.some(p => p.id === id);
 
@@ -129,32 +136,41 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
     plugin,
   }: {
     plugin: { id: string; icon: React.ReactNode; name: string; description: string };
-  }) => (
-    <div className="flex items-start gap-4 rounded-lg border p-4">
-      <div className="mt-1">{plugin.icon}</div>
-      <div className="flex-1">
-        <h3 className="font-semibold">{plugin.name}</h3>
-        <p className="text-sm text-muted-foreground">{plugin.description}</p>
-      </div>
-      {isUtilityPlugin(plugin.id) ? (
-        <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onSelectPlugin(plugin.id)}
-        >
-            Open
-        </Button>
-      ) : (
-        <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleInstall(plugin.name)}
-        >
-            Install
-        </Button>
-      )}
-    </div>
-  );
+  }) => {
+    
+    let actionButton: React.ReactNode;
+
+    if (plugin.id === 'themer') {
+        actionButton = (
+            <Button variant="outline" size="sm" onClick={handleOpenThemeCustomizer}>
+                Customize
+            </Button>
+        );
+    } else if (isUtilityPlugin(plugin.id)) {
+        actionButton = (
+            <Button variant="outline" size="sm" onClick={() => onSelectPlugin(plugin.id)}>
+                Open
+            </Button>
+        );
+    } else {
+        actionButton = (
+            <Button variant="outline" size="sm" onClick={() => handleInstall(plugin.name)}>
+                Install
+            </Button>
+        );
+    }
+    
+    return (
+        <div className="flex items-start gap-4 rounded-lg border p-4">
+          <div className="mt-1">{plugin.icon}</div>
+          <div className="flex-1">
+            <h3 className="font-semibold">{plugin.name}</h3>
+            <p className="text-sm text-muted-foreground">{plugin.description}</p>
+          </div>
+          {actionButton}
+        </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
@@ -169,19 +185,19 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
           <div>
              <h3 className="text-base font-semibold mb-4">Developer Utilities</h3>
              <div className="space-y-4">
-                {utilityPlugins.map(p => <PluginCard key={p.name} plugin={p} />)}
+                {utilityPlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
+             </div>
+          </div>
+           <div>
+             <h3 className="text-base font-semibold mb-4">Workflow & Customization</h3>
+             <div className="space-y-4">
+                {otherPlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
              </div>
           </div>
           <div>
              <h3 className="text-base font-semibold mb-4">Core Functionality (Planned)</h3>
              <div className="space-y-4">
-                {corePlugins.map(p => <PluginCard key={p.name} plugin={p} />)}
-             </div>
-          </div>
-           <div>
-             <h3 className="text-base font-semibold mb-4">Workflow & Customization (Planned)</h3>
-             <div className="space-y-4">
-                {otherPlugins.map(p => <PluginCard key={p.name} plugin={p} />)}
+                {corePlugins.map(p => <PluginCard key={p.id} plugin={p} />)}
              </div>
           </div>
         </div>
@@ -189,3 +205,5 @@ export function PluginMarketplace({ onSelectPlugin }: PluginMarketplaceProps) {
     </div>
   );
 }
+
+    
