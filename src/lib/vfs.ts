@@ -25,67 +25,26 @@ export const isJavaClassFile = (filename: string) => /\.class$/i.test(filename);
 
 // A list of extensions that are known to be text-based
 const TEXT_EXTENSIONS = new Set([
-    'txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx',
+    'txt', 'md', 'mdx', 'json', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx',
     'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'php', 'rb', 'rs', 'swift', 'kt',
     'yml', 'yaml', 'sh', 'bat', 'toml', 'gitignore', 'npmrc', 'log', 'sql', 'csv', 'env',
-    'conf', 'ini', 'cfg', 'properties'
-]);
-
-// A list of mime types that are known to be text-based
-const TEXT_MIME_TYPES = new Set([
-    'application/json',
-    'application/xml',
-    'application/javascript',
-    'application/x-sh',
-    'image/svg+xml'
+    'conf', 'ini', 'cfg', 'properties', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc'
 ]);
 
 /**
- * Determines if a file should be treated as text.
- * @param file - An object with `name` and optional `type` and `content` properties.
- * @returns `true` if the file is likely text-based, `false` otherwise.
+ * Determines if a file should be treated as text based on its extension.
+ * @param file - An object with a `name` property.
+ * @returns `true` if the file extension is in the known text list, `false` otherwise.
  */
-export function isTextFile(file: { name: string, type?: string, content?: string }): boolean {
+export function isTextFile(file: { name: string }): boolean {
     const extension = file.name.split('.').pop()?.toLowerCase();
     
-    // Check by extension
-    if (extension && TEXT_EXTENSIONS.has(extension)) {
-        return true;
+    if (extension) {
+        return TEXT_EXTENSIONS.has(extension);
     }
     
-    // Check by known binary extensions (if not already handled by more specific checks)
-    if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|gz|tar|rar|7z|bin|exe|dll|class|woff|woff2|eot|ttf|otf|mp4|webm|mov)$/i.test(file.name)) {
-        return false;
-    }
-    
-    // Check by mime type if available
-    if (file.type) {
-        if (file.type.startsWith('text/')) {
-            return true;
-        }
-        if (TEXT_MIME_TYPES.has(file.type)) {
-            return true;
-        }
-        if (file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/')) {
-            // Let specific handlers for image/audio deal with them, but they are not plain text
-            return isImageFile(file.name) || isAudioFile(file.name) ? false : !file.type.startsWith('application/octet-stream');
-        }
-    }
-
-    // Check by content if available (for data URIs)
-    if (file.content && file.content.startsWith('data:')) {
-        const mime = file.content.substring(5, file.content.indexOf(';'));
-        if (mime.startsWith('text/')) return true;
-        if (TEXT_MIME_TYPES.has(mime)) return true;
-        return false;
-    }
-    
-    // Fallback: If no extension, assume text unless it's a known binary file
-    if (!extension && !isImageFile(file.name) && !isAudioFile(file.name)) {
-        return true;
-    }
-
-    // Default to false for unknown extensions not in our text list
+    // If there's no extension, default to treating it as non-text to be safe
+    // and avoid trying to render binary files as strings.
     return false;
 }
 

@@ -335,7 +335,7 @@ export function useVfs() {
       });
     };
     
-    if (isTextFileUtil({name: file.name, type: file.type})) {
+    if (isTextFileUtil({name: file.name})) {
        reader.readAsText(file);
     } else {
        reader.readAsDataURL(file);
@@ -591,7 +591,7 @@ export function useVfs() {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result as string);
                     reader.onerror = reject;
-                    if (isTextFileUtil({name: file.name, type: file.type})) {
+                    if (isTextFileUtil({name: file.name})) {
                         reader.readAsText(file);
                     } else {
                         reader.readAsDataURL(file);
