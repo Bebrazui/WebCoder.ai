@@ -67,19 +67,29 @@ const runners = {
         const buildPath = path.join(tempDir, 'build');
         await fs.mkdir(buildPath, { recursive: true });
 
+        const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
+            let results: string[] = [];
+            try {
+                const list = await fs.readdir(dir, { withFileTypes: true });
+                for (const file of list) {
+                    const fullPath = path.resolve(dir, file.name);
+                    if (file.isDirectory()) {
+                        results = results.concat(await findJavaFilesRecursive(fullPath));
+                    } else if (file.name.endsWith('.java')) {
+                        results.push(fullPath);
+                    }
+                }
+            } catch(e) {
+                // Ignore errors for non-existent directories, etc.
+            }
+            return results;
+        };
+
         const sourceFiles: string[] = [];
         for (const srcPath of config.sourcePaths || []) {
             const fullSrcPath = path.join(tempDir, srcPath);
-             try {
-                const files = await fs.readdir(fullSrcPath, { recursive: true });
-                for (const file of files) {
-                    if (typeof file === 'string' && file.endsWith('.java')) {
-                        sourceFiles.push(path.join(fullSrcPath, file));
-                    }
-                }
-             } catch (e) {
-                // Ignore if source path doesn't exist
-             }
+            const files = await findJavaFilesRecursive(fullSrcPath);
+            sourceFiles.push(...files);
         }
         
         if (sourceFiles.length === 0) {
