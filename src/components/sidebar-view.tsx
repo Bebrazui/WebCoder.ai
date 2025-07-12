@@ -21,6 +21,10 @@ import { PythonRunner } from "./plugins/python-runner";
 import { JavaRunner } from "./plugins/java-runner";
 import { GoRunner } from "./plugins/go-runner";
 import { RubyRunner } from "./plugins/ruby-runner";
+import { PhpRunner } from "./plugins/php-runner";
+import { RustRunner } from "./plugins/rust-runner";
+import { CsharpRunner } from "./plugins/csharp-runner";
+
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onGenerateReadme' | 'isGeneratingReadme'> {
     gitStatus: GitStatus[];
@@ -30,7 +34,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onG
     onSymbolSelect: (range: any) => void;
 }
 
-type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner" | "java-runner" | "go-runner" | "ruby-runner";
+type View = "explorer" | "source-control" | "outline" | "plugins" | "json-formatter" | "base64-tool" | "url-tool" | "char-counter" | "markdown-previewer" | "python-runner" | "java-runner" | "go-runner" | "ruby-runner" | "php-runner" | "rust-runner" | "csharp-runner";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -126,6 +130,27 @@ export function Sidebar(props: SidebarProps) {
       label: "Ruby Runner",
       main: false,
       component: <RubyRunner />
+    },
+    {
+      id: "php-runner",
+      icon: null,
+      label: "PHP Runner",
+      main: false,
+      component: <PhpRunner />
+    },
+    {
+      id: "rust-runner",
+      icon: null,
+      label: "Rust Runner",
+      main: false,
+      component: <RustRunner />
+    },
+    {
+      id: "csharp-runner",
+      icon: null,
+      label: "C# Runner",
+      main: false,
+      component: <CsharpRunner />
     }
   ];
 

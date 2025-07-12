@@ -39,6 +39,24 @@ const availablePlugins = [
     description: "Run a sample Ruby script with custom input.",
   },
   {
+    id: "php-runner",
+    icon: <Code2 className="h-8 w-8 text-purple-400" />,
+    name: "PHP Runner",
+    description: "Run a sample PHP script with custom input.",
+  },
+  {
+    id: "rust-runner",
+    icon: <Code2 className="h-8 w-8 text-orange-600" />,
+    name: "Rust Runner",
+    description: "Run a sample compiled Rust app with custom input.",
+  },
+  {
+    id: "csharp-runner",
+    icon: <Code2 className="h-8 w-8 text-purple-500" />,
+    name: "C# Runner",
+    description: "Run a sample compiled C# .NET app with custom input.",
+  },
+  {
     id: "json-formatter",
     icon: <Braces className="h-8 w-8 text-amber-400" />,
     name: "JSON Formatter",
