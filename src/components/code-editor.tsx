@@ -21,8 +21,8 @@ interface CodeEditorProps {
   path: string;
   value: string;
   onChange: (value: string) => void;
-  onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
-  onOutlineChange: (outline: OutlineData[]) => void;
+  onEditorReady?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onOutlineChange?: (outline: OutlineData[]) => void;
 }
 
 const mapSymbol = (symbol: monaco.languages.DocumentSymbol): OutlineData => ({
@@ -42,7 +42,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const { toast } = useToast();
 
   const updateOutline = useCallback(async () => {
-    if (!editorRef.current || !monacoRef.current) return;
+    if (!editorRef.current || !monacoRef.current || !onOutlineChange) return;
     const model = editorRef.current.getModel();
     if (!model) return;
 
@@ -66,7 +66,9 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
     monacoRef.current = monacoInstance;
-    onEditorReady(editor);
+    if (onEditorReady) {
+        onEditorReady(editor);
+    }
 
     // --- Enable Rich IntelliSense and validation ---
     const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {

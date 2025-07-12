@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { VFSFile } from "@/lib/vfs";
 import { Button } from "./ui/button";
-import { LoaderCircle, FileJson, BrainCircuit } from "lucide-react";
+import { LoaderCircle, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { decompileJavaClass } from "@/ai/flows/decompile-java-flow";
 import { CodeEditor } from "./code-editor";
@@ -41,9 +41,10 @@ export function JavaDecompilerViewer({ file }: JavaDecompilerViewerProps) {
     };
 
     if (decompiledCode) {
+        const newFileName = file.name.replace(/\.class$/, '.java');
         return (
             <CodeEditor
-                path={file.path.replace('.class', '.java')} // For syntax highlighting
+                path={newFileName}
                 value={decompiledCode}
                 onChange={() => {}} // Read-only
             />
@@ -55,7 +56,7 @@ export function JavaDecompilerViewer({ file }: JavaDecompilerViewerProps) {
             <FileIcon filename={file.name} className="h-24 w-24 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-xl font-semibold mb-1">{file.name}</h2>
             <p className="text-sm text-muted-foreground mb-6">This is a compiled Java class file.</p>
-            <Button onClick={handleDecompile} disabled={isLoading} size="lg">
+            <Button onClick={handleDecompile} disabled={isLoading} size="lg" className="gap-2">
                 {isLoading ? (
                     <LoaderCircle className="animate-spin" />
                 ) : (

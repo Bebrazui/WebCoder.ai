@@ -81,6 +81,7 @@ export function getLanguage(path: string): string {
         case 'html':
             return 'html';
         case 'md':
+        case 'mdx':
             return 'markdown';
         case 'py':
             return 'python';
