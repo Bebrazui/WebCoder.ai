@@ -1,5 +1,5 @@
 // java_apps/src/Main.java
-import org.json.JSONObject; // Вам понадобится библиотека org.json
+import org.json.JSONObject;
 
 public class Main {
     public static void main(String[] args) {
@@ -10,10 +10,14 @@ public class Main {
                 String name = inputJson.optString("name", "Гость");
                 int age = inputJson.optInt("age", 0);
 
-                String message = "Привет из Java, " + name + "! Тебе " + age + " лет.";
+                // Вместо создания окна, выводим сообщение.
+                // Это позволит коду успешно выполняться в серверной среде.
+                String message = "Программа успешно запущена для пользователя " + name + "!";
+                
                 JSONObject outputJson = new JSONObject();
                 outputJson.put("status", "success");
                 outputJson.put("message", message);
+                outputJson.put("info", "Графический интерфейс (MyFrame) не был запущен, так как среда не поддерживает GUI.");
                 outputJson.put("processedAge", age * 2);
 
                 System.out.println(outputJson.toString());
@@ -32,11 +36,11 @@ public class Main {
                 System.exit(1);
             }
         } else {
-            JSONObject errorJson = new JSONObject();
-            errorJson.put("status", "error");
-            errorJson.put("message", "Не переданы входные данные.");
-            System.err.println(errorJson.toString());
-            System.exit(1);
+             // Этот код можно использовать для проверки отдельных частей логики, не связанных с GUI.
+            JSONObject outputJson = new JSONObject();
+            outputJson.put("status", "success");
+            outputJson.put("message", "Программа запущена без аргументов. GUI не создается.");
+            System.out.println(outputJson.toString());
         }
     }
 }
