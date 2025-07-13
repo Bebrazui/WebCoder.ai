@@ -71,22 +71,34 @@ export async function POST(req: NextRequest) {
         
         tempDir = await createProjectInTempDir(projectFiles);
 
-        // javap needs to be run from the root of the classpath
-        const executionDir = path.join(tempDir, 'build'); // Assuming .class files are in 'build'
-        const fullClassPath = path.join(executionDir, classFilePath);
+        // Find the most likely classpath root by looking for common build directories
+        const possibleRoots = ['/build/', '/out/', '/target/'];
+        let classpathRoot = tempDir;
+        let relativeClassPath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
+        
+        for (const root of possibleRoots) {
+            const rootIndex = classFilePath.indexOf(root);
+            if (rootIndex !== -1) {
+                classpathRoot = path.join(tempDir, classFilePath.substring(0, rootIndex + root.length));
+                relativeClassPath = classFilePath.substring(rootIndex + root.length);
+                break;
+            }
+        }
+
+        const fullClassPathOnDisk = path.join(tempDir, classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath);
         
         // We need to provide the fully qualified class name, not the file path.
         // e.g., for /build/com/example/MyClass.class, it's com.example.MyClass
-        const qualifiedClassName = classFilePath.replace('.class', '').replace(/\//g, '.');
+        const qualifiedClassName = relativeClassPath.replace(/\.class$/, '').replace(/\//g, '.');
 
         // Check if the file actually exists
         try {
-            await fs.access(fullClassPath);
+            await fs.access(fullClassPathOnDisk);
         } catch (e) {
              throw new Error(`The specified class file does not exist in the build directory: ${classFilePath}`);
         }
         
-        const result = await executeCommand('javap', ['-c', qualifiedClassName], executionDir);
+        const result = await executeCommand('javap', ['-c', qualifiedClassName], classpathRoot);
 
         if (result.code !== 0) {
             throw new Error(result.stderr || `javap failed with code ${result.code}`);

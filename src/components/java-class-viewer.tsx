@@ -27,19 +27,12 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
       setIsLoading(true);
       setError(null);
       try {
-        // Find the relative path from the 'build' directory, as that's our classpath root.
-        const buildPathIndex = file.path.indexOf('/build/');
-        if (buildPathIndex === -1) {
-          throw new Error("This .class file is not in a recognized build directory and cannot be disassembled.");
-        }
-        const relativeClassPath = file.path.substring(buildPathIndex + '/build/'.length);
-
         const response = await fetch('/api/disassemble-java', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projectFiles: vfsRoot.children,
-            classFilePath: relativeClassPath,
+            classFilePath: file.path,
           }),
         });
 
@@ -57,7 +50,7 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
     };
 
     disassemble();
-  }, [file, vfsRoot.children]);
+  }, [file, vfsRoot]);
 
   const handleDownload = () => {
     try {
