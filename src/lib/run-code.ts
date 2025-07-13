@@ -9,9 +9,6 @@ import { dataURIToArrayBuffer } from '@/lib/utils';
 
 type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'compile-java';
 
-// This will be populated by compileJava and used by runJava
-let lastJavaSourceRoot: string | null = null;
-
 // --- Utility Functions ---
 
 async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> {
@@ -124,17 +121,16 @@ const compileJava = async (config: any, tempDir: string) => {
         for (const srcPath of sourcePaths) {
             const fullSrcPath = path.join(tempDir, srcPath);
              try {
-                const stats = await fs.stat(fullSrcPath);
-                if (stats.isDirectory()) {
-                    sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
-                    // If files are found, we assume the first valid path is the root.
-                    if(sourceFiles.length > 0 && sourceRoot === tempDir) {
-                        sourceRoot = fullSrcPath;
-                        console.log(`Setting source root based on path: ${sourceRoot}`);
-                    }
+                await fs.access(fullSrcPath);
+                sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
+                // If files are found, we assume the first valid path is the root.
+                if(sourceFiles.length > 0 && sourceRoot === tempDir) {
+                    sourceRoot = fullSrcPath;
+                    console.log(`Setting source root based on path: ${sourceRoot}`);
                 }
             } catch (e) {
                 // path doesn't exist, ignore
+                 console.warn(`Configured source path not found: ${fullSrcPath}`);
             }
         }
     }
@@ -151,34 +147,28 @@ const compileJava = async (config: any, tempDir: string) => {
     }
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: 'No Java source files found. Try specifying the source directory manually.', code: 1 };
+        return { stdout: '', stderr: 'No Java source files found. Please check the Manual Source Path in the Run view.', code: 1 };
     }
     console.log(`Found ${sourceFiles.length} Java files to compile in root: ${sourceRoot}`);
-    lastJavaSourceRoot = sourceRoot; // Save the discovered root for runtime
-
+    
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
     const cp = `${buildPath}${path.delimiter}${classPaths}`;
     
-    const relativeSourceFiles = sourceFiles.map(f => path.relative(sourceRoot, f));
-    console.log(`Compiling files: ${relativeSourceFiles.join(', ')}`);
+    console.log(`Compiling with javac -d ${buildPath} from CWD: ${sourceRoot}`);
 
-    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...relativeSourceFiles], sourceRoot);
+    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...sourceFiles], sourceRoot);
 };
 
 const runJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(tempDir, 'build');
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    // Use the build path as the primary classpath. This is where compiled .class files are.
+    // Use the build path as the primary classpath.
     const cp = `${buildPath}${classPaths ? path.delimiter + classPaths : ''}`;
     
-    // The CWD for the `java` command should be the directory from which the classpath is resolved.
-    // For `java -cp build Main`, CWD should be `tempDir`.
-    // If Main.java was in a package `com.example`, it becomes `com.example.Main`
-    // and `java -cp build com.example.Main` needs to be run from `tempDir`
-    // to find `tempDir/build/com/example/Main.class`.
+    // The CWD should be the directory from which the classpath is resolved.
     const executionCwd = tempDir;
 
-    console.log(`Running Java with classpath: '${cp}' from CWD: '${executionCwd}'`);
+    console.log(`Running Java with classpath: '${cp}' from CWD: '${executionCwd}' for main class: '${config.mainClass!}'`);
     return executeCommand('java', ['-cp', cp, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
