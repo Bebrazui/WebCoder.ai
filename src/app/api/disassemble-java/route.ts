@@ -25,18 +25,12 @@ async function createProjectInTempDir(projectRoot: VFSDirectory): Promise<string
         }
     };
     
-    // Write the entire project structure into the temp directory from the root
-    await writeFile(projectRoot, tempDir);
-
-    // The VFS root is also a folder, so we need to move the contents up one level
-    const rootName = projectRoot.name;
-    const projectDir = path.join(tempDir, rootName);
-    const files = await fs.readdir(projectDir);
-    for (const file of files) {
-      await fs.rename(path.join(projectDir, file), path.join(tempDir, file));
+    // Iterate over the children of the root and write them directly into the temp directory.
+    // This avoids creating an extra top-level folder.
+    for (const child of projectRoot.children) {
+        await writeFile(child, tempDir);
     }
-    await fs.rmdir(projectDir);
-
+    
     return tempDir;
 }
 
