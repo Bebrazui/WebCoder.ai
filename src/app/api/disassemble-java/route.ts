@@ -71,36 +71,52 @@ export async function POST(req: NextRequest) {
         
         tempDir = await createProjectInTempDir(projectFiles);
 
-        // Find the most likely classpath root by looking for common build directories
-        const possibleRoots = ['/build/', '/out/', '/target/'];
+        // Heuristic to find the classpath root. We go up from the .class file
+        // until we find a directory that seems like a root (or hit the project root).
+        let currentPath = path.dirname(classFilePath);
         let classpathRoot = tempDir;
         let relativeClassPath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
         
-        for (const root of possibleRoots) {
-            const rootIndex = classFilePath.indexOf(root);
-            if (rootIndex !== -1) {
-                classpathRoot = path.join(tempDir, classFilePath.substring(0, rootIndex + root.length));
-                relativeClassPath = classFilePath.substring(rootIndex + root.length);
+        const pathParts = currentPath.split('/').filter(p => p);
+        let foundRoot = false;
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+            const potentialRootName = pathParts[i];
+            if (['build', 'out', 'target', 'classes'].includes(potentialRootName.toLowerCase())) {
+                const rootPath = path.join(tempDir, ...pathParts.slice(0, i + 1));
+                const classFileSubPath = path.join(...pathParts.slice(i + 1), path.basename(classFilePath));
+                
+                classpathRoot = rootPath;
+                relativeClassPath = classFileSubPath;
+                foundRoot = true;
                 break;
             }
+        }
+        if (!foundRoot) {
+            // If no typical build dir is found, assume the project root is the classpath.
+            classpathRoot = tempDir;
+            relativeClassPath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
         }
 
         const fullClassPathOnDisk = path.join(tempDir, classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath);
         
         // We need to provide the fully qualified class name, not the file path.
         // e.g., for /build/com/example/MyClass.class, it's com.example.MyClass
-        const qualifiedClassName = relativeClassPath.replace(/\.class$/, '').replace(/\//g, '.');
-
+        const qualifiedClassName = relativeClassPath.replace(/\.class$/, '').replace(new RegExp(`\\${path.sep}`, 'g'), '.');
+        
         // Check if the file actually exists
         try {
             await fs.access(fullClassPathOnDisk);
         } catch (e) {
-             throw new Error(`The specified class file does not exist in the build directory: ${classFilePath}`);
+             throw new Error(`The specified class file does not exist in the temporary directory. Expected at: ${fullClassPathOnDisk}`);
         }
         
         const result = await executeCommand('javap', ['-c', qualifiedClassName], classpathRoot);
 
         if (result.code !== 0) {
+            // Provide a more helpful error if classpath might be the issue
+            if (result.stderr.includes('class not found')) {
+                throw new Error(`javap could not find class '${qualifiedClassName}'. This often indicates a classpath issue. Used classpath: '${classpathRoot}'.\n\nFull error:\n${result.stderr}`);
+            }
             throw new Error(result.stderr || `javap failed with code ${result.code}`);
         }
 
