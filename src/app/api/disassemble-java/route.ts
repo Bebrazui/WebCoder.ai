@@ -36,14 +36,18 @@ async function createProjectInTempDir(projectRoot: VFSDirectory): Promise<string
 
 const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
     let results: string[] = [];
-    const list = await fs.readdir(dir, { withFileTypes: true });
-    for (const file of list) {
-        const fullPath = path.join(dir, file.name);
-        if (file.isDirectory()) {
-            results = results.concat(await findJavaFilesRecursive(fullPath));
-        } else if (file.name.endsWith('.java')) {
-            results.push(fullPath);
+    try {
+        const list = await fs.readdir(dir, { withFileTypes: true });
+        for (const file of list) {
+            const fullPath = path.join(dir, file.name);
+            if (file.isDirectory()) {
+                results = results.concat(await findJavaFilesRecursive(fullPath));
+            } else if (file.name.endsWith('.java')) {
+                results.push(fullPath);
+            }
         }
+    } catch (e) {
+        // Ignore errors from non-existent dirs
     }
     return results;
 };
@@ -120,10 +124,19 @@ export async function POST(req: NextRequest) {
             className: classNameForJavap,
             workingDir: tempDir
         };
-
+        
+        // Compile our Java runner if not already done. In a real scenario, this would be part of a build step.
+        const runnerSrcPath = path.join(process.cwd(), 'java_apps', 'src');
+        const runnerBuildPath = path.join(process.cwd(), 'java_apps', 'build');
+        await fs.mkdir(runnerBuildPath, { recursive: true });
+        const runnerCompileResult = await executeCommand('javac', ['-d', runnerBuildPath, path.join(runnerSrcPath, 'Main.java')], runnerSrcPath);
+        if(runnerCompileResult.code !== 0) {
+            throw new Error(`Failed to compile the Java runner: ${runnerCompileResult.stderr}`);
+        }
+        
         const runnerResult = await executeCommand(
             'java', 
-            ['-cp', path.join(process.cwd(), 'java_apps', 'build'), 'Main', JSON.stringify(runnerArgs)], 
+            ['-cp', runnerBuildPath, 'Main', JSON.stringify(runnerArgs)], 
             process.cwd()
         );
 
