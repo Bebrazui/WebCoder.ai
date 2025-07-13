@@ -1,6 +1,6 @@
+// src/components/editor-pane.tsx
 "use client";
 
-import { useState } from "react";
 import {
   Tabs,
   TabsContent,
@@ -13,11 +13,11 @@ import type { VFSFile } from "@/lib/vfs";
 import { X, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
-import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile } from "@/lib/vfs";
+import { isTextFile, isImageFile, isAudioFile, isClassFile } from "@/lib/vfs";
+import { JavaClassViewer } from "./java-class-viewer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -78,19 +78,19 @@ export function EditorPane({
     if (isAudioFile(file.name)) {
         return <AudioPlayer file={file} />;
     }
-
-    if (isTextFile({name: file.name, content: file.content})) {
-      return <CodeEditor
-        path={file.path}
-        value={file.content}
-        onChange={(newContent) => onFileChange(file.path, newContent)}
-        onEditorReady={onEditorReady}
-        onOutlineChange={onOutlineChange}
-      />
+    
+    if (isClassFile(file.name)) {
+        return <JavaClassViewer file={file} />;
     }
 
-    // Default to Hex Viewer for other binary files
-    return <HexViewer file={file} />;
+    // Default to Code Editor for text files
+    return <CodeEditor
+      path={file.path}
+      value={file.content}
+      onChange={(newContent) => onFileChange(file.path, newContent)}
+      onEditorReady={onEditorReady}
+      onOutlineChange={onOutlineChange}
+    />
   }
 
   return (
@@ -116,7 +116,7 @@ export function EditorPane({
                 >
                   <FileIcon filename={file.name} className="h-4 w-4" />
                   <span>{file.name}</span>
-                  {isDirty && (
+                  {isDirty && !isClassFile(file.name) && (
                       <div className="flex items-center gap-1 ml-1">
                           <div
                               onClick={(e) => {
