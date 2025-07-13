@@ -1,3 +1,4 @@
+
 // src/app/api/disassemble-java/route.ts
 'use server';
 
@@ -27,9 +28,13 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         }
     };
 
-    for (const file of projectFiles) {
-        await writeFile(file, tempDir);
+    // Since projectFiles is [vfsRoot], we iterate its children into the tempDir
+    if (projectFiles.length > 0 && projectFiles[0].type === 'directory') {
+        for (const file of projectFiles[0].children) {
+            await writeFile(file, tempDir);
+        }
     }
+    
     return tempDir;
 }
 
@@ -70,20 +75,20 @@ export async function POST(req: NextRequest) {
         }
         
         tempDir = await createProjectInTempDir(projectFiles);
-
-        // Heuristic to find the classpath root. We go up from the .class file
-        // until we find a directory that seems like a root (or hit the project root).
-        let currentPath = path.dirname(classFilePath);
-        let classpathRoot = tempDir;
-        let relativeClassPath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
+        const cleanClassFilePath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
         
-        const pathParts = currentPath.split('/').filter(p => p);
+        // Heuristic to find the classpath root.
+        let classpathRoot = tempDir;
+        let relativeClassPath = cleanClassFilePath;
+        
+        const pathParts = path.dirname(cleanClassFilePath).split(path.sep);
         let foundRoot = false;
+        // Iterate backwards to find a conventional build directory name
         for (let i = pathParts.length - 1; i >= 0; i--) {
             const potentialRootName = pathParts[i];
-            if (['build', 'out', 'target', 'classes'].includes(potentialRootName.toLowerCase())) {
+            if (['build', 'out', 'target', 'classes', 'bin'].includes(potentialRootName.toLowerCase())) {
                 const rootPath = path.join(tempDir, ...pathParts.slice(0, i + 1));
-                const classFileSubPath = path.join(...pathParts.slice(i + 1), path.basename(classFilePath));
+                const classFileSubPath = path.join(...pathParts.slice(i + 1), path.basename(cleanClassFilePath));
                 
                 classpathRoot = rootPath;
                 relativeClassPath = classFileSubPath;
@@ -91,13 +96,15 @@ export async function POST(req: NextRequest) {
                 break;
             }
         }
-        if (!foundRoot) {
-            // If no typical build dir is found, assume the project root is the classpath.
-            classpathRoot = tempDir;
-            relativeClassPath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
+        
+        if (!foundRoot && cleanClassFilePath.includes('/')) {
+            // If no build dir found, assume the project root is the classpath.
+             classpathRoot = tempDir;
+             relativeClassPath = cleanClassFilePath;
         }
 
-        const fullClassPathOnDisk = path.join(tempDir, classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath);
+
+        const fullClassPathOnDisk = path.join(tempDir, cleanClassFilePath);
         
         // We need to provide the fully qualified class name, not the file path.
         // e.g., for /build/com/example/MyClass.class, it's com.example.MyClass
