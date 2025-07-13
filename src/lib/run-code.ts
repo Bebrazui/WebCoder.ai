@@ -37,6 +37,7 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
 
 function executeCommand(command: string, args: string[], cwd: string, shell: boolean = false): Promise<{ stdout: string; stderr: string; code: number | null }> {
     return new Promise((resolve) => {
+        console.log(`Executing command: ${command} ${args.join(' ')} in ${cwd}`);
         const process = spawn(command, args, { cwd, shell }); 
         let stdout = '';
         let stderr = '';
@@ -45,11 +46,16 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
         process.stderr.on('data', (data) => { stderr += data.toString(); });
         
         process.on('close', (code) => {
+            console.log(`Command finished with code ${code}.`);
+            console.log(`Stdout: ${stdout}`);
+            console.error(`Stderr: ${stderr}`);
             resolve({ stdout, stderr, code });
         });
 
         process.on('error', (err) => {
-            resolve({ stdout: '', stderr: `Failed to start process '${command}': ${err.message}`, code: -1 });
+            const errorMsg = `Failed to start process '${command}': ${err.message}`;
+            console.error(errorMsg);
+            resolve({ stdout: '', stderr: errorMsg, code: -1 });
         });
     });
 }
@@ -59,7 +65,7 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
 const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
     let results: string[] = [];
     try {
-        await fs.access(dir); // Check if directory exists
+        await fs.access(dir);
         const list = await fs.readdir(dir, { withFileTypes: true });
         for (const file of list) {
             const fullPath = path.join(dir, file.name);
@@ -75,54 +81,38 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
     return results;
 };
 
+
 const compileJava = async (config: any, tempDir: string) => {
-    const buildPath = path.join(tempDir, 'build');
+    // Define the working directory from the manual source path if provided, otherwise default to tempDir
+    const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
+    const compilationCwd = path.join(tempDir, userSourcePath);
+    
+    // The build path should be outside the source tree.
+    const buildPath = path.join(compilationCwd, '..', 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
-    let sourceFiles: string[] = [];
-    
-    // Use user-provided source path if available, otherwise default.
-    const sourcePaths = config.sourcePaths && Array.isArray(config.sourcePaths) ? config.sourcePaths : ['.'];
-    
-    console.log(`Using sourcePaths to find Java files: ${sourcePaths.join(', ')}`);
-    for (const srcPath of sourcePaths) {
-        const fullSrcPath = path.join(tempDir, srcPath);
-        sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
-    }
+    const sourceFiles = await findJavaFilesRecursive(compilationCwd);
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: 'No Java source files found in the specified Source Path. Please check the path is correct.', code: 1 };
+        return { stdout: '', stderr: `No Java source files found in the specified path: ${userSourcePath}. Please check the path is correct.`, code: 1 };
     }
-    console.log(`Found ${sourceFiles.length} Java files to compile.`);
     
-    // The CWD for compilation should be the temp directory to handle packages correctly.
-    const compilationCwd = tempDir;
-    const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    const cpArgs = classPaths ? ['-cp', classPaths] : [];
-    
-    console.log(`Compiling with javac -d ${buildPath} from CWD: ${compilationCwd}`);
-
-    // The source files should be relative to the CWD
     const relativeSourceFiles = sourceFiles.map(f => path.relative(compilationCwd, f));
+    
+    console.log(`Compiling ${relativeSourceFiles.length} files from CWD: ${compilationCwd}`);
 
-    return await executeCommand('javac', ['-d', buildPath, ...cpArgs, ...relativeSourceFiles], compilationCwd);
+    return await executeCommand('javac', ['-d', buildPath, ...relativeSourceFiles], compilationCwd);
 };
 
-
 const runJava = async (config: any, tempDir: string) => {
-    const buildPath = path.join(tempDir, 'build');
     const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
-    const executionRoot = path.join(tempDir, userSourcePath);
-
-    // The classpath should contain the 'build' directory AND the execution root (for resources)
-    const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    const cp = `${buildPath}${path.delimiter}${executionRoot}${classPaths ? path.delimiter + classPaths : ''}`;
+    const executionCwd = path.join(tempDir, userSourcePath);
     
-    // The CWD should be the root of the temporary project.
-    const executionCwd = tempDir;
-
-    console.log(`Running Java with classpath: '${cp}' from CWD: '${executionCwd}' for main class: '${config.mainClass!}'`);
-    return executeCommand('java', ['-cp', cp, config.mainClass!, JSON.stringify(config.args)], executionCwd);
+    // The classpath is now the 'build' directory, located one level above the execution CWD.
+    const buildPath = path.join(executionCwd, '..', 'build');
+    
+    console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
+    return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
 
