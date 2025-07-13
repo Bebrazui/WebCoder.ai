@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput, Binary } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -42,7 +42,7 @@ const defaultJavaConfig: LaunchConfig = {
     type: "java",
     request: "launch",
     mainClass: "Main",
-    sourcePaths: ["."], // Search from the root of the project
+    sourcePaths: ["."],
     classPaths: [],
     args: {
       name: "Java User",
@@ -64,6 +64,7 @@ export function RunView() {
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
   const [manualSourcePath, setManualSourcePath] = useState('');
+  const [manualMainClass, setManualMainClass] = useState('');
 
   const [isCompiled, setIsCompiled] = useState(false);
 
@@ -114,14 +115,17 @@ export function RunView() {
     setIsCompiled(false);
     if (selectedConfigName) {
         const config = launchConfigs.find(c => c.name === selectedConfigName);
-        if (config && config.args) {
+        if (config) {
             setJsonInput(JSON.stringify(config.args, null, 2));
+            setManualMainClass(config.mainClass || '');
         } else {
             setJsonInput('{}');
+            setManualMainClass('');
         }
-        // Reset manual path when config changes
+        
         if (config?.type !== 'java') {
             setManualSourcePath('');
+            setManualMainClass('');
         }
     }
   }, [selectedConfigName, launchConfigs]);
@@ -145,18 +149,28 @@ export function RunView() {
       
       const fullConfig = { ...config, args: argsToUse };
 
-      if (fullConfig.type === 'java' && manualSourcePath.trim()) {
-          fullConfig.sourcePaths = [manualSourcePath.trim()];
+      if (fullConfig.type === 'java') {
+          if (manualSourcePath.trim()) {
+            fullConfig.sourcePaths = [manualSourcePath.trim()];
+          }
+          if (manualMainClass.trim()) {
+            fullConfig.mainClass = manualMainClass.trim();
+          }
       }
 
       return fullConfig;
-  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, manualSourcePath, toast]);
+  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, manualSourcePath, manualMainClass, toast]);
 
   const handleAction = useCallback(async (action: 'compile' | 'run') => {
       const fullConfig = getFullConfig();
       if (!fullConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
+      }
+      
+      if (action === 'run' && isJavaConfig && !fullConfig.mainClass) {
+           toast({ variant: 'destructive', title: 'Missing Main Class', description: 'Please provide a Main Class name to run the Java application.' });
+           return;
       }
 
       setIsLoading(true);
@@ -277,30 +291,46 @@ export function RunView() {
                         </Select>
                     </div>
 
-                    {selectedConfig && (
+                    {selectedConfig && !isJavaConfig && (
                          <Alert variant="default">
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
                             <AlertDescription>
-                                {selectedConfig.program || selectedConfig.mainClass || selectedConfig.projectPath || '...'}
+                                {selectedConfig.program || selectedConfig.projectPath || '...'}
                             </AlertDescription>
                         </Alert>
                     )}
 
                     {isJavaConfig && (
-                        <div className="space-y-2">
-                             <Label htmlFor="manual-source-path">Manual Source Path (optional)</Label>
-                             <div className="relative">
-                                <FolderInput className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="manual-source-path"
-                                    placeholder="e.g. ProjectFolder/src"
-                                    value={manualSourcePath}
-                                    onChange={(e) => setManualSourcePath(e.target.value)}
-                                    className="pl-8"
-                                />
-                             </div>
-                        </div>
+                       <div className="space-y-4 rounded-md border p-4">
+                            <div className="space-y-2">
+                                 <Label htmlFor="manual-main-class">Main Class Name</Label>
+                                 <div className="relative">
+                                    <Binary className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="manual-main-class"
+                                        placeholder="e.g. com.example.Main"
+                                        value={manualMainClass}
+                                        onChange={(e) => setManualMainClass(e.target.value)}
+                                        className="pl-8"
+                                    />
+                                 </div>
+                            </div>
+                            <div className="space-y-2">
+                                 <Label htmlFor="manual-source-path">Source Path</Label>
+                                 <div className="relative">
+                                    <FolderInput className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="manual-source-path"
+                                        placeholder="e.g. ProjectFolder/src"
+                                        value={manualSourcePath}
+                                        onChange={(e) => setManualSourcePath(e.target.value)}
+                                        className="pl-8"
+                                    />
+                                 </div>
+                                 <p className="text-xs text-muted-foreground">Path to the directory containing your Java source files (e.g., the 'src' folder).</p>
+                            </div>
+                       </div>
                     )}
 
                     {editorSettings.manualJsonInput && (

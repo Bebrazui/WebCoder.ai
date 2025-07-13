@@ -59,6 +59,7 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
 const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
     let results: string[] = [];
     try {
+        await fs.access(dir); // Check if directory exists
         const list = await fs.readdir(dir, { withFileTypes: true });
         for (const file of list) {
             const fullPath = path.join(dir, file.name);
@@ -69,103 +70,48 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
             }
         }
     } catch (e) {
-        // Log error but don't stop, the path might just not exist.
+        // Log error but don't stop, the path might just not exist or be inaccessible.
         console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
     }
     return results;
 };
-
-
-const findSourceRoot = async (baseDir: string): Promise<string | null> => {
-    const queue: string[] = [baseDir];
-    while(queue.length > 0) {
-        const currentDir = queue.shift()!;
-        try {
-            const files = await fs.readdir(currentDir);
-            if (files.some(f => f.endsWith('.java'))) {
-                return currentDir;
-            }
-            const subdirs = [];
-            for(const file of files) {
-                const fullPath = path.join(currentDir, file);
-                try {
-                    const stat = await fs.stat(fullPath);
-                    if(stat.isDirectory()) {
-                        subdirs.push(fullPath);
-                    }
-                } catch (e) {
-                    // ignore stat errors
-                }
-            }
-            queue.push(...subdirs);
-        } catch (e) {
-             // ignore readdir errors
-        }
-    }
-    return null;
-}
-
 
 const compileJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(tempDir, 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
     let sourceFiles: string[] = [];
-    let sourceRoot = tempDir; 
-
-    // Prefer manual source path if provided.
-    const sourcePaths = config.sourcePaths && Array.isArray(config.sourcePaths) ? config.sourcePaths : [];
     
-    if (sourcePaths.length > 0) {
-        console.log(`Using configured sourcePaths: ${sourcePaths.join(', ')}`);
-        for (const srcPath of sourcePaths) {
-            const fullSrcPath = path.join(tempDir, srcPath);
-             try {
-                await fs.access(fullSrcPath);
-                sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
-                // If files are found, we assume the first valid path is the root.
-                if(sourceFiles.length > 0 && sourceRoot === tempDir) {
-                    sourceRoot = fullSrcPath;
-                    console.log(`Setting source root based on path: ${sourceRoot}`);
-                }
-            } catch (e) {
-                // path doesn't exist, ignore
-                 console.warn(`Configured source path not found: ${fullSrcPath}`);
-            }
-        }
-    }
-
-    // If no files found via configured paths, try to find them automatically
-    if (sourceFiles.length === 0) {
-        console.log("No files found in sourcePaths, attempting to find source root automatically...");
-        const foundRoot = await findSourceRoot(tempDir);
-        if(foundRoot) {
-            console.log(`Auto-detected Java source root: ${foundRoot}`);
-            sourceRoot = foundRoot;
-            sourceFiles = await findJavaFilesRecursive(sourceRoot);
-        }
+    const sourcePaths = config.sourcePaths && Array.isArray(config.sourcePaths) ? config.sourcePaths : ['.'];
+    
+    console.log(`Using configured sourcePaths: ${sourcePaths.join(', ')}`);
+    for (const srcPath of sourcePaths) {
+        const fullSrcPath = path.join(tempDir, srcPath);
+        sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
     }
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: 'No Java source files found. Please check the Manual Source Path in the Run view.', code: 1 };
+        return { stdout: '', stderr: 'No Java source files found in the specified Source Path. Please check the path is correct.', code: 1 };
     }
-    console.log(`Found ${sourceFiles.length} Java files to compile in root: ${sourceRoot}`);
+    console.log(`Found ${sourceFiles.length} Java files to compile.`);
     
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    const cp = `${buildPath}${path.delimiter}${classPaths}`;
+    const cpArgs = classPaths ? ['-cp', classPaths] : [];
     
-    console.log(`Compiling with javac -d ${buildPath} from CWD: ${sourceRoot}`);
+    console.log(`Compiling with javac -d ${buildPath} ...`);
 
-    return await executeCommand('javac', ['-d', buildPath, '-cp', cp, ...sourceFiles], sourceRoot);
+    // We run from the tempDir itself to avoid path issues.
+    return await executeCommand('javac', ['-d', buildPath, ...cpArgs, ...sourceFiles], tempDir);
 };
+
 
 const runJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(tempDir, 'build');
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    // Use the build path as the primary classpath.
+    // The classpath for running needs to include the build directory where .class files are.
     const cp = `${buildPath}${classPaths ? path.delimiter + classPaths : ''}`;
     
-    // The CWD should be the directory from which the classpath is resolved.
+    // The CWD should be the root of the temporary project.
     const executionCwd = tempDir;
 
     console.log(`Running Java with classpath: '${cp}' from CWD: '${executionCwd}' for main class: '${config.mainClass!}'`);
