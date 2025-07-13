@@ -19,8 +19,40 @@ interface CheerpJRunnerDialogProps {
   jarUrl: string;
 }
 
-declare const cheerpjInit: any;
-declare const cheerpjRunJar: any;
+declare let cheerpjInit: any;
+declare let cheerpjRunJar: any;
+
+const loadCheerpj = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        // Check if script already exists
+        if (document.getElementById('cheerpj-loader-script')) {
+            // If it exists, assume it's loaded or loading
+            if (typeof cheerpjInit !== 'undefined') {
+                resolve();
+            } else {
+                // Wait for it to load
+                window.addEventListener('cheerpjready', () => resolve());
+            }
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.id = 'cheerpj-loader-script';
+        script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
+        script.async = true;
+        script.onload = () => {
+             // Dispatch a custom event to signal other components
+            window.dispatchEvent(new Event('cheerpjready'));
+            resolve();
+        };
+        script.onerror = (err) => {
+            console.error("Failed to load CheerpJ script", err);
+            reject(new Error("Failed to load CheerpJ script. Please check your network connection."));
+        };
+        document.head.appendChild(script);
+    });
+};
+
 
 export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRunnerDialogProps) {
   const cheerpjContainerRef = useRef<HTMLDivElement>(null);
@@ -36,13 +68,16 @@ export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRun
 
       const runCheerpj = async () => {
         try {
+          await loadCheerpj();
+          
+          if (!isMounted) return;
+
+          // Now that script is loaded, cheerpjInit should be available
           if (typeof cheerpjInit === 'undefined') {
-            throw new Error("CheerpJ loader script not found. Please check network or layout file.");
+             throw new Error("CheerpJ initialized but `cheerpjInit` is not available. This should not happen.");
           }
           
-          await cheerpjInit({
-            // You can add options here, e.g., clipboardMode: 'system'
-          });
+          await cheerpjInit();
 
           if (!isMounted) return;
 
