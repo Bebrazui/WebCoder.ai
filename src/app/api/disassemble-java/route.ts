@@ -33,6 +33,10 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         for (const file of projectFiles[0].children) {
             await writeFile(file, tempDir);
         }
+    } else { // Fallback for flat array of files
+        for (const file of projectFiles) {
+            await writeFile(file, tempDir);
+        }
     }
     
     return tempDir;
@@ -97,7 +101,7 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        if (!foundRoot && cleanClassFilePath.includes('/')) {
+        if (!foundRoot && cleanClassFilePath.includes(path.sep)) {
             // If no build dir found, assume the project root is the classpath.
              classpathRoot = tempDir;
              relativeClassPath = cleanClassFilePath;
@@ -121,7 +125,7 @@ export async function POST(req: NextRequest) {
 
         if (result.code !== 0) {
             // Provide a more helpful error if classpath might be the issue
-            if (result.stderr.includes('class not found')) {
+            if (result.stderr.includes('class not found') || result.stderr.includes('ClassNotFoundException')) {
                 throw new Error(`javap could not find class '${qualifiedClassName}'. This often indicates a classpath issue. Used classpath: '${classpathRoot}'.\n\nFull error:\n${result.stderr}`);
             }
             throw new Error(result.stderr || `javap failed with code ${result.code}`);

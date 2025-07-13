@@ -26,12 +26,14 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
     const disassemble = async () => {
       setIsLoading(true);
       setError(null);
+      setDisassembledCode(null);
+      
       try {
         const response = await fetch('/api/disassemble-java', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            // Pass the entire project structure
+            // Pass the entire project structure as a single root node
             projectFiles: [vfsRoot],
             classFilePath: file.path,
           }),
@@ -51,7 +53,7 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
     };
 
     disassemble();
-  }, [file, vfsRoot]);
+  }, [file.path, vfsRoot]); // Re-run when file path changes
 
   const handleDownload = () => {
     try {
