@@ -1,6 +1,3 @@
-
-
-
 export interface VFSFile {
   type: "file";
   path: string;
@@ -23,6 +20,7 @@ export function createDirectory(name: string, path: string): VFSDirectory {
 
 export const isImageFile = (filename: string) => /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i.test(filename);
 export const isAudioFile = (filename: string) => /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(filename);
+export const isJavaClassFile = (filename: string) => /\.class$/i.test(filename);
 
 
 // A list of extensions that are known to be text-based

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -18,7 +17,8 @@ import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile } from "@/lib/vfs";
+import { isTextFile, isImageFile, isAudioFile, isJavaClassFile } from "@/lib/vfs";
+import { JavaClassViewer } from "./java-class-viewer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -80,6 +80,10 @@ export function EditorPane({
         return <AudioPlayer file={file} />;
     }
 
+    if (isJavaClassFile(file.name)) {
+        return <JavaClassViewer file={file} />;
+    }
+
     if (isTextFile({name: file.name})) {
       return <CodeEditor
         path={file.path}
@@ -90,7 +94,7 @@ export function EditorPane({
       />
     }
 
-    // Default to Hex Viewer for binary files and others
+    // Default to Hex Viewer for other binary files
     return <HexViewer file={file} />;
   }
 
