@@ -105,14 +105,17 @@ const compileJava = async (config: any, tempDir: string) => {
 };
 
 const runJava = async (config: any, tempDir: string) => {
+    // The working directory for execution should be the one containing the source code, as specified by the user.
     const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
     const executionCwd = path.join(tempDir, userSourcePath);
-    
-    // The classpath is now the 'build' directory, located one level above the execution CWD.
+
+    // The classpath points to the build directory, which is one level above the execution CWD.
     const buildPath = path.join(executionCwd, '..', 'build');
     
     console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
-    // Run Java in headless mode to prevent GUI errors on the server
+    
+    // We run Java from the source directory to handle relative paths correctly,
+    // but tell it to find classes in the build directory.
     return executeCommand('java', ['-Djava.awt.headless=true', '-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
