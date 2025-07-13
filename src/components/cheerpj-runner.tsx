@@ -24,15 +24,9 @@ declare let cheerpjRunJar: any;
 
 const loadCheerpj = (): Promise<void> => {
     return new Promise((resolve, reject) => {
-        // Check if script already exists
-        if (document.getElementById('cheerpj-loader-script')) {
-            // If it exists, assume it's loaded or loading
-            if (typeof cheerpjInit !== 'undefined') {
-                resolve();
-            } else {
-                // Wait for it to load
-                window.addEventListener('cheerpjready', () => resolve());
-            }
+        // Check if script already exists and if cheerpjInit is already available
+        if (document.getElementById('cheerpj-loader-script') && typeof cheerpjInit !== 'undefined') {
+            resolve();
             return;
         }
 
@@ -41,9 +35,12 @@ const loadCheerpj = (): Promise<void> => {
         script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
         script.async = true;
         script.onload = () => {
-             // Dispatch a custom event to signal other components
-            window.dispatchEvent(new Event('cheerpjready'));
-            resolve();
+            // The script has loaded, cheerpjInit should now be on the window object
+            if (typeof cheerpjInit !== 'undefined') {
+                 resolve();
+            } else {
+                 reject(new Error("CheerpJ script loaded but cheerpjInit is still not defined."));
+            }
         };
         script.onerror = (err) => {
             console.error("Failed to load CheerpJ script", err);
@@ -71,11 +68,6 @@ export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRun
           await loadCheerpj();
           
           if (!isMounted) return;
-
-          // Now that script is loaded, cheerpjInit should be available
-          if (typeof cheerpjInit === 'undefined') {
-             throw new Error("CheerpJ initialized but `cheerpjInit` is not available. This should not happen.");
-          }
           
           await cheerpjInit();
 
