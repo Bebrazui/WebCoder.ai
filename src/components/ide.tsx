@@ -110,6 +110,22 @@ export function Ide() {
     }
   }, [openFiles, activeFilePath, saveFileToVfs]);
 
+  const handleSaveAll = useCallback(() => {
+    const dirtyPaths = Array.from(dirtyFiles);
+    if (dirtyPaths.length === 0) {
+        toast({ title: "No files to save", description: "All changes are already saved." });
+        return;
+    }
+    dirtyPaths.forEach(path => {
+        const fileToSave = openFiles.find(f => f.path === path);
+        if (fileToSave) {
+            saveFileToVfs(fileToSave);
+        }
+    });
+    setDirtyFiles(new Set());
+    toast({ title: "All Files Saved", description: `${dirtyPaths.length} file(s) have been saved.`});
+  }, [dirtyFiles, openFiles, saveFileToVfs, toast]);
+
   const triggerEditorAction = (actionId: string) => {
     editorRef.current?.focus();
     editorRef.current?.trigger('menu-bar', actionId, null);
@@ -119,6 +135,11 @@ export function Ide() {
     hotkeys('ctrl+s, command+s', (event) => {
       event.preventDefault();
       handleSaveFile(null);
+    });
+
+    hotkeys('ctrl+shift+s, command+shift+s', (event) => {
+        event.preventDefault();
+        handleSaveAll();
     });
 
     hotkeys('ctrl+k, command+k', (event) => {
@@ -133,10 +154,11 @@ export function Ide() {
 
     return () => {
         hotkeys.unbind('ctrl+s, command+s');
+        hotkeys.unbind('ctrl+shift+s, command+shift+s');
         hotkeys.unbind('ctrl+k, command+k');
         hotkeys.unbind('ctrl+`, command+`');
     }
-  }, [handleSaveFile]);
+  }, [handleSaveFile, handleSaveAll]);
 
 
   const handleFileClose = useCallback((path: string) => {
@@ -166,6 +188,16 @@ export function Ide() {
       }
     }
   }, [openFiles, activeFilePath, dirtyFiles]);
+
+  const handleCloseAllFiles = useCallback(() => {
+    const hasDirtyFiles = dirtyFiles.size > 0;
+    if (hasDirtyFiles && !confirm("You have unsaved changes in some files. Are you sure you want to close them all?")) {
+        return;
+    }
+    setOpenFiles([]);
+    setActiveFilePath(null);
+    setDirtyFiles(new Set());
+  }, [dirtyFiles.size]);
   
   const handleRenameNode = (node: VFSNode, newName: string) => {
     const oldPath = node.path;
@@ -314,6 +346,9 @@ export function Ide() {
         onNewFolder={handleNewFolder}
         onOpenFolder={handleOpenFolder}
         onSaveFile={() => handleSaveFile(null)}
+        onSaveAllFiles={handleSaveAll}
+        onCloseFile={() => activeFilePath && handleFileClose(activeFilePath)}
+        onCloseAllFiles={handleCloseAllFiles}
         onDownloadZip={downloadVfsAsZip}
         onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
         onEditorAction={triggerEditorAction}

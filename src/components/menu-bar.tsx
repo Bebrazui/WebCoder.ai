@@ -24,6 +24,9 @@ interface MenuBarProps {
     onNewFolder: () => void;
     onOpenFolder: () => void;
     onSaveFile: () => void;
+    onSaveAllFiles: () => void;
+    onCloseFile: () => void;
+    onCloseAllFiles: () => void;
     onDownloadZip: () => void;
     onCommandPaletteToggle: () => void;
     onEditorAction: (actionId: string) => void;
@@ -40,6 +43,9 @@ export function MenuBar({
     onNewFolder,
     onOpenFolder,
     onSaveFile,
+    onSaveAllFiles,
+    onCloseFile,
+    onCloseAllFiles,
     onDownloadZip,
     onCommandPaletteToggle,
     onEditorAction,
@@ -66,6 +72,12 @@ export function MenuBar({
                         <MenubarItem onClick={onSaveFile}>
                             Save<MenubarShortcut>⌘S</MenubarShortcut>
                         </MenubarItem>
+                         <MenubarItem onClick={onSaveAllFiles}>
+                            Save All<MenubarShortcut>⇧⌘S</MenubarShortcut>
+                        </MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={onCloseFile}>Close File</MenubarItem>
+                        <MenubarItem onClick={onCloseAllFiles}>Close All Files</MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem onClick={onDownloadZip}>Download as ZIP...</MenubarItem>
                         <MenubarSeparator />
@@ -81,6 +93,11 @@ export function MenuBar({
                         <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCutAction')}>Cut</MenubarItem>
                         <MenubarItem onClick={() => onEditorAction('editor.action.clipboardCopyAction')}>Copy</MenubarItem>
                         <MenubarItem onClick={() => onEditorAction('editor.action.clipboardPasteAction')}>Paste</MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={() => onEditorAction('actions.find')}>Find</MenubarItem>
+                        <MenubarItem onClick={() => onEditorAction('editor.action.startFindReplaceAction')}>Replace</MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem onClick={() => onEditorAction('editor.action.commentLine')}>Toggle Line Comment</MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
@@ -96,6 +113,23 @@ export function MenuBar({
                             Command Palette<MenubarShortcut>⌘K</MenubarShortcut>
                         </MenubarItem>
                         <MenubarSub>
+                            <MenubarSubTrigger>Appearance</MenubarSubTrigger>
+                             <MenubarSubContent>
+                                <MenubarCheckboxItem checked={isSidebarVisible} onCheckedChange={onToggleSidebar}>
+                                    Show Explorer
+                                </MenubarCheckboxItem>
+                                <MenubarCheckboxItem checked={isTerminalVisible} onCheckedChange={onToggleTerminal}>
+                                    Show Terminal
+                                </MenubarCheckboxItem>
+                                <MenubarCheckboxItem checked={isStatusBarVisible} onCheckedChange={onToggleStatusBar}>
+                                    Show Status Bar
+                                </MenubarCheckboxItem>
+                                <MenubarSeparator />
+                                <MenubarItem disabled>Split Editor</MenubarItem>
+                                <MenubarItem disabled>Center Layout</MenubarItem>
+                            </MenubarSubContent>
+                        </MenubarSub>
+                         <MenubarSub>
                             <MenubarSubTrigger>Theme</MenubarSubTrigger>
                             <MenubarSubContent>
                                 <MenubarItem onClick={() => setTheme('dark')}>
@@ -108,16 +142,6 @@ export function MenuBar({
                                 </MenubarItem>
                             </MenubarSubContent>
                         </MenubarSub>
-                        <MenubarSeparator />
-                        <MenubarCheckboxItem checked={isSidebarVisible} onCheckedChange={onToggleSidebar}>
-                            Show Explorer
-                        </MenubarCheckboxItem>
-                        <MenubarCheckboxItem checked={isTerminalVisible} onCheckedChange={onToggleTerminal}>
-                            Show Terminal
-                        </MenubarCheckboxItem>
-                        <MenubarCheckboxItem checked={isStatusBarVisible} onCheckedChange={onToggleStatusBar}>
-                            Show Status Bar
-                        </MenubarCheckboxItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
