@@ -31,7 +31,8 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            projectFiles: vfsRoot.children,
+            // Pass the entire project structure
+            projectFiles: [vfsRoot],
             classFilePath: file.path,
           }),
         });
