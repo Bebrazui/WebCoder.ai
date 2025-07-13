@@ -45,16 +45,20 @@ const loadCheerpjScript = (): Promise<void> => {
     script.async = true;
     
     script.onload = () => {
-      const waitForCJ = setInterval(() => {
+      const startTime = Date.now();
+      const interval = setInterval(() => {
         if (window.cheerpjInit) {
-          clearInterval(waitForCJ);
+          clearInterval(interval);
           resolve();
+        } else if (Date.now() - startTime > 15000) { // 15-second timeout
+          clearInterval(interval);
+          reject(new Error('CheerpJ script loaded, but initialization timed out.'));
         }
       }, 100);
     };
 
     script.onerror = () => {
-      reject(new Error('Failed to load the CheerpJ script.'));
+      reject(new Error('Failed to load the CheerpJ script. Check your network connection or ad-blocker.'));
     };
 
     document.head.appendChild(script);
