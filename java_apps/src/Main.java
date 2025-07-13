@@ -10,16 +10,16 @@ public class Main {
                 String name = inputJson.optString("name", "Гость");
                 int age = inputJson.optInt("age", 0);
 
-                // Вместо создания окна, выводим сообщение.
-                // Это позволит коду успешно выполняться в серверной среде.
-                String message = "Программа успешно запущена для пользователя " + name + "!";
+                // Вместо создания окна, мы просто формируем текстовое сообщение.
+                String message = "Привет из Java, " + name + "!";
                 
                 JSONObject outputJson = new JSONObject();
                 outputJson.put("status", "success");
                 outputJson.put("message", message);
-                outputJson.put("info", "Графический интерфейс (MyFrame) не был запущен, так как среда не поддерживает GUI.");
+                outputJson.put("info", "Это пример консольного Java-приложения.");
                 outputJson.put("processedAge", age * 2);
 
+                // Выводим результат в стандартный вывод, чтобы IDE могла его поймать.
                 System.out.println(outputJson.toString());
 
             } catch (org.json.JSONException e) {
@@ -36,11 +36,11 @@ public class Main {
                 System.exit(1);
             }
         } else {
-             // Этот код можно использовать для проверки отдельных частей логики, не связанных с GUI.
-            JSONObject outputJson = new JSONObject();
-            outputJson.put("status", "success");
-            outputJson.put("message", "Программа запущена без аргументов. GUI не создается.");
-            System.out.println(outputJson.toString());
+             JSONObject errorJson = new JSONObject();
+             errorJson.put("status", "error");
+             errorJson.put("message", "Не переданы входные данные.");
+             System.err.println(errorJson.toString());
+             System.exit(1);
         }
     }
 }
