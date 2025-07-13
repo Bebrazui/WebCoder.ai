@@ -23,31 +23,55 @@ declare let cheerpjInit: any;
 declare let cheerpjRunJar: any;
 
 const loadCheerpj = (): Promise<void> => {
-    return new Promise((resolve, reject) => {
-        // Check if script already exists and if cheerpjInit is already available
-        if (document.getElementById('cheerpj-loader-script') && typeof cheerpjInit !== 'undefined') {
-            resolve();
-            return;
-        }
+  return new Promise((resolve, reject) => {
+    if (typeof cheerpjInit !== 'undefined') {
+      return resolve();
+    }
 
-        const script = document.createElement('script');
-        script.id = 'cheerpj-loader-script';
-        script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
-        script.async = true;
-        script.onload = () => {
-            // The script has loaded, cheerpjInit should now be on the window object
+    if (document.getElementById('cheerpj-loader-script')) {
+      // Script is already added, let's poll for cheerpjInit
+      const interval = setInterval(() => {
+        if (typeof cheerpjInit !== 'undefined') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 100);
+      // Add a timeout to prevent infinite loops
+      setTimeout(() => {
+        clearInterval(interval);
+        if (typeof cheerpjInit === 'undefined') {
+          reject(new Error("CheerpJ did not initialize in time."));
+        }
+      }, 5000); // 5 second timeout
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'cheerpj-loader-script';
+    script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
+    script.async = true;
+    script.onload = () => {
+        // Now that the script is loaded, poll for the global cheerpjInit function
+        const interval = setInterval(() => {
             if (typeof cheerpjInit !== 'undefined') {
-                 resolve();
-            } else {
-                 reject(new Error("CheerpJ script loaded but cheerpjInit is still not defined."));
+                clearInterval(interval);
+                resolve();
             }
-        };
-        script.onerror = (err) => {
-            console.error("Failed to load CheerpJ script", err);
-            reject(new Error("Failed to load CheerpJ script. Please check your network connection."));
-        };
-        document.head.appendChild(script);
-    });
+        }, 100);
+         // Add a timeout to prevent infinite loops
+        setTimeout(() => {
+            clearInterval(interval);
+            if (typeof cheerpjInit === 'undefined') {
+             reject(new Error("CheerpJ script loaded but cheerpjInit is still not defined."));
+            }
+      }, 5000); // 5 second timeout
+    };
+    script.onerror = (err) => {
+      console.error("Failed to load CheerpJ script", err);
+      reject(new Error("Failed to load CheerpJ script. Please check your network connection."));
+    };
+    document.head.appendChild(script);
+  });
 };
 
 
