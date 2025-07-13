@@ -91,20 +91,18 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
 
 const compileJava = async (config: any, tempDir: string) => {
     const userSourcePath = config.sourcePaths?.[0] || '.';
-    const compilationCwd = path.join(tempDir, userSourcePath);
+    const compilationCwd = path.join(tempDir, userSourcePath) || tempDir;
     
-    // Always build to a known directory relative to the temp root
     const buildPath = path.join(tempDir, 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
     const sourceFiles = await findJavaFilesRecursive(compilationCwd);
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 0 }; // Not an error if no files
+        // Not an error if no files, just nothing to do.
+        return { stdout: 'No java files found to compile.', stderr: '', code: 0 };
     }
     
-    // We pass absolute paths to javac to avoid any ambiguity.
-    console.log(`Compiling ${sourceFiles.length} files from CWD: ${compilationCwd}`);
     return executeCommand('javac', ['-d', buildPath, ...sourceFiles], compilationCwd);
 };
 
@@ -112,13 +110,9 @@ const runJava = async (config: any, tempDir: string) => {
     const compileResult = await compileJava(config, tempDir);
     if(compileResult.code !== 0) return compileResult;
 
-    // The classpath should point to our known build directory.
     const buildPath = path.join(tempDir, 'build');
-    const userSourcePath = config.sourcePaths?.[0] || '.';
-    const executionCwd = path.join(tempDir, userSourcePath);
+    const executionCwd = tempDir; // Run from the root of the temp dir
     
-    console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
-    // Run java from the same directory we compiled from to resolve relative paths if any.
     return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
@@ -150,8 +144,7 @@ const runners = {
         const buildResult = await executeCommand('cargo', config.cargo.args, projectPath);
         if (buildResult.code !== 0) return buildResult;
 
-        // Find the executable name from Cargo.toml or use projectPath name
-        const executableName = config.cargo.projectPath; // simplified assumption
+        const executableName = config.cargo.projectPath;
         const executablePath = path.join(projectPath, 'target', 'release', executableName);
 
         return executeCommand(executablePath, [JSON.stringify(config.args)], projectPath);
@@ -209,7 +202,10 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
             const parsedOutput = JSON.parse(result.stdout);
             return NextResponse.json({ success: true, data: parsedOutput });
         } catch (e) {
-            const errorMessage = result.stderr || `Could not parse process output as JSON. Raw output:\n${result.stdout}`;
+            // Check if there's an error message in stderr, if so, prefer it.
+            const errorMessage = result.stderr.trim() 
+                ? result.stderr 
+                : `Could not parse process output as JSON. Raw output:\n${result.stdout}`;
             return NextResponse.json({ success: false, error: errorMessage }, { status: 200 });
         }
     } catch (error: any) {

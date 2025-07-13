@@ -14,7 +14,6 @@ import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState } from "@/hooks/use-app-state";
-import { CheerpJRunnerDialog } from "./cheerpj-runner";
 
 interface LaunchConfig {
     name: string;
@@ -57,7 +56,6 @@ export function RunView() {
   const { editorSettings } = useAppState();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [isPreparingJar, setIsPreparingJar] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -65,12 +63,8 @@ export function RunView() {
   const [launchConfigs, setLaunchConfigs] = useState<LaunchConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
-  const [manualSourcePath, setManualSourcePath] = useState('');
-  const [manualMainClass, setManualMainClass] = useState('');
-
+  
   const [isCompiled, setIsCompiled] = useState(false);
-  const [isCheerpjOpen, setIsCheerpjOpen] = useState(false);
-  const [cheerpjJarUrl, setCheerpjJarUrl] = useState('');
 
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
@@ -79,7 +73,6 @@ export function RunView() {
         }
         if (node.type === 'directory' && node.path === '/') {
             for (const child of node.children) {
-                // Only search at root level for now
                 if (child.name === 'launch.json' && child.type === 'file') {
                     return child;
                 }
@@ -125,15 +118,8 @@ export function RunView() {
     setIsCompiled(false);
     if (selectedConfig) {
         setJsonInput(JSON.stringify(selectedConfig.args, null, 2));
-        setManualMainClass(selectedConfig.mainClass || '');
     } else {
         setJsonInput('{}');
-        setManualMainClass('');
-    }
-    
-    if (selectedConfig?.type !== 'java') {
-        setManualSourcePath('');
-        setManualMainClass('');
     }
   }, [selectedConfig]);
 
@@ -153,18 +139,8 @@ export function RunView() {
       }
       
       const fullConfig = { ...selectedConfig, args: argsToUse };
-
-      if (fullConfig.type === 'java') {
-          if (manualSourcePath.trim()) {
-            fullConfig.sourcePaths = [manualSourcePath.trim()];
-          }
-          if (manualMainClass.trim()) {
-            fullConfig.mainClass = manualMainClass.trim();
-          }
-      }
-
       return fullConfig;
-  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, manualSourcePath, manualMainClass, toast]);
+  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
 
   const handleAction = useCallback(async (action: 'compile' | 'run') => {
       const fullConfig = getFullConfig();
@@ -189,7 +165,7 @@ export function RunView() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                projectFiles: vfsRoot.children,
+                projectFiles: [vfsRoot], // Pass root node
                 config: fullConfig,
             }),
         });
@@ -215,46 +191,7 @@ export function RunView() {
       } finally {
         setIsLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot.children, isJavaConfig]);
-  
-  const handleCheerpjRun = useCallback(async () => {
-    const fullConfig = getFullConfig();
-    if (!fullConfig || !isJavaConfig || !fullConfig.mainClass) {
-        toast({ variant: 'destructive', title: 'Invalid Configuration', description: 'Please select a valid Java configuration with a Main Class.' });
-        return;
-    }
-    
-    setIsPreparingJar(true);
-    setError(null);
-
-    try {
-        const response = await fetch('/api/prepare-jar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                projectFiles: vfsRoot.children,
-                config: fullConfig
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to prepare JAR file.');
-        }
-
-        setCheerpjJarUrl(data.jarUrl);
-        setIsCheerpjOpen(true);
-        toast({ title: 'JAR Ready', description: 'Starting application with CheerpJ...' });
-
-    } catch (err: any) {
-        setError(err.message);
-    } finally {
-        setIsPreparingJar(false);
-    }
-
-  }, [getFullConfig, isJavaConfig, toast, vfsRoot.children]);
-
+  }, [getFullConfig, toast, vfsRoot, isJavaConfig]);
 
   const handleAddLaunchJson = useCallback(() => {
       const content = `
@@ -262,16 +199,11 @@ export function RunView() {
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Java App",
-      "type": "java",
+      "name": "Run Python Script",
+      "type": "python",
       "request": "launch",
-      "mainClass": "Main",
-      "sourcePaths": ["."],
-      "classPaths": [],
-      "args": {
-        "name": "Java User",
-        "age": 42
-      }
+      "program": "my_script.py",
+      "args": { "name": "World" }
     }
   ]
 }
@@ -282,7 +214,6 @@ export function RunView() {
 
 
   return (
-    <>
     <div className="flex flex-col h-full bg-background text-foreground">
       <div className="p-2 border-b border-border">
         <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
@@ -298,7 +229,7 @@ export function RunView() {
                     <FileWarning className="h-8 w-8" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       Create a `launch.json` file to define run configurations.
+                       Create a `launch.json` file to define run configurations for different languages.
                     </AlertDescription>
                     <Button onClick={handleAddLaunchJson} size="sm">
                         <FilePlus className="mr-2 h-4 w-4" />
@@ -310,7 +241,7 @@ export function RunView() {
                     <FileWarning className="h-4 w-4" />
                     <AlertTitle>No Configurations</AlertTitle>
                     <AlertDescription>
-                       Your `launch.json` is empty or no runnable files were detected.
+                       Your `launch.json` is empty or no runnable files were detected. Add a configuration to start.
                     </AlertDescription>
                 </Alert>
             ) : (
@@ -331,46 +262,14 @@ export function RunView() {
                         </Select>
                     </div>
 
-                    {selectedConfig && !isJavaConfig && (
+                    {selectedConfig && (
                          <Alert variant="default">
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
                             <AlertDescription>
-                                {selectedConfig.program || selectedConfig.projectPath || '...'}
+                                {selectedConfig.program || selectedConfig.projectPath || selectedConfig.mainClass || '...'}
                             </AlertDescription>
                         </Alert>
-                    )}
-
-                    {isJavaConfig && (
-                       <div className="space-y-4 rounded-md border p-4">
-                            <div className="space-y-2">
-                                 <Label htmlFor="manual-main-class">Main Class Name</Label>
-                                 <div className="relative">
-                                    <Binary className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="manual-main-class"
-                                        placeholder="e.g. com.example.Main"
-                                        value={manualMainClass}
-                                        onChange={(e) => setManualMainClass(e.target.value)}
-                                        className="pl-8"
-                                    />
-                                 </div>
-                            </div>
-                            <div className="space-y-2">
-                                 <Label htmlFor="manual-source-path">Source Path</Label>
-                                 <div className="relative">
-                                    <FolderInput className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="manual-source-path"
-                                        placeholder="e.g. ProjectFolder/src"
-                                        value={manualSourcePath}
-                                        onChange={(e) => setManualSourcePath(e.target.value)}
-                                        className="pl-8"
-                                    />
-                                 </div>
-                                 <p className="text-xs text-muted-foreground">Path to the directory containing your Java source files (e.g., the 'src' folder).</p>
-                            </div>
-                       </div>
                     )}
 
                     {editorSettings.manualJsonInput && (
@@ -390,20 +289,14 @@ export function RunView() {
             )}
             
             {launchConfigs.length > 0 && isJavaConfig ? (
-                <div className="grid grid-cols-1 gap-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
-                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
-                            Compile
-                        </Button>
-                         <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
-                            {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                            Run (Console)
-                        </Button>
-                    </div>
-                    <Button onClick={handleCheerpjRun} disabled={isPreparingJar || !selectedConfigName} className="w-full" variant="outline">
-                        {isPreparingJar ? <LoaderCircle className="animate-spin" /> : <Airplay />}
-                        Run with CheerpJ (GUI)
+                <div className="grid grid-cols-2 gap-4">
+                    <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                        Compile
+                    </Button>
+                     <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                        Run
                     </Button>
                 </div>
             ) : (
@@ -435,7 +328,7 @@ export function RunView() {
 
             {result && (
                 <div className="space-y-2 pt-4">
-                    <Label>Result (from Console Run)</Label>
+                    <Label>Result</Label>
                     <div className="rounded-md border bg-muted p-4">
                         <pre className="text-sm font-mono whitespace-pre-wrap">
                             {JSON.stringify(result, null, 2)}
@@ -446,11 +339,5 @@ export function RunView() {
         </div>
       </ScrollArea>
     </div>
-    <CheerpJRunnerDialog 
-        isOpen={isCheerpjOpen}
-        onOpenChange={setIsCheerpjOpen}
-        jarUrl={cheerpjJarUrl}
-    />
-    </>
   );
 }

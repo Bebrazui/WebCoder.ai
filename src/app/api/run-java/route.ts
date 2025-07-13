@@ -17,11 +17,10 @@ export async function POST(req: NextRequest) {
     try {
         const { projectFiles, config } = await req.json() as { projectFiles: VFSNode[], config: LaunchConfig };
 
-        if (!projectFiles || !config || !config.mainClass || !config.sourcePaths) {
-            return NextResponse.json({ success: false, error: 'Project files and a valid launch configuration with mainClass and sourcePaths are required.' }, { status: 400 });
+        if (!projectFiles || !config || !config.mainClass) {
+            return NextResponse.json({ success: false, error: 'Project files and a valid launch configuration with mainClass are required.' }, { status: 400 });
         }
         
-        // The 'java' runner now defaults to the run-only action
         return await runLanguage('java', projectFiles, config);
 
     } catch (error: any) {
