@@ -70,7 +70,6 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
             }
         }
     } catch (e) {
-        // Log error but don't stop, the path might just not exist or be inaccessible.
         console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
     }
     return results;
@@ -82,9 +81,10 @@ const compileJava = async (config: any, tempDir: string) => {
 
     let sourceFiles: string[] = [];
     
+    // Use user-provided source path if available, otherwise default.
     const sourcePaths = config.sourcePaths && Array.isArray(config.sourcePaths) ? config.sourcePaths : ['.'];
     
-    console.log(`Using configured sourcePaths: ${sourcePaths.join(', ')}`);
+    console.log(`Using sourcePaths to find Java files: ${sourcePaths.join(', ')}`);
     for (const srcPath of sourcePaths) {
         const fullSrcPath = path.join(tempDir, srcPath);
         sourceFiles.push(...await findJavaFilesRecursive(fullSrcPath));
@@ -95,13 +95,17 @@ const compileJava = async (config: any, tempDir: string) => {
     }
     console.log(`Found ${sourceFiles.length} Java files to compile.`);
     
+    // The CWD for compilation should be the temp directory to handle packages correctly.
+    const compilationCwd = tempDir;
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
     const cpArgs = classPaths ? ['-cp', classPaths] : [];
     
-    console.log(`Compiling with javac -d ${buildPath} ...`);
+    console.log(`Compiling with javac -d ${buildPath} from CWD: ${compilationCwd}`);
 
-    // We run from the tempDir itself to avoid path issues.
-    return await executeCommand('javac', ['-d', buildPath, ...cpArgs, ...sourceFiles], tempDir);
+    // The source files should be relative to the CWD
+    const relativeSourceFiles = sourceFiles.map(f => path.relative(compilationCwd, f));
+
+    return await executeCommand('javac', ['-d', buildPath, ...cpArgs, ...relativeSourceFiles], compilationCwd);
 };
 
 
