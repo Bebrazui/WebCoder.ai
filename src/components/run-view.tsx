@@ -115,43 +115,44 @@ export function RunView() {
     }
   }, [vfsRoot, toast]);
 
+  const selectedConfig = useMemo(() => {
+      return launchConfigs.find(c => c.name === selectedConfigName);
+  }, [launchConfigs, selectedConfigName]);
+
+  const isJavaConfig = selectedConfig?.type === 'java';
+
   useEffect(() => {
     setIsCompiled(false);
-    if (selectedConfigName) {
-        const config = launchConfigs.find(c => c.name === selectedConfigName);
-        if (config) {
-            setJsonInput(JSON.stringify(config.args, null, 2));
-            setManualMainClass(config.mainClass || '');
-        } else {
-            setJsonInput('{}');
-            setManualMainClass('');
-        }
-        
-        if (config?.type !== 'java') {
-            setManualSourcePath('');
-            setManualMainClass('');
-        }
+    if (selectedConfig) {
+        setJsonInput(JSON.stringify(selectedConfig.args, null, 2));
+        setManualMainClass(selectedConfig.mainClass || '');
+    } else {
+        setJsonInput('{}');
+        setManualMainClass('');
     }
-  }, [selectedConfigName, launchConfigs]);
+    
+    if (selectedConfig?.type !== 'java') {
+        setManualSourcePath('');
+        setManualMainClass('');
+    }
+  }, [selectedConfig]);
 
   const getFullConfig = useCallback(() => {
-      if (!selectedConfigName) return null;
-      const config = launchConfigs.find(c => c.name === selectedConfigName);
-      if (!config) return null;
+      if (!selectedConfig) return null;
 
       let argsToUse;
       try {
           if (editorSettings.manualJsonInput && jsonInput.trim()) {
               argsToUse = JSON.parse(jsonInput);
           } else {
-              argsToUse = config.args || {};
+              argsToUse = selectedConfig.args || {};
           }
       } catch (e: any) {
           toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
           return null;
       }
       
-      const fullConfig = { ...config, args: argsToUse };
+      const fullConfig = { ...selectedConfig, args: argsToUse };
 
       if (fullConfig.type === 'java') {
           if (manualSourcePath.trim()) {
@@ -163,7 +164,7 @@ export function RunView() {
       }
 
       return fullConfig;
-  }, [selectedConfigName, launchConfigs, jsonInput, editorSettings.manualJsonInput, manualSourcePath, manualMainClass, toast]);
+  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, manualSourcePath, manualMainClass, toast]);
 
   const handleAction = useCallback(async (action: 'compile' | 'run') => {
       const fullConfig = getFullConfig();
@@ -214,7 +215,7 @@ export function RunView() {
       } finally {
         setIsLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot.children]);
+  }, [getFullConfig, toast, vfsRoot.children, isJavaConfig]);
   
   const handleCheerpjRun = useCallback(async () => {
     const fullConfig = getFullConfig();
@@ -279,11 +280,6 @@ export function RunView() {
       toast({ title: '`launch.json` created', description: 'File was added to the root of your project.' });
   }, [createFileInVfs, vfsRoot, toast]);
 
-  const selectedConfig = useMemo(() => {
-      return launchConfigs.find(c => c.name === selectedConfigName);
-  }, [launchConfigs, selectedConfigName]);
-
-  const isJavaConfig = selectedConfig?.type === 'java';
 
   return (
     <>
