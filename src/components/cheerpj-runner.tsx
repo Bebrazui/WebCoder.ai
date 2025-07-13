@@ -29,16 +29,10 @@ declare global {
 
 const loadCheerpjScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    // Check if the script is already on the page.
     if (document.getElementById('cheerpj-loader-script')) {
-      // If so, check if cheerpjInit is available. It might be loading.
-      if (window.cheerpjInit) {
-        return resolve();
-      }
-      // If not, wait for it to be available (for race conditions)
-      const interval = setInterval(() => {
+      const waitForCJ = setInterval(() => {
         if (window.cheerpjInit) {
-          clearInterval(interval);
+          clearInterval(waitForCJ);
           resolve();
         }
       }, 100);
@@ -49,23 +43,20 @@ const loadCheerpjScript = (): Promise<void> => {
     script.id = 'cheerpj-loader-script';
     script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
     script.async = true;
+    
     script.onload = () => {
-      // The script is loaded, cheerpjInit should now be on the window object
-      // But we poll just in case of internal script delays
-      const interval = setInterval(() => {
+      const waitForCJ = setInterval(() => {
         if (window.cheerpjInit) {
-          clearInterval(interval);
+          clearInterval(waitForCJ);
           resolve();
         }
       }, 100);
-      setTimeout(() => {
-        clearInterval(interval);
-        if (!window.cheerpjInit) {
-          reject(new Error("CheerpJ script loaded but cheerpjInit function is not available."));
-        }
-      }, 5000); // 5 second timeout
     };
-    script.onerror = () => reject(new Error('Failed to load the CheerpJ script.'));
+
+    script.onerror = () => {
+      reject(new Error('Failed to load the CheerpJ script.'));
+    };
+
     document.head.appendChild(script);
   });
 };
@@ -118,8 +109,6 @@ export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRun
     
     return () => {
         isMounted = false;
-        // You might need cleanup logic here depending on CheerpJ API, 
-        // e.g., cheerpjDestroy() if it exists
     }
   }, [isOpen, jarUrl]);
 
