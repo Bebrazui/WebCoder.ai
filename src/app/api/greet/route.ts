@@ -23,12 +23,12 @@ import { type NextRequest, NextResponse } from 'next/server';
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Привет, Мир!
+ *                   example: Привет, Гость!
  */
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const name = searchParams.get('name') || 'Мир';
+        const name = searchParams.get('name') || 'Гость';
 
         const message = `Привет, ${name}!`;
 

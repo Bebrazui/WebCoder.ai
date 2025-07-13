@@ -112,7 +112,8 @@ const runJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(executionCwd, '..', 'build');
     
     console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
-    return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
+    // Run Java in headless mode to prevent GUI errors on the server
+    return executeCommand('java', ['-Djava.awt.headless=true', '-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
 
