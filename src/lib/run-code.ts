@@ -111,9 +111,12 @@ const compileJava = async (config: any, tempDir: string) => {
 
 const runJava = async (config: any, tempDir: string) => {
     const buildPath = path.join(tempDir, 'build');
+    const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
+    const executionRoot = path.join(tempDir, userSourcePath);
+
+    // The classpath should contain the 'build' directory AND the execution root (for resources)
     const classPaths = (config.classPaths || []).map((p: string) => path.join(tempDir, p)).join(path.delimiter);
-    // The classpath for running needs to include the build directory where .class files are.
-    const cp = `${buildPath}${classPaths ? path.delimiter + classPaths : ''}`;
+    const cp = `${buildPath}${path.delimiter}${executionRoot}${classPaths ? path.delimiter + classPaths : ''}`;
     
     // The CWD should be the root of the temporary project.
     const executionCwd = tempDir;
