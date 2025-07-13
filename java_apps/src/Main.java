@@ -10,7 +10,7 @@ public class Main {
                 String name = inputJson.optString("name", "Гость");
                 int age = inputJson.optInt("age", 0);
 
-                // Вместо создания окна, мы просто формируем текстовое сообщение.
+                // Теперь это консольное приложение, оно не пытается открыть окно.
                 String message = "Привет из Java, " + name + "!";
                 
                 JSONObject outputJson = new JSONObject();

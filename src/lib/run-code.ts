@@ -37,8 +37,8 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
 
 function executeCommand(command: string, args: string[], cwd: string, shell: boolean = false): Promise<{ stdout: string; stderr: string; code: number | null }> {
     return new Promise((resolve) => {
-        console.log(`Executing command: ${command} ${args.join(' ')} in ${cwd}`);
-        const process = spawn(command, args, { cwd, shell }); 
+        console.log(`Executing: \`${command} ${args.join(' ')}\` in ${cwd}`);
+        const process = spawn(command, args, { cwd, shell });
         let stdout = '';
         let stderr = '';
 
@@ -86,7 +86,8 @@ const compileJava = async (config: any, tempDir: string) => {
     const userSourcePath = config.sourcePaths?.[0] || '.';
     const compilationCwd = path.join(tempDir, userSourcePath);
     
-    const buildPath = path.join(compilationCwd, '..', 'build');
+    // Always build to a known directory relative to the temp root
+    const buildPath = path.join(tempDir, 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
     const sourceFiles = await findJavaFilesRecursive(compilationCwd);
@@ -95,19 +96,20 @@ const compileJava = async (config: any, tempDir: string) => {
         return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 1 };
     }
     
-    const relativeSourceFiles = sourceFiles.map(f => path.relative(compilationCwd, f));
-    
-    console.log(`Compiling ${relativeSourceFiles.length} files from CWD: ${compilationCwd}`);
-    return executeCommand('javac', ['-d', buildPath, ...relativeSourceFiles], compilationCwd);
+    // We pass absolute paths to javac to avoid any ambiguity.
+    console.log(`Compiling ${sourceFiles.length} files from CWD: ${compilationCwd}`);
+    return executeCommand('javac', ['-d', buildPath, ...sourceFiles], compilationCwd);
 };
 
 const runJava = async (config: any, tempDir: string) => {
+    // The classpath should point to our known build directory.
+    const buildPath = path.join(tempDir, 'build');
     const userSourcePath = config.sourcePaths?.[0] || '.';
     const executionCwd = path.join(tempDir, userSourcePath);
-    const buildPath = path.join(executionCwd, '..', 'build');
     
     console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
-    return executeCommand('java', ['-Djava.awt.headless=true', '-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
+    // Run java from the same directory we compiled from to resolve relative paths if any.
+    return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
 
@@ -132,8 +134,42 @@ const runners = {
 
         return executeCommand(outputPath, [JSON.stringify(config.args)], tempDir);
     },
+    
+    rust: async (config: any, tempDir: string) => {
+        const projectPath = path.join(tempDir, config.cargo.projectPath);
+        const buildResult = await executeCommand('cargo', config.cargo.args, projectPath);
+        if (buildResult.code !== 0) return buildResult;
 
-    // ... other runners will go here
+        // Find the executable name from Cargo.toml or use projectPath name
+        const executableName = config.cargo.projectPath; // simplified assumption
+        const executablePath = path.join(projectPath, 'target', 'release', executableName);
+
+        return executeCommand(executablePath, [JSON.stringify(config.args)], projectPath);
+    },
+    
+    csharp: async (config: any, tempDir: string) => {
+        const projectPath = path.join(tempDir, config.projectPath);
+        const buildDir = path.join(projectPath, '..', 'build');
+        await fs.mkdir(buildDir, { recursive: true });
+
+        const publishResult = await executeCommand('dotnet', ['publish', '-c', 'Release', '-o', buildDir], projectPath);
+        if (publishResult.code !== 0) return publishResult;
+        
+        const executableName = path.basename(projectPath);
+        const executablePath = path.join(buildDir, executableName);
+
+        return executeCommand(executablePath, [JSON.stringify(config.args)], tempDir);
+    },
+    
+    php: async (config: any, tempDir: string) => {
+        const scriptPath = path.join(tempDir, config.program!);
+        return executeCommand('php', [scriptPath, JSON.stringify(config.args)], tempDir);
+    },
+
+    ruby: async (config: any, tempDir: string) => {
+        const scriptPath = path.join(tempDir, config.program!);
+        return executeCommand('ruby', [scriptPath, JSON.stringify(config.args)], tempDir);
+    },
 };
 
 export async function runLanguage(language: LanguageType, projectFiles: VFSNode[], config: any) {
