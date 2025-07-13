@@ -430,7 +430,6 @@ export function Ide() {
       <CommandPalette 
         isOpen={isCommandPaletteOpen}
         setIsOpen={setIsCommandPaletteOpen}
-        vfsRoot={vfsRoot}
         onSelectFile={handleSelectFile}
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
       />

@@ -5,13 +5,14 @@ import { useState } from "react";
 import { FileExplorer } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch, ListTree, PlayCircle } from "lucide-react";
+import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileExplorerProps } from "./file-explorer";
 import type { GitStatus } from "@/hooks/use-vfs";
 import { OutlineView, OutlineData } from "./outline-view";
 import { RunView } from "./run-view";
+import { PluginsView } from "./plugins-view";
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onGenerateReadme' | 'isGeneratingReadme'> {
     gitStatus: GitStatus[];
@@ -21,7 +22,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onG
     onSymbolSelect: (range: any) => void;
 }
 
-type View = "explorer" | "source-control" | "outline" | "run";
+type View = "explorer" | "source-control" | "outline" | "run" | "plugins";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -50,6 +51,12 @@ export function Sidebar(props: SidebarProps) {
       icon: <PlayCircle />,
       label: "Run and Debug",
       component: <RunView />
+    },
+    {
+      id: "plugins",
+      icon: <Puzzle />,
+      label: "Plugins",
+      component: <PluginsView />
     }
   ];
 
