@@ -31,7 +31,7 @@ const loadCheerpjScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     // Check if the script is already on the page.
     if (document.getElementById('cheerpj-loader-script')) {
-      // If so, check if cheerpjInit is available.
+      // If so, check if cheerpjInit is available. It might be loading.
       if (window.cheerpjInit) {
         return resolve();
       }
@@ -51,23 +51,19 @@ const loadCheerpjScript = (): Promise<void> => {
     script.async = true;
     script.onload = () => {
       // The script is loaded, cheerpjInit should now be on the window object
-      if (window.cheerpjInit) {
-        resolve();
-      } else {
-         // This case should be rare, but we poll just in case
-         const interval = setInterval(() => {
-           if (window.cheerpjInit) {
-             clearInterval(interval);
-             resolve();
-           }
-         }, 100);
-         setTimeout(() => {
-           clearInterval(interval);
-           if (!window.cheerpjInit) {
-             reject(new Error("CheerpJ script loaded but cheerpjInit function is not available."));
-           }
-         }, 3000);
-      }
+      // But we poll just in case of internal script delays
+      const interval = setInterval(() => {
+        if (window.cheerpjInit) {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(interval);
+        if (!window.cheerpjInit) {
+          reject(new Error("CheerpJ script loaded but cheerpjInit function is not available."));
+        }
+      }, 5000); // 5 second timeout
     };
     script.onerror = () => reject(new Error('Failed to load the CheerpJ script.'));
     document.head.appendChild(script);
