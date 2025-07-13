@@ -1,5 +1,4 @@
 // java_apps/src/Main.java
-import java.util.Scanner;
 import org.json.JSONObject; // Вам понадобится библиотека org.json
 
 public class Main {
@@ -24,17 +23,20 @@ public class Main {
                 errorJson.put("status", "error");
                 errorJson.put("message", "Ошибка парсинга JSON: " + e.getMessage());
                 System.err.println(errorJson.toString());
+                System.exit(1);
             } catch (Exception e) {
                 JSONObject errorJson = new JSONObject();
                 errorJson.put("status", "error");
                 errorJson.put("message", "Произошла ошибка: " + e.getMessage());
                 System.err.println(errorJson.toString());
+                System.exit(1);
             }
         } else {
             JSONObject errorJson = new JSONObject();
             errorJson.put("status", "error");
             errorJson.put("message", "Не переданы входные данные.");
             System.err.println(errorJson.toString());
+            System.exit(1);
         }
     }
 }
