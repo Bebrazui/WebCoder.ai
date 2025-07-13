@@ -7,13 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput, Binary } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput, Binary, Airplay } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState } from "@/hooks/use-app-state";
+import { CheerpJRunnerDialog } from "./cheerpj-runner";
 
 interface LaunchConfig {
     name: string;
@@ -56,6 +57,7 @@ export function RunView() {
   const { editorSettings } = useAppState();
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreparingJar, setIsPreparingJar] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -67,6 +69,8 @@ export function RunView() {
   const [manualMainClass, setManualMainClass] = useState('');
 
   const [isCompiled, setIsCompiled] = useState(false);
+  const [isCheerpjOpen, setIsCheerpjOpen] = useState(false);
+  const [cheerpjJarUrl, setCheerpjJarUrl] = useState('');
 
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
@@ -211,6 +215,45 @@ export function RunView() {
         setIsLoading(false);
       }
   }, [getFullConfig, toast, vfsRoot.children]);
+  
+  const handleCheerpjRun = useCallback(async () => {
+    const fullConfig = getFullConfig();
+    if (!fullConfig || !isJavaConfig || !fullConfig.mainClass) {
+        toast({ variant: 'destructive', title: 'Invalid Configuration', description: 'Please select a valid Java configuration with a Main Class.' });
+        return;
+    }
+    
+    setIsPreparingJar(true);
+    setError(null);
+
+    try {
+        const response = await fetch('/api/prepare-jar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectFiles: vfsRoot.children,
+                config: fullConfig
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to prepare JAR file.');
+        }
+
+        setCheerpjJarUrl(data.jarUrl);
+        setIsCheerpjOpen(true);
+        toast({ title: 'JAR Ready', description: 'Starting application with CheerpJ...' });
+
+    } catch (err: any) {
+        setError(err.message);
+    } finally {
+        setIsPreparingJar(false);
+    }
+
+  }, [getFullConfig, isJavaConfig, toast, vfsRoot.children]);
+
 
   const handleAddLaunchJson = useCallback(() => {
       const content = `
@@ -243,6 +286,7 @@ export function RunView() {
   const isJavaConfig = selectedConfig?.type === 'java';
 
   return (
+    <>
     <div className="flex flex-col h-full bg-background text-foreground">
       <div className="p-2 border-b border-border">
         <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
@@ -335,7 +379,7 @@ export function RunView() {
 
                     {editorSettings.manualJsonInput && (
                         <div className="space-y-2">
-                            <Label htmlFor="input-data">JSON Arguments</Label>
+                            <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                             <Textarea
                                 id="input-data"
                                 placeholder='{ "key": "value" }'
@@ -350,14 +394,20 @@ export function RunView() {
             )}
             
             {launchConfigs.length > 0 && isJavaConfig ? (
-                <div className="grid grid-cols-2 gap-4">
-                     <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
-                        Compile
-                    </Button>
-                     <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                        Run
+                <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                            Compile
+                        </Button>
+                         <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                            Run (Console)
+                        </Button>
+                    </div>
+                    <Button onClick={handleCheerpjRun} disabled={isPreparingJar || !selectedConfigName} className="w-full" variant="outline">
+                        {isPreparingJar ? <LoaderCircle className="animate-spin" /> : <Airplay />}
+                        Run with CheerpJ (GUI)
                     </Button>
                 </div>
             ) : (
@@ -389,7 +439,7 @@ export function RunView() {
 
             {result && (
                 <div className="space-y-2 pt-4">
-                    <Label>Result</Label>
+                    <Label>Result (from Console Run)</Label>
                     <div className="rounded-md border bg-muted p-4">
                         <pre className="text-sm font-mono whitespace-pre-wrap">
                             {JSON.stringify(result, null, 2)}
@@ -400,5 +450,11 @@ export function RunView() {
         </div>
       </ScrollArea>
     </div>
+    <CheerpJRunnerDialog 
+        isOpen={isCheerpjOpen}
+        onOpenChange={setIsCheerpjOpen}
+        jarUrl={cheerpjJarUrl}
+    />
+    </>
   );
 }
