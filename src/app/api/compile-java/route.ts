@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
     try {
         const { projectFiles, config } = await req.json() as { projectFiles: VFSNode[], config: LaunchConfig };
 
-        if (!projectFiles || !config || !config.mainClass || !config.sourcePaths) {
-            return NextResponse.json({ success: false, error: 'Project files and a valid launch configuration with mainClass and sourcePaths are required.' }, { status: 400 });
+        if (!projectFiles || !config) {
+            return NextResponse.json({ success: false, error: 'Project files and a valid configuration are required.' }, { status: 400 });
         }
         
         // Use the 'compile-java' action

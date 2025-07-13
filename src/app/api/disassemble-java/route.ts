@@ -9,6 +9,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
 import { dataURIToArrayBuffer } from '@/lib/utils';
+import { runLanguage } from '@/lib/run-code';
+
 
 async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'proj-disassemble-'));
@@ -79,54 +81,41 @@ export async function POST(req: NextRequest) {
         }
         
         tempDir = await createProjectInTempDir(projectFiles);
+
+        // --- Step 1: Compile the entire project first ---
+        const compileConfig = { sourcePaths: ['.'] }; // Simple config for compilation
+        const compileResult = await runLanguage('compile-java', projectFiles, compileConfig);
+        const compileData = await compileResult.json();
+
+        if (!compileData.success) {
+            // It's not a critical error if compilation fails (e.g., no .java files), but we should report it if javap fails later.
+            console.warn("Compilation step did not succeed, javap might fail.", compileData.error);
+        }
+        
+        // --- Step 2: Determine the correct classpath and qualified class name ---
+        const buildDir = path.join(tempDir, 'build');
         const cleanClassFilePath = classFilePath.startsWith('/') ? classFilePath.substring(1) : classFilePath;
         
-        // Heuristic to find the classpath root.
-        let classpathRoot = tempDir;
-        let relativeClassPath = cleanClassFilePath;
-        
-        const pathParts = path.dirname(cleanClassFilePath).split(path.sep);
-        let foundRoot = false;
-        // Iterate backwards to find a conventional build directory name
-        for (let i = pathParts.length - 1; i >= 0; i--) {
-            const potentialRootName = pathParts[i];
-            if (['build', 'out', 'target', 'classes', 'bin'].includes(potentialRootName.toLowerCase())) {
-                const rootPath = path.join(tempDir, ...pathParts.slice(0, i + 1));
-                const classFileSubPath = path.join(...pathParts.slice(i + 1), path.basename(cleanClassFilePath));
-                
-                classpathRoot = rootPath;
-                relativeClassPath = classFileSubPath;
-                foundRoot = true;
-                break;
-            }
+        // The qualified class name is the path relative to the source root, without the .class extension
+        // This is a heuristic. Assumes standard src/ or no-src folder structure.
+        let qualifiedClassName = cleanClassFilePath.replace(/\.class$/, '').replace(new RegExp(`\\${path.sep}`, 'g'), '.');
+        const srcPrefix = 'src.';
+        if (qualifiedClassName.startsWith(srcPrefix)) {
+            qualifiedClassName = qualifiedClassName.substring(srcPrefix.length);
+        }
+         // Also handle cases where project root is the source root
+        const projectName = projectFiles[0].name;
+        if (qualifiedClassName.startsWith(`${projectName}.`)) {
+            qualifiedClassName = qualifiedClassName.substring(projectName.length + 1);
         }
         
-        if (!foundRoot && cleanClassFilePath.includes(path.sep)) {
-            // If no build dir found, assume the project root is the classpath.
-             classpathRoot = tempDir;
-             relativeClassPath = cleanClassFilePath;
-        }
-
-
-        const fullClassPathOnDisk = path.join(tempDir, cleanClassFilePath);
-        
-        // We need to provide the fully qualified class name, not the file path.
-        // e.g., for /build/com/example/MyClass.class, it's com.example.MyClass
-        const qualifiedClassName = relativeClassPath.replace(/\.class$/, '').replace(new RegExp(`\\${path.sep}`, 'g'), '.');
-        
-        // Check if the file actually exists
-        try {
-            await fs.access(fullClassPathOnDisk);
-        } catch (e) {
-             throw new Error(`The specified class file does not exist in the temporary directory. Expected at: ${fullClassPathOnDisk}`);
-        }
-        
-        const result = await executeCommand('javap', ['-c', qualifiedClassName], classpathRoot);
+        // --- Step 3: Run javap ---
+        console.log(`Running javap for class: ${qualifiedClassName} with classpath: ${buildDir}`);
+        const result = await executeCommand('javap', ['-c', qualifiedClassName], buildDir);
 
         if (result.code !== 0) {
-            // Provide a more helpful error if classpath might be the issue
             if (result.stderr.includes('class not found') || result.stderr.includes('ClassNotFoundException')) {
-                throw new Error(`javap could not find class '${qualifiedClassName}'. This often indicates a classpath issue. Used classpath: '${classpathRoot}'.\n\nFull error:\n${result.stderr}`);
+                 throw new Error(`javap could not find class '${qualifiedClassName}'. This often indicates a classpath or compilation issue. Please ensure the project compiles correctly.\n\nFull error:\n${result.stderr}`);
             }
             throw new Error(result.stderr || `javap failed with code ${result.code}`);
         }

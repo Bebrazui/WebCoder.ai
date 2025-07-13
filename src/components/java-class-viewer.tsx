@@ -1,3 +1,4 @@
+
 // src/components/java-class-viewer.tsx
 "use client";
 
@@ -53,7 +54,7 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
     };
 
     disassemble();
-  }, [file.path, vfsRoot]); // Re-run when file path changes
+  }, [file.path, vfsRoot]); // Re-run when file path or project structure changes
 
   const handleDownload = () => {
     try {

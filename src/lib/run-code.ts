@@ -29,8 +29,15 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         }
     };
 
-    for (const file of projectFiles) {
-        await writeFile(file, tempDir);
+    // If projectFiles is [vfsRoot], we iterate its children into the tempDir
+    if (projectFiles.length > 0 && projectFiles[0].type === 'directory') {
+        for (const file of projectFiles[0].children) {
+            await writeFile(file, tempDir);
+        }
+    } else { // Fallback for flat array of files
+        for (const file of projectFiles) {
+            await writeFile(file, tempDir);
+        }
     }
     return tempDir;
 }
@@ -93,7 +100,7 @@ const compileJava = async (config: any, tempDir: string) => {
     const sourceFiles = await findJavaFilesRecursive(compilationCwd);
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 1 };
+        return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 0 }; // Not an error if no files
     }
     
     // We pass absolute paths to javac to avoid any ambiguity.
@@ -102,6 +109,9 @@ const compileJava = async (config: any, tempDir: string) => {
 };
 
 const runJava = async (config: any, tempDir: string) => {
+    const compileResult = await compileJava(config, tempDir);
+    if(compileResult.code !== 0) return compileResult;
+
     // The classpath should point to our known build directory.
     const buildPath = path.join(tempDir, 'build');
     const userSourcePath = config.sourcePaths?.[0] || '.';
