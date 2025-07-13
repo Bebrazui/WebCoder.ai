@@ -19,30 +19,29 @@ interface CheerpJRunnerDialogProps {
   jarUrl: string;
 }
 
-declare let cheerpjInit: any;
-declare let cheerpjRunJar: any;
+// Extend the Window interface to include cheerpjInit and cheerpjRunJar
+declare global {
+  interface Window {
+    cheerpjInit: () => Promise<void>;
+    cheerpjRunJar: (jarPath: string) => Promise<void>;
+  }
+}
 
-const loadCheerpj = (): Promise<void> => {
+const loadCheerpjScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if (typeof cheerpjInit !== 'undefined') {
-      return resolve();
-    }
-
+    // Check if the script is already on the page.
     if (document.getElementById('cheerpj-loader-script')) {
-      // Script is already added, let's poll for cheerpjInit
+      // If so, check if cheerpjInit is available.
+      if (window.cheerpjInit) {
+        return resolve();
+      }
+      // If not, wait for it to be available (for race conditions)
       const interval = setInterval(() => {
-        if (typeof cheerpjInit !== 'undefined') {
+        if (window.cheerpjInit) {
           clearInterval(interval);
           resolve();
         }
       }, 100);
-      // Add a timeout to prevent infinite loops
-      setTimeout(() => {
-        clearInterval(interval);
-        if (typeof cheerpjInit === 'undefined') {
-          reject(new Error("CheerpJ did not initialize in time."));
-        }
-      }, 5000); // 5 second timeout
       return;
     }
 
@@ -51,25 +50,26 @@ const loadCheerpj = (): Promise<void> => {
     script.src = 'https://cjrtnc.leaningtech.com/3.0/loader.js';
     script.async = true;
     script.onload = () => {
-        // Now that the script is loaded, poll for the global cheerpjInit function
-        const interval = setInterval(() => {
-            if (typeof cheerpjInit !== 'undefined') {
-                clearInterval(interval);
-                resolve();
-            }
-        }, 100);
-         // Add a timeout to prevent infinite loops
-        setTimeout(() => {
-            clearInterval(interval);
-            if (typeof cheerpjInit === 'undefined') {
-             reject(new Error("CheerpJ script loaded but cheerpjInit is still not defined."));
-            }
-      }, 5000); // 5 second timeout
+      // The script is loaded, cheerpjInit should now be on the window object
+      if (window.cheerpjInit) {
+        resolve();
+      } else {
+         // This case should be rare, but we poll just in case
+         const interval = setInterval(() => {
+           if (window.cheerpjInit) {
+             clearInterval(interval);
+             resolve();
+           }
+         }, 100);
+         setTimeout(() => {
+           clearInterval(interval);
+           if (!window.cheerpjInit) {
+             reject(new Error("CheerpJ script loaded but cheerpjInit function is not available."));
+           }
+         }, 3000);
+      }
     };
-    script.onerror = (err) => {
-      console.error("Failed to load CheerpJ script", err);
-      reject(new Error("Failed to load CheerpJ script. Please check your network connection."));
-    };
+    script.onerror = () => reject(new Error('Failed to load the CheerpJ script.'));
     document.head.appendChild(script);
   });
 };
@@ -89,11 +89,11 @@ export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRun
 
       const runCheerpj = async () => {
         try {
-          await loadCheerpj();
+          await loadCheerpjScript();
           
           if (!isMounted) return;
           
-          await cheerpjInit();
+          await window.cheerpjInit();
 
           if (!isMounted) return;
 
@@ -103,7 +103,7 @@ export function CheerpJRunnerDialog({ isOpen, onOpenChange, jarUrl }: CheerpJRun
           }
 
           console.log(`CheerpJ: Running JAR from ${jarUrl}`);
-          await cheerpjRunJar(jarUrl);
+          await window.cheerpjRunJar(jarUrl);
           
           if (isMounted) {
             setIsLoading(false);
