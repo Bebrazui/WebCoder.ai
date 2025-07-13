@@ -20,8 +20,6 @@ export function createDirectory(name: string, path: string): VFSDirectory {
 
 export const isImageFile = (filename: string) => /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i.test(filename);
 export const isAudioFile = (filename: string) => /\.(mp3|wav|ogg|aac|flac|m4a)$/i.test(filename);
-export const isJavaClassFile = (filename: string) => /\.class$/i.test(filename);
-
 
 // A list of extensions that are known to be text-based
 const TEXT_EXTENSIONS = new Set([
@@ -33,7 +31,7 @@ const TEXT_EXTENSIONS = new Set([
 
 /**
  * Determines if a file should be treated as text based on its extension or if it's a data URI.
- * @param file - An object with a `name` and `content` property.
+ * @param file - An object with a `name` and optional `content` property.
  * @returns `true` if the file extension is in the known text list or if content is not a data URI, `false` otherwise.
  */
 export function isTextFile(file: { name: string, content?: string }): boolean {
@@ -43,7 +41,7 @@ export function isTextFile(file: { name: string, content?: string }): boolean {
     if (extension && TEXT_EXTENSIONS.has(extension)) {
         return true;
     }
-
+    
     // If we have content, check if it's a data URI. If not, assume text.
     if (file.content && !file.content.startsWith('data:')) {
         return true;

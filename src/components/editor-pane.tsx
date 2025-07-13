@@ -17,8 +17,7 @@ import { HexViewer } from "./hex-viewer";
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile, isJavaClassFile } from "@/lib/vfs";
-import { JavaClassViewer } from "./java-class-viewer";
+import { isTextFile, isImageFile, isAudioFile } from "@/lib/vfs";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -80,11 +79,7 @@ export function EditorPane({
         return <AudioPlayer file={file} />;
     }
 
-    if (isJavaClassFile(file.name)) {
-        return <JavaClassViewer file={file} />;
-    }
-
-    if (isTextFile({name: file.name})) {
+    if (isTextFile({name: file.name, content: file.content})) {
       return <CodeEditor
         path={file.path}
         value={file.content}
