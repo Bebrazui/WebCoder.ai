@@ -83,39 +83,30 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
 
 
 const compileJava = async (config: any, tempDir: string) => {
-    // Define the working directory from the manual source path if provided, otherwise default to tempDir
-    const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
+    const userSourcePath = config.sourcePaths?.[0] || '.';
     const compilationCwd = path.join(tempDir, userSourcePath);
     
-    // The build path should be outside the source tree.
     const buildPath = path.join(compilationCwd, '..', 'build');
     await fs.mkdir(buildPath, { recursive: true });
 
     const sourceFiles = await findJavaFilesRecursive(compilationCwd);
     
     if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: `No Java source files found in the specified path: ${userSourcePath}. Please check the path is correct.`, code: 1 };
+        return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 1 };
     }
     
     const relativeSourceFiles = sourceFiles.map(f => path.relative(compilationCwd, f));
     
     console.log(`Compiling ${relativeSourceFiles.length} files from CWD: ${compilationCwd}`);
-
-    return await executeCommand('javac', ['-d', buildPath, ...relativeSourceFiles], compilationCwd);
+    return executeCommand('javac', ['-d', buildPath, ...relativeSourceFiles], compilationCwd);
 };
 
 const runJava = async (config: any, tempDir: string) => {
-    // The working directory for execution should be the one containing the source code, as specified by the user.
-    const userSourcePath = (config.sourcePaths && Array.isArray(config.sourcePaths)) ? config.sourcePaths[0] : '.';
+    const userSourcePath = config.sourcePaths?.[0] || '.';
     const executionCwd = path.join(tempDir, userSourcePath);
-
-    // The classpath points to the build directory, which is one level above the execution CWD.
     const buildPath = path.join(executionCwd, '..', 'build');
     
     console.log(`Running Java for class '${config.mainClass!}' with CWD '${executionCwd}' and Classpath '${buildPath}'`);
-    
-    // We run Java from the source directory to handle relative paths correctly,
-    // but tell it to find classes in the build directory.
     return executeCommand('java', ['-Djava.awt.headless=true', '-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
@@ -142,52 +133,7 @@ const runners = {
         return executeCommand(outputPath, [JSON.stringify(config.args)], tempDir);
     },
 
-    ruby: async (config: any, tempDir: string) => {
-        const scriptPath = path.join(tempDir, config.program!);
-        return executeCommand('ruby', [scriptPath, JSON.stringify(config.args)], tempDir);
-    },
-
-    php: async (config: any, tempDir: string) => {
-        const scriptPath = path.join(tempDir, config.program!);
-        return executeCommand('php', [scriptPath, JSON.stringify(config.args)], tempDir);
-    },
-
-    rust: async (config: any, tempDir: string) => {
-        const cargoConfig = config.cargo!;
-        const projectPath = path.join(tempDir, cargoConfig.projectPath);
-
-        const compileResult = await executeCommand('cargo', cargoConfig.args, projectPath);
-        if (compileResult.code !== 0) return compileResult;
-
-        const manifest = await fs.readFile(path.join(projectPath, 'Cargo.toml'), 'utf-8');
-        const packageNameMatch = /name\s*=\s*"([^"]+)"/.exec(manifest);
-        if (!packageNameMatch) {
-             return { stdout: '', stderr: 'Could not find package name in Cargo.toml', code: 1 };
-        }
-        const packageName = packageNameMatch[1];
-        
-        const appPath = path.join(projectPath, 'target', 'release', packageName);
-        return executeCommand(appPath, [JSON.stringify(config.args)], projectPath);
-    },
-
-    csharp: async (config: any, tempDir: string) => {
-        const projectPath = path.join(tempDir, config.projectPath!);
-        const projectName = path.basename(config.projectPath!);
-        
-        const publishDir = path.join(projectPath, "bin/Release/net8.0/publish");
-
-        const compileResult = await executeCommand('dotnet', ['publish', '-c', 'Release'], projectPath);
-        if (compileResult.code !== 0) return compileResult;
-        
-        const dllPath = path.join(publishDir, `${projectName}.dll`);
-        try {
-            await fs.access(dllPath)
-        } catch (e) {
-             return { stdout: '', stderr: `Could not find published DLL at ${dllPath}`, code: 1 };
-        }
-
-        return executeCommand('dotnet', [dllPath, JSON.stringify(config.args)], projectPath);
-    }
+    // ... other runners will go here
 };
 
 export async function runLanguage(language: LanguageType, projectFiles: VFSNode[], config: any) {
@@ -203,13 +149,11 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         const result = await runner(config, tempDir);
 
         if (result.code !== 0) {
-            // Prefer stderr, but if it's empty, use stdout as the error source.
             const errorMessage = result.stderr || result.stdout || `Process for ${language} exited with non-zero code.`;
-            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 }); // status 200 for controlled errors
+            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 });
         }
 
         try {
-            // For compilation, we might not have a JSON output, just success message
             if (language === 'compile-java') {
                  return NextResponse.json({ success: true, data: { message: "Compilation successful.", details: result.stdout } });
             }
