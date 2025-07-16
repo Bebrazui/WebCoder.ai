@@ -1,12 +1,12 @@
 // src/components/java-class-viewer.tsx
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { VFSFile } from '@/lib/vfs';
 import { useVfs } from '@/hooks/use-vfs';
 import Editor from "@monaco-editor/react";
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { ServerCrash, Download, LoaderCircle } from 'lucide-react';
+import { ServerCrash, Download, LoaderCircle, AlertTriangle, FileUp } from 'lucide-react';
 import { useAppState } from '@/hooks/use-app-state';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -16,7 +16,7 @@ interface JavaClassViewerProps {
 }
 
 export function JavaClassViewer({ file }: JavaClassViewerProps) {
-  const { vfsRoot } = useVfs();
+  const { vfsRoot, findFileByPath, compileJavaProject } = useVfs();
   const [disassembledCode, setDisassembledCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +24,35 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
   const { toast } = useToast();
   const isMounted = useRef(true);
 
+  // Find corresponding .java file to check for staleness
+  const sourceJavaFile = useMemo(() => {
+      const javaPath = file.path.replace(/\.class$/, '.java').replace('/build/', '/');
+      return findFileByPath(javaPath);
+  }, [file.path, findFileByPath]);
+
+  const isStale = useMemo(() => {
+      if (!sourceJavaFile || !file.content) return false;
+      // This is a simplified check. A real IDE would compare modification times.
+      // Here, we check if the source file is marked as dirty (unsaved).
+      const fileIsDirty = (sourceJavaFile as VFSFile & { dirty?: boolean }).dirty;
+      // In a real VFS with timestamps, we'd do:
+      // return sourceJavaFile.modifiedAt > file.createdAt;
+      return false; // For now, we don't have a reliable dirty check here.
+  }, [sourceJavaFile, file.content]);
+
+
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false };
   }, []);
+
+  const handleRecompile = async () => {
+      setIsLoading(true);
+      setError(null);
+      await compileJavaProject();
+      // After compiling, the component will re-render and the disassemble effect will run again.
+      setIsLoading(false);
+  };
 
   useEffect(() => {
     const disassemble = async () => {
@@ -37,13 +62,18 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
       setDisassembledCode(null);
       
       try {
+        // Ensure the file content exists and is a data URI
+        if (!file.content || !file.content.startsWith('data:')) {
+          throw new Error("Invalid .class file content. It might be corrupted or empty. Please recompile.");
+        }
+
         const response = await fetch('/api/disassemble-java', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            projectRoot: vfsRoot,
+            projectRoot: vfsRoot, // Pass the whole VFS
             filePath: file.path,
           }),
         });
@@ -70,7 +100,7 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
     };
 
     disassemble();
-  }, [file.path, vfsRoot, toast]);
+  }, [file.path, file.content, vfsRoot, toast]); // Re-run if file content changes (e.g., after recompile)
 
   const handleDownload = () => {
     try {
@@ -92,7 +122,7 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
             <div className="flex items-center justify-between">
                 <div>
                     <h3 className="font-semibold">{file.name}</h3>
-                    <p className="text-xs text-muted-foreground">Java Bytecode View (via javap)</p>
+                    <p className="text-xs text-muted-foreground">Java Bytecode View (read-only)</p>
                 </div>
                  <div className="flex items-center gap-2">
                     <Button onClick={handleDownload} size="sm" variant="outline">
@@ -103,13 +133,12 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
             </div>
        </div>
       <div className="flex-grow relative">
-        {isLoading && (
+        {isLoading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10">
                 <LoaderCircle className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-muted-foreground">Compiling and running javap on server...</p>
+                <p className="text-muted-foreground">Loading and Disassembling...</p>
             </div>
-        )}
-        {error && (
+        ) : error ? (
             <div className="p-4">
                 <Alert variant="destructive">
                     <ServerCrash className="h-4 w-4" />
@@ -119,12 +148,24 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
                     </AlertDescription>
                 </Alert>
             </div>
-        )}
-        {!isLoading && !error && disassembledCode && (
+        ) : isStale ? (
+            <div className="p-4">
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Stale Class File</AlertTitle>
+                    <AlertDescription>
+                       The source file <code className="font-mono text-xs bg-muted p-1 rounded-sm">{sourceJavaFile?.name}</code> has been modified. The displayed bytecode might be out of date.
+                       <Button size="sm" onClick={handleRecompile} className="mt-4">
+                          <FileUp className="mr-2 h-4 w-4" /> Recompile Project
+                       </Button>
+                    </AlertDescription>
+                </Alert>
+            </div>
+        ) : (
           <Editor
             height="100%"
             language="java" // Close enough for bytecode highlighting
-            value={disassembledCode}
+            value={disassembledCode || ''}
             theme={editorSettings.theme === 'oceanic' ? 'oceanic' : 'vs-dark'}
             options={{
               readOnly: true,

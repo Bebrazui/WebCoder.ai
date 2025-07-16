@@ -1,4 +1,4 @@
-
+// src/components/run-view.tsx
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -37,13 +37,27 @@ const findJavaFiles = (node: VFSNode): boolean => {
     return false;
 };
 
+const findBuildFolder = (node: VFSNode): boolean => {
+    if (node.type === 'directory' && node.name === 'build') {
+        return true;
+    }
+    if (node.type === 'directory') {
+        for (const child of node.children) {
+            if (findBuildFolder(child)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 const defaultJavaConfig: LaunchConfig = {
     name: "Run Java App (auto-detected)",
     type: "java",
     request: "launch",
     mainClass: "Main",
     sourcePaths: ["."],
-    classPaths: [],
+    classPaths: ["build"],
     args: {
       name: "Java User",
       age: 42
@@ -52,10 +66,10 @@ const defaultJavaConfig: LaunchConfig = {
 
 export function RunView() {
   const { toast } = useToast();
-  const { vfsRoot, createFileInVfs } = useVfs();
+  const { vfsRoot, createFileInVfs, compileJavaProject } = useVfs();
   const { editorSettings } = useAppState();
   
-  const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false); // For both run and compile
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -64,7 +78,7 @@ export function RunView() {
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
   
-  const [isCompiled, setIsCompiled] = useState(false);
+  const isProjectCompiled = useMemo(() => findBuildFolder(vfsRoot), [vfsRoot]);
 
   useEffect(() => {
     const findLaunchFile = (node: VFSNode): VFSFile | null => {
@@ -115,7 +129,6 @@ export function RunView() {
   const isJavaConfig = selectedConfig?.type === 'java';
 
   useEffect(() => {
-    setIsCompiled(false);
     if (selectedConfig) {
         setJsonInput(JSON.stringify(selectedConfig.args, null, 2));
     } else {
@@ -142,30 +155,25 @@ export function RunView() {
       return fullConfig;
   }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
 
-  const handleAction = useCallback(async (action: 'compile' | 'run') => {
+  const handleRun = useCallback(async () => {
       const fullConfig = getFullConfig();
       if (!fullConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
       }
-      
-      if (action === 'run' && isJavaConfig && !fullConfig.mainClass) {
-           toast({ variant: 'destructive', title: 'Missing Main Class', description: 'Please provide a Main Class name to run the Java application.' });
-           return;
-      }
 
-      setIsLoading(true);
+      setIsActionLoading(true);
       setResult(null);
       setError(null);
 
-      const apiEndpoint = action === 'compile' ? `/api/compile-java` : `/api/run-${fullConfig.type}`;
+      const apiEndpoint = `/api/run-${fullConfig.type}`;
 
       try {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                projectFiles: [vfsRoot], // Pass root node
+                projectFiles: [vfsRoot],
                 config: fullConfig,
             }),
         });
@@ -176,22 +184,28 @@ export function RunView() {
             throw new Error(responseData.error || 'An unknown error occurred.');
         }
 
-        if (action === 'compile') {
-            setIsCompiled(true);
-            toast({ title: "Compilation Successful", description: "Your Java code has been compiled." });
-            setResult(responseData.data);
-        } else {
-            setResult(responseData.data);
-            toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
-        }
+        setResult(responseData.data);
+        toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
       } catch (err: any) {
-        console.error(`Failed to ${action} '${fullConfig.name}':`, err);
+        console.error(`Failed to run '${fullConfig.name}':`, err);
         setError(err.message || "Failed to communicate with the server.");
-        if(action === 'compile') setIsCompiled(false);
       } finally {
-        setIsLoading(false);
+        setIsActionLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot, isJavaConfig]);
+  }, [getFullConfig, toast, vfsRoot]);
+
+  const handleCompile = async () => {
+    setIsActionLoading(true);
+    setResult(null);
+    setError(null);
+    const success = await compileJavaProject();
+    if(success) {
+      setResult({ message: "Project compiled successfully. The 'build' directory has been created/updated."});
+    } else {
+      setError("Compilation failed. Check console for details.")
+    }
+    setIsActionLoading(false);
+  }
 
   const handleAddLaunchJson = useCallback(() => {
       const content = `
@@ -290,28 +304,28 @@ export function RunView() {
             
             {launchConfigs.length > 0 && isJavaConfig ? (
                 <div className="grid grid-cols-2 gap-4">
-                    <Button onClick={() => handleAction('compile')} disabled={isLoading || !selectedConfigName} className="w-full">
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                    <Button onClick={handleCompile} disabled={isActionLoading || !selectedConfigName} className="w-full">
+                        {isActionLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
                         Compile
                     </Button>
-                     <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName || !isCompiled} className="w-full">
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                     <Button onClick={handleRun} disabled={isActionLoading || !selectedConfigName || !isProjectCompiled} className="w-full">
+                        {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                         Run
                     </Button>
                 </div>
             ) : (
-                 launchConfigs.length > 0 && <Button onClick={() => handleAction('run')} disabled={isLoading || !selectedConfigName} className="w-full">
-                    {isLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
+                 launchConfigs.length > 0 && <Button onClick={handleRun} disabled={isActionLoading || !selectedConfigName} className="w-full">
+                    {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                     Run
                 </Button>
             )}
 
-            {isCompiled && isJavaConfig && (
+            {isProjectCompiled && isJavaConfig && (
                  <Alert variant="default" className="border-green-500/50 text-green-700 dark:text-green-400">
                     <CheckCircle className="h-4 w-4 text-green-500" />
-                    <AlertTitle>Compiled Successfully</AlertTitle>
+                    <AlertTitle>Project Compiled</AlertTitle>
                     <AlertDescription>
-                        Ready to run the application.
+                        The `build` directory is present. You can now run the application.
                     </AlertDescription>
                 </Alert>
             )}
@@ -319,7 +333,7 @@ export function RunView() {
             {error && (
                 <Alert variant="destructive">
                     <ServerCrash className="h-4 w-4" />
-                    <AlertTitle>Execution Error</AlertTitle>
+                    <AlertTitle>Action Error</AlertTitle>
                     <AlertDescription>
                         <pre className="text-xs whitespace-pre-wrap font-mono">{error}</pre>
                     </AlertDescription>

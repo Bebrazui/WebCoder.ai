@@ -1,4 +1,4 @@
-
+// src/components/sidebar-view.tsx
 "use client";
 
 import { useState } from "react";
@@ -20,6 +20,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'onG
     onCommit: (message: string, token: string) => Promise<void>;
     outlineData: OutlineData[];
     onSymbolSelect: (range: any) => void;
+    onCompileJava: () => Promise<boolean>;
 }
 
 type View = "explorer" | "source-control" | "outline" | "run" | "plugins";

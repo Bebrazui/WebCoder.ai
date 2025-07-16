@@ -4,9 +4,8 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
-import { VFSNode } from '@/lib/vfs';
+import { VFSNode, VFSDirectory, createFile, createDirectory } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
-
 
 async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'proj-compile-'));
@@ -26,11 +25,12 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         }
     };
     
+    // If projectFiles is [vfsRoot], we iterate its children into the tempDir
     if (projectFiles.length > 0 && projectFiles[0].type === 'directory') {
         for (const file of projectFiles[0].children) {
             await writeFile(file, tempDir);
         }
-    } else { 
+    } else { // Fallback for flat array of files
         for (const file of projectFiles) {
             await writeFile(file, tempDir);
         }
@@ -70,22 +70,30 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
     return results;
 };
 
+const readBuildOutput = async (buildDir: string): Promise<VFSDirectory> => {
+    const root = createDirectory('build', '/build');
 
-const compileJava = async (config: any, tempDir: string) => {
-    const userSourcePath = config.sourcePaths?.[0] || '.';
-    const compilationCwd = path.join(tempDir, userSourcePath);
-    
-    const buildPath = path.join(tempDir, 'build');
-    await fs.mkdir(buildPath, { recursive: true });
+    const readDir = async (currentDirPath: string, vfsParent: VFSDirectory) => {
+        const entries = await fs.readdir(currentDirPath, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(currentDirPath, entry.name);
+            const vfsPath = path.join(vfsParent.path, entry.name);
+            if (entry.isDirectory()) {
+                const dirNode = createDirectory(entry.name, vfsPath);
+                await readDir(fullPath, dirNode);
+                vfsParent.children.push(dirNode);
+            } else if (entry.isFile() && entry.name.endsWith('.class')) {
+                const content = await fs.readFile(fullPath);
+                const dataUri = `data:application/java-vm;base64,${content.toString('base64')}`;
+                vfsParent.children.push(createFile(entry.name, vfsPath, dataUri));
+            }
+        }
+    };
 
-    const sourceFiles = await findJavaFilesRecursive(compilationCwd);
-    
-    if (sourceFiles.length === 0) {
-        return { stdout: '', stderr: `No Java source files found in: ${userSourcePath}.`, code: 0 };
-    }
-    
-    return executeCommand('javac', ['-d', buildPath, ...sourceFiles], compilationCwd);
+    await readDir(buildDir, root);
+    return root;
 };
+
 
 export async function POST(req: NextRequest) {
     let tempDir = '';
@@ -93,13 +101,27 @@ export async function POST(req: NextRequest) {
         const { projectFiles, config } = await req.json();
         tempDir = await createProjectInTempDir(projectFiles);
 
-        const result = await compileJava(config, tempDir);
+        // Determine source directory from config, default to root of temp dir
+        const userSourcePath = config.sourcePaths?.[0] || '.';
+        const compilationCwd = path.join(tempDir, userSourcePath);
+
+        const buildDir = path.join(tempDir, 'build');
+        await fs.mkdir(buildDir, { recursive: true });
+
+        const sourceFiles = await findJavaFilesRecursive(compilationCwd);
+        if (sourceFiles.length === 0) {
+            return NextResponse.json({ success: false, error: "No Java source files found to compile." });
+        }
+
+        const result = await executeCommand('javac', ['-d', buildDir, ...sourceFiles], compilationCwd);
 
         if (result.code !== 0) {
             return NextResponse.json({ success: false, error: result.stderr || result.stdout });
         }
         
-        return NextResponse.json({ success: true, data: { message: "Compilation successful", details: result.stdout } });
+        const buildVfs = await readBuildOutput(buildDir);
+
+        return NextResponse.json({ success: true, data: { message: "Compilation successful", buildOutput: buildVfs } });
 
     } catch (error: any) {
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });

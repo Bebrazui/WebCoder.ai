@@ -1,4 +1,4 @@
-
+// src/hooks/use-vfs.ts
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -768,6 +768,62 @@ export function useVfs() {
     }
   }, [getGitStatus, toast]);
 
+  const findFileByPath = useCallback((path: string): VFSFile | null => {
+    const search = (node: VFSNode): VFSFile | null => {
+        if (node.path === path && node.type === 'file') {
+            return node;
+        }
+        if (node.type === 'directory') {
+            for (const child of node.children) {
+                const found = search(child);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+    return search(vfsRoot);
+  }, [vfsRoot]);
+  
+  const compileJavaProject = useCallback(async (): Promise<boolean> => {
+    toast({ title: "Compiling Java Project...", description: "This may take a moment." });
+    try {
+        const response = await fetch('/api/compile-java', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectFiles: [vfsRoot],
+                config: { sourcePaths: ['.'] } // Assuming sources are at root
+            }),
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+
+        const buildFolder = data.data.buildOutput as VFSDirectory;
+        
+        setVfsRoot(currentRoot => {
+            const newRoot = { ...currentRoot };
+            const existingBuildIndex = newRoot.children.findIndex(c => c.name === 'build' && c.type === 'directory');
+            if (existingBuildIndex !== -1) {
+                newRoot.children[existingBuildIndex] = buildFolder;
+            } else {
+                newRoot.children.push(buildFolder);
+            }
+            saveVfs(newRoot);
+            toast({ title: "Compilation Successful", description: "The 'build' directory has been created/updated." });
+            return newRoot;
+        });
+        return true;
+    } catch (error: any) {
+        console.error("Compilation failed:", error);
+        toast({ variant: "destructive", title: "Compilation Failed", description: error.message });
+        return false;
+    }
+  }, [vfsRoot, toast, saveVfs]);
+
+
   return { 
     vfsRoot, 
     loading,
@@ -787,5 +843,7 @@ export function useVfs() {
     downloadVfsAsZip,
     cloneRepository,
     commit,
+    findFileByPath,
+    compileJavaProject,
   };
 }

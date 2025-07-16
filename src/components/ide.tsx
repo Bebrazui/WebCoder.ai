@@ -1,4 +1,4 @@
-
+// src/components/ide.tsx
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -53,6 +53,8 @@ export function Ide() {
     openFolderWithApi,
     downloadVfsAsZip,
     cloneRepository,
+    findFileByPath,
+    compileJavaProject,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -68,23 +70,13 @@ export function Ide() {
   
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
-       const findFile = (root: VFSDirectory, path: string): VFSFile | null => {
-         for (const child of root.children) {
-           if (child.path === path && child.type === 'file') return child;
-           if (child.type === 'directory') {
-             const found = findFile(child, path);
-             if (found) return found;
-           }
-         }
-         return null;
-       }
-       const fileFromVfs = findFile(vfsRoot, file.path);
+       const fileFromVfs = findFileByPath(file.path);
        if (fileFromVfs) {
           setOpenFiles((prev) => [...prev, fileFromVfs]);
        }
     }
     setActiveFilePath(file.path);
-  }, [openFiles, vfsRoot]);
+  }, [openFiles, findFileByPath]);
 
 
   const handleFileChange = useCallback((path: string, newContent: string) => {
@@ -384,6 +376,7 @@ export function Ide() {
                   onCloneRepository={handleCloneRepo}
                   outlineData={outlineData}
                   onSymbolSelect={handleSymbolSelect}
+                  onCompileJava={compileJavaProject}
                 />
               </ResizablePanel>
               <ResizableHandle withHandle />
