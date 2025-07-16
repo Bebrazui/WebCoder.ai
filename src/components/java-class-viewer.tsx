@@ -1,7 +1,7 @@
 // src/components/java-class-viewer.tsx
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { VFSFile } from '@/lib/vfs';
 import { useVfs } from '@/hooks/use-vfs';
 import Editor from "@monaco-editor/react";
