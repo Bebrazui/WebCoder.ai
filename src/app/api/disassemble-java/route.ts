@@ -85,8 +85,13 @@ export async function POST(req: NextRequest) {
             throw new Error(`Could not find compiled class for ${targetClassFileName} in the project build output.`);
         }
         
-        const buildPathWithSep = buildDir.endsWith(path.sep) ? buildDir : buildDir + path.sep;
-        const classNameForJavap = targetClassFile.replace(buildPathWithSep, '').replace(/\.class$/, '').replace(new RegExp(`\\${path.sep}`, 'g'), '.');
+        // Correctly determine the fully qualified class name for javap
+        const buildDirWithSep = buildDir.endsWith(path.sep) ? buildDir : buildDir + path.sep;
+        const classNameForJavap = targetClassFile
+            .replace(buildDirWithSep, '') // Remove the build directory path prefix
+            .replace(/\.class$/, '') // Remove the .class extension
+            .replace(new RegExp(`\\${path.sep}`, 'g'), '.'); // Replace path separators with dots
+
         const classPathForJavap = buildDir;
 
         const runnerArgs = {
