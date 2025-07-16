@@ -15,11 +15,10 @@ export default function PlayPage() {
 
   useEffect(() => {
     try {
+      // This part runs only on the client
       const data = localStorage.getItem('nocodeh-level-data');
       if (data) {
         const parsedData = JSON.parse(data);
-        // The game engine is now responsible for validation.
-        // It will check for a player inside the game component.
         if(parsedData.grid && parsedData.size) {
             setLevelData(parsedData);
         } else {
@@ -38,17 +37,17 @@ export default function PlayPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 text-center">
-        <LoaderCircle className="mx-auto h-24 w-24 mb-6 text-primary animate-spin" />
-        <h1 className="text-3xl font-bold">Loading Level...</h1>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8 text-center">
+        <LoaderCircle className="mx-auto h-24 w-24 mb-6 text-purple-400 animate-spin" />
+        <h1 className="text-3xl font-bold font-headline">Loading Level...</h1>
       </div>
     );
   }
 
   if (error || !levelData) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 text-center">
-        <Alert variant="destructive" className="max-w-md">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8 text-center">
+        <Alert variant="destructive" className="max-w-md bg-red-900/50 border-red-500 text-white">
             <Gamepad2 className="h-4 w-4" />
             <AlertTitle>Error Loading Game</AlertTitle>
             <AlertDescription>
@@ -56,13 +55,11 @@ export default function PlayPage() {
             </AlertDescription>
         </Alert>
         <Link href="/nocode" passHref>
-            <Button className="mt-6">Back to Editor</Button>
+            <Button className="mt-6" variant="secondary">Back to Editor</Button>
         </Link>
       </div>
     );
   }
 
-  // The NoCodeHGame component will now handle its own internal state,
-  // including checking if a player exists on the provided grid.
   return <NoCodeHGame initialLevelData={levelData} />;
 }
