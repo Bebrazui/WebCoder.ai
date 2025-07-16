@@ -53,7 +53,7 @@ function executeCommand(command: string, args: string[], cwd: string): Promise<{
 }
 
 
-const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
+const findFilesRecursive = async (dir: string, extension: string): Promise<string[]> => {
     let results: string[] = [];
     try {
         await fs.access(dir);
@@ -61,13 +61,13 @@ const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
         for (const file of list) {
             const fullPath = path.join(dir, file.name);
             if (file.isDirectory()) {
-                results = results.concat(await findJavaFilesRecursive(fullPath));
-            } else if (file.name.endsWith('.java')) {
+                results = results.concat(await findFilesRecursive(fullPath, extension));
+            } else if (file.name.endsWith(extension)) {
                 results.push(fullPath);
             }
         }
     } catch (e) {
-        console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
+        // Directory may not exist, which is fine.
     }
     return results;
 };
@@ -103,19 +103,26 @@ export async function POST(req: NextRequest) {
         const { projectFiles, config } = await req.json();
         tempDir = await createProjectInTempDir(projectFiles);
 
-        // Determine source directory from config, default to root of temp dir
         const userSourcePath = config.sourcePaths?.[0] || '.';
         const compilationCwd = path.join(tempDir, userSourcePath);
 
         const buildDir = path.join(tempDir, 'build');
         await fs.mkdir(buildDir, { recursive: true });
 
-        const sourceFiles = await findJavaFilesRecursive(compilationCwd);
+        const sourceFiles = await findFilesRecursive(compilationCwd, '.java');
         if (sourceFiles.length === 0) {
             return NextResponse.json({ success: false, error: "No Java source files found to compile." });
         }
 
-        const result = await executeCommand('javac', ['-d', buildDir, ...sourceFiles], compilationCwd);
+        // --- Classpath logic ---
+        // Look for JARs anywhere in the project, but prioritize a 'lib' or 'java_apps/lib' folder.
+        const libDir = path.join(tempDir, 'java_apps', 'lib');
+        const jarFiles = await findFilesRecursive(tempDir, '.jar');
+        const classpath = [buildDir, ...jarFiles].join(path.delimiter);
+        // --- End Classpath logic ---
+
+        const javacArgs = ['-d', buildDir, '-cp', classpath, ...sourceFiles];
+        const result = await executeCommand('javac', javacArgs, compilationCwd);
 
         if (result.code !== 0) {
             return NextResponse.json({ success: false, error: result.stderr || result.stdout });
