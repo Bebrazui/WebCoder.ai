@@ -395,6 +395,8 @@ export function Ide() {
                     onFileSave={handleSaveFile}
                     onEditorReady={(editor) => { editorRef.current = editor }}
                     onOutlineChange={setOutlineData}
+                    onOpenFolder={handleOpenFolder}
+                    onCloneRepository={handleCloneRepo}
                 />
               </ResizablePanel>
               {isTerminalOpen && (
