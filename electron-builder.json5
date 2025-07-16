@@ -1,0 +1,25 @@
+
+// electron-builder.json5
+{
+  "appId": "com.webcoder.ai",
+  "productName": "WebCoder.ai",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "files": [
+    "package.json",
+    "electron.cjs",
+    // Сюда нужно будет добавить собранные файлы Next.js
+    "out/**/*" 
+  ],
+  "win": {
+    "target": "nsis"
+  },
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}
