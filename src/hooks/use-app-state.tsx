@@ -30,27 +30,28 @@ const AppStateContext = createContext<AppState | undefined>(undefined);
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editorSettings, setEditorSettingsState] = useState<EditorSettings>(() => {
-    if (typeof window === 'undefined') {
-        return defaultEditorSettings;
-    }
+  const [editorSettings, setEditorSettingsState] = useState<EditorSettings>(defaultEditorSettings);
+
+  // Load settings from localStorage on the client side only
+  useEffect(() => {
     try {
         const item = window.localStorage.getItem('webcoder-editor-settings');
-        // Make sure to merge with defaults to not break on adding new settings
-        const savedSettings = item ? JSON.parse(item) : {};
-        return { ...defaultEditorSettings, ...savedSettings };
+        if (item) {
+            const savedSettings = JSON.parse(item);
+            // Merge with defaults to prevent breaking on adding new settings
+            setEditorSettingsState({ ...defaultEditorSettings, ...savedSettings });
+        }
     } catch (error) {
-        console.error(error);
-        return defaultEditorSettings;
+        console.error("Failed to load settings from localStorage", error);
     }
-  });
+  }, []); // Empty dependency array ensures this runs only once on mount
 
-
+  // Save settings to localStorage whenever they change
   useEffect(() => {
     try {
         window.localStorage.setItem('webcoder-editor-settings', JSON.stringify(editorSettings));
     } catch (error) {
-        console.error(error);
+        console.error("Failed to save settings to localStorage", error);
     }
   }, [editorSettings]);
 
