@@ -1,58 +1,56 @@
 // electron.cjs
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const isDev = process.env.NODE_ENV !== 'production';
+
+const { app, BrowserWindow, Menu } = require('electron');
+const path = require('node:path');
+const isDev = require('electron-is-dev');
+const customMenu = require('./menu'); // Импортируем наше кастомное меню
 
 function createWindow() {
-  // Create the browser window.
+  // Создаем окно браузера.
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      // Important for security:
-      nodeIntegration: false,
-      contextIsolation: true,
-      // Allow running preload script even with a remote URL in dev
-      webSecurity: isDev ? false : true, 
+      // Важно для безопасности, но может потребовать настройки для взаимодействия с Node.js
+      // contextIsolation: true,
+      // nodeIntegration: false,
     },
-    // icon: path.join(__dirname, 'icons/icon.png') // Future: add an icon
   });
 
-  win.setTitle('WebCoder.ai');
+  // Устанавливаем кастомное меню
+  const menu = Menu.buildFromTemplate(customMenu(app, win));
+  Menu.setApplicationMenu(menu);
 
-  // Load the app.
+
+  // Загружаем index.html в режиме продакшена или URL разработки.
+  const startUrl = isDev
+    ? 'http://localhost:9002' // URL вашего сервера разработки Next.js
+    : `file://${path.join(__dirname, '../out/index.html')}`; // Путь к собранному приложению
+
+  win.loadURL(startUrl);
+
+  // Открываем DevTools, если в режиме разработки.
   if (isDev) {
-    // In development, load from the Next.js dev server.
-    // Make sure your Next.js app is running on port 9002.
-    win.loadURL('http://localhost:9002');
-    // Open the DevTools automatically in development.
     win.webContents.openDevTools();
-  } else {
-    // In production, load the static HTML file.
-    win.loadFile(path.join(__dirname, 'out/index.html'));
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-app.whenReady().then(() => {
-  createWindow();
+// Этот метод будет вызван, когда Electron закончит
+// инициализацию и будет готов к созданию окон.
+app.whenReady().then(createWindow);
 
-  app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Выход, когда все окна закрыты, кроме macOS.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('activate', () => {
+  // На macOS обычно создают новое окно в приложении,
+  // когда значок в доке нажат, и нет других открытых окон.
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
   }
 });
