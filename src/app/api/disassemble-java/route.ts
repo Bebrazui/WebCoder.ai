@@ -7,15 +7,15 @@ import os from 'os';
 import { type VFSNode, type VFSDirectory } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
 
-async function createProjectInTempDir(projectRoot: VFSDirectory): Promise<string> {
+async function createProjectInTempDir(projectRoot: VFSNode): Promise<string> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'proj-disassemble-'));
 
-    const writeFile = async (node: VFSNode, currentPath: string) => {
+    const writeFileRecursive = async (node: VFSNode, currentPath: string) => {
         const fullPath = path.join(currentPath, node.name);
         if (node.type === 'directory') {
             await fs.mkdir(fullPath, { recursive: true });
             for (const child of node.children) {
-                await writeFile(child, fullPath);
+                await writeFileRecursive(child, fullPath);
             }
         } else {
             const content = node.content.startsWith('data:')
@@ -25,10 +25,11 @@ async function createProjectInTempDir(projectRoot: VFSDirectory): Promise<string
         }
     };
     
-    // Iterate over the children of the root and write them directly into the temp directory.
-    // This avoids creating an extra top-level folder.
-    for (const child of projectRoot.children) {
-        await writeFile(child, tempDir);
+    // We want to write the *children* of the root node into our temp directory.
+    if (projectRoot.type === 'directory') {
+        for (const child of projectRoot.children) {
+            await writeFileRecursive(child, tempDir);
+        }
     }
     
     return tempDir;
@@ -104,7 +105,9 @@ export async function POST(req: NextRequest) {
         const runnerSrcPath = path.join(process.cwd(), 'java_apps', 'src');
         const runnerBuildPath = path.join(process.cwd(), 'java_apps', 'build');
         await fs.mkdir(runnerBuildPath, { recursive: true });
-        const runnerCompileResult = await executeCommand('javac', ['-d', runnerBuildPath, path.join(runnerSrcPath, 'Main.java')], runnerSrcPath);
+        
+        const mainJavaPath = path.join(runnerSrcPath, 'Main.java');
+        const runnerCompileResult = await executeCommand('javac', ['-d', runnerBuildPath, mainJavaPath], runnerSrcPath);
         if(runnerCompileResult.code !== 0) {
             throw new Error(`Failed to compile the Java runner: ${runnerCompileResult.stderr}`);
         }

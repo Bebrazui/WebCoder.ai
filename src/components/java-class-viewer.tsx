@@ -6,7 +6,7 @@ import type { VFSFile } from '@/lib/vfs';
 import { useVfs } from '@/hooks/use-vfs';
 import Editor from "@monaco-editor/react";
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { ServerCrash, Download, LoaderCircle, AlertTriangle, FileUp } from 'lucide-react';
+import { ServerCrash, Download, LoaderCircle, AlertTriangle, FileUp, Hammer } from 'lucide-react';
 import { useAppState } from '@/hooks/use-app-state';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -26,18 +26,19 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
 
   // Find corresponding .java file to check for staleness
   const sourceJavaFile = useMemo(() => {
-      const javaPath = file.path.replace(/\.class$/, '.java').replace('/build/', '/');
+      // Correctly map build path back to source path
+      const javaPath = file.path
+        .replace('/build/', '/')
+        .replace(/\.class$/, '.java');
       return findFileByPath(javaPath);
   }, [file.path, findFileByPath]);
 
   const isStale = useMemo(() => {
       if (!sourceJavaFile || !file.content) return false;
-      // This is a simplified check. A real IDE would compare modification times.
-      // Here, we check if the source file is marked as dirty (unsaved).
-      const fileIsDirty = (sourceJavaFile as VFSFile & { dirty?: boolean }).dirty;
-      // In a real VFS with timestamps, we'd do:
+      // This is a simplified check. In a real VFS with timestamps, we'd do:
       // return sourceJavaFile.modifiedAt > file.createdAt;
-      return false; // For now, we don't have a reliable dirty check here.
+      // For now, we don't have a reliable dirty check here without more complex state management.
+      return false; 
   }, [sourceJavaFile, file.content]);
 
 
@@ -54,53 +55,53 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
       setIsLoading(false);
   };
 
-  useEffect(() => {
-    const disassemble = async () => {
-      if (!isMounted.current) return;
-      setIsLoading(true);
-      setError(null);
-      setDisassembledCode(null);
-      
-      try {
-        // Ensure the file content exists and is a data URI
-        if (!file.content || !file.content.startsWith('data:')) {
-          throw new Error("Invalid .class file content. It might be corrupted or empty. Please recompile.");
-        }
-
-        const response = await fetch('/api/disassemble-java', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectRoot: vfsRoot, // Pass the whole VFS
-            filePath: file.path,
-          }),
-        });
-        
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "An unknown error occurred on the server.");
-        }
-
-        if(isMounted.current) {
-          setDisassembledCode(data.disassembledCode);
-        }
-      } catch (err: any) {
-        if(isMounted.current) {
-            setError(err.message);
-            console.error("Disassembly failed:", err);
-        }
-      } finally {
-        if(isMounted.current) {
-            setIsLoading(false);
-        }
+  const disassemble = useCallback(async () => {
+    if (!isMounted.current) return;
+    setIsLoading(true);
+    setError(null);
+    setDisassembledCode(null);
+    
+    try {
+      // Ensure the file content exists and is a data URI
+      if (!file.content || !file.content.startsWith('data:')) {
+        throw new Error("Invalid .class file content. It might be corrupted or empty. Please recompile.");
       }
-    };
 
+      const response = await fetch('/api/disassemble-java', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectRoot: vfsRoot, // Pass the whole VFS
+          filePath: file.path,
+        }),
+      });
+      
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "An unknown error occurred on the server.");
+      }
+
+      if(isMounted.current) {
+        setDisassembledCode(data.disassembledCode);
+      }
+    } catch (err: any) {
+      if(isMounted.current) {
+          setError(err.message);
+          console.error("Disassembly failed:", err);
+      }
+    } finally {
+      if(isMounted.current) {
+          setIsLoading(false);
+      }
+    }
+  }, [file.path, file.content, vfsRoot]);
+
+  useEffect(() => {
     disassemble();
-  }, [file.path, file.content, vfsRoot, toast]); // Re-run if file content changes (e.g., after recompile)
+  }, [disassemble]); // Re-run if file content changes (e.g., after recompile)
 
   const handleDownload = () => {
     try {
@@ -125,6 +126,10 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
                     <p className="text-xs text-muted-foreground">Java Bytecode View (read-only)</p>
                 </div>
                  <div className="flex items-center gap-2">
+                    <Button onClick={handleRecompile} size="sm" variant="outline" disabled={isLoading}>
+                        {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Hammer className="mr-2 h-4 w-4" />}
+                        Recompile
+                    </Button>
                     <Button onClick={handleDownload} size="sm" variant="outline">
                         <Download className="mr-2 h-4 w-4" />
                         Download .class
@@ -154,9 +159,9 @@ export function JavaClassViewer({ file }: JavaClassViewerProps) {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Stale Class File</AlertTitle>
                     <AlertDescription>
-                       The source file <code className="font-mono text-xs bg-muted p-1 rounded-sm">{sourceJavaFile?.name}</code> has been modified. The displayed bytecode might be out of date.
-                       <Button size="sm" onClick={handleRecompile} className="mt-4">
-                          <FileUp className="mr-2 h-4 w-4" /> Recompile Project
+                       The source file <code className="font-mono text-xs bg-muted p-1 rounded-sm">{sourceJavaFile?.name}</code> may have been modified. The displayed bytecode might be out of date.
+                       <Button size="sm" onClick={handleRecompile} className="mt-4" disabled={isLoading}>
+                          {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />} Recompile Project
                        </Button>
                     </AlertDescription>
                 </Alert>

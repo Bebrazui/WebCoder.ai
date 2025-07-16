@@ -28,7 +28,7 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
     // The project files are usually passed as a single root directory node.
     // We want to write the *children* of that root node into our temp directory.
     if (projectFiles.length === 1 && projectFiles[0].type === 'directory') {
-        const rootNode = projectFiles[0];
+        const rootNode = projectFiles[0] as VFSDirectory;
         for (const child of rootNode.children) {
             await writeFileRecursive(child, tempDir);
         }
