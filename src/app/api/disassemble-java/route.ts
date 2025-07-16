@@ -34,27 +34,10 @@ async function createProjectInTempDir(projectRoot: VFSDirectory): Promise<string
     return tempDir;
 }
 
-const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
-    let results: string[] = [];
-    try {
-        const list = await fs.readdir(dir, { withFileTypes: true });
-        for (const file of list) {
-            const fullPath = path.join(dir, file.name);
-            if (file.isDirectory()) {
-                results = results.concat(await findJavaFilesRecursive(fullPath));
-            } else if (file.name.endsWith('.java')) {
-                results.push(fullPath);
-            }
-        }
-    } catch (e) {
-        // Ignore errors from non-existent dirs
-    }
-    return results;
-};
-
 const findClassFilesRecursive = async (dir: string): Promise<string[]> => {
     let results: string[] = [];
     try {
+        await fs.access(dir); // Check if directory exists
         const list = await fs.readdir(dir, { withFileTypes: true });
         for (const file of list) {
             const fullPath = path.join(dir, file.name);
@@ -65,7 +48,7 @@ const findClassFilesRecursive = async (dir: string): Promise<string[]> => {
             }
         }
     } catch (e) {
-        // Ignore errors for non-existent dirs
+        // Ignore errors for non-existent dirs, like if 'build' doesn't exist.
     }
     return results;
 };
@@ -88,33 +71,21 @@ export async function POST(req: NextRequest) {
     try {
         const { projectRoot, filePath } = await req.json() as { projectRoot: VFSDirectory, filePath: string };
         tempDir = await createProjectInTempDir(projectRoot);
-
-        // --- Compilation Step ---
+        
         const buildDir = path.join(tempDir, 'build');
-        await fs.mkdir(buildDir, { recursive: true });
-        
-        const allJavaFiles = await findJavaFilesRecursive(tempDir);
-        
-        if (allJavaFiles.length > 0) {
-            const compileResult = await executeCommand('javac', ['-d', buildDir, ...allJavaFiles], tempDir);
-            if (compileResult.code !== 0) {
-                // Don't fail hard, disassembly might still work on pre-compiled classes
-                 console.warn(`Compilation failed, but proceeding: ${compileResult.stderr}`);
-            }
-        }
         
         // --- Disassembly Step ---
-        const targetClassName = path.basename(filePath).replace(/\.java$|\.class$/, '');
-        const buildPathWithSep = buildDir.endsWith(path.sep) ? buildDir : buildDir + path.sep;
+        const targetClassFileName = path.basename(filePath); // e.g., "Backyard.class"
 
         // Find the corresponding .class file path in the build directory.
         const allClassFiles = await findClassFilesRecursive(buildDir);
-        const targetClassFile = allClassFiles.find(f => path.basename(f).replace(/\.class$/, '') === targetClassName);
+        const targetClassFile = allClassFiles.find(f => path.basename(f) === targetClassFileName);
 
         if (!targetClassFile) {
-            throw new Error(`Could not find compiled class for ${targetClassName}.class in the project build output.`);
+            throw new Error(`Could not find compiled class for ${targetClassFileName} in the project build output.`);
         }
         
+        const buildPathWithSep = buildDir.endsWith(path.sep) ? buildDir : buildDir + path.sep;
         const classNameForJavap = targetClassFile.replace(buildPathWithSep, '').replace(/\.class$/, '').replace(new RegExp(`\\${path.sep}`, 'g'), '.');
         const classPathForJavap = buildDir;
 
@@ -125,7 +96,6 @@ export async function POST(req: NextRequest) {
             workingDir: tempDir
         };
         
-        // Compile our Java runner if not already done. In a real scenario, this would be part of a build step.
         const runnerSrcPath = path.join(process.cwd(), 'java_apps', 'src');
         const runnerBuildPath = path.join(process.cwd(), 'java_apps', 'build');
         await fs.mkdir(runnerBuildPath, { recursive: true });
