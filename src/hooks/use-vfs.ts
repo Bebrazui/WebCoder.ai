@@ -826,10 +826,8 @@ export function useVfs() {
   const createNoCodeHProject = useCallback(() => {
     const newRoot = createDirectory("NoCodeH Game", "/");
     
-    // Marker file
     newRoot.children.push(createFile('.nocodeh', '/.nocodeh', ''));
 
-    // Main config
     const gameConfig = {
         "name": "My NoCodeH Game",
         "version": "1.0.0",
@@ -837,12 +835,10 @@ export function useVfs() {
     };
     newRoot.children.push(createFile('game.json', '/game.json', JSON.stringify(gameConfig, null, 2)));
 
-    // Folders
     const scenesDir = createDirectory('scenes', '/scenes');
     const assetsDir = createDirectory('assets', '/assets');
     const objectsDir = createDirectory('objects', '/objects');
     
-    // Default scene
     const mainScene = {
         "name": "Main Scene",
         "objects": [
@@ -852,7 +848,6 @@ export function useVfs() {
     };
     scenesDir.children.push(createFile('main.scene', '/scenes/main.scene', JSON.stringify(mainScene, null, 2)));
     
-    // Default objects (can be expanded later)
     objectsDir.children.push(createFile('player.object', '/objects/player.object', JSON.stringify({ "name": "Player", "components": ["Sprite", "PlayerController"] }, null, 2)));
     objectsDir.children.push(createFile('wall.object', '/objects/wall.object', JSON.stringify({ "name": "Wall", "components": ["Sprite", "Collider"] }, null, 2)));
 

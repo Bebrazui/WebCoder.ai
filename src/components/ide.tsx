@@ -55,6 +55,7 @@ export function Ide() {
     cloneRepository,
     findFileByPath,
     compileJavaProject,
+    createNoCodeHProject,
   } = useVfs();
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -67,6 +68,12 @@ export function Ide() {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
   const { editorSettings } = useAppState();
+
+  const resetEditorState = useCallback(() => {
+      setOpenFiles([]);
+      setActiveFilePath(null);
+      setDirtyFiles(new Set());
+  }, []);
   
   const handleSelectFile = useCallback((file: VFSFile) => {
     if (!openFiles.some((f) => f.path === file.path)) {
@@ -288,12 +295,6 @@ export function Ide() {
     }
   };
 
-  const resetEditorState = () => {
-      setOpenFiles([]);
-      setActiveFilePath(null);
-      setDirtyFiles(new Set());
-  }
-
   const handleOpenFolder = async () => {
     const success = await openFolderWithApi();
     if (success) {
@@ -321,6 +322,11 @@ export function Ide() {
     if (name) {
       createDirectoryInVfs(name, vfsRoot);
     }
+  };
+
+  const handleCreateNoCodeProject = () => {
+    createNoCodeHProject();
+    resetEditorState();
   };
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
@@ -397,6 +403,7 @@ export function Ide() {
                     onOutlineChange={setOutlineData}
                     onOpenFolder={handleOpenFolder}
                     onCloneRepository={handleCloneRepo}
+                    onCreateNoCodeProject={handleCreateNoCodeProject}
                 />
               </ResizablePanel>
               {isTerminalOpen && (

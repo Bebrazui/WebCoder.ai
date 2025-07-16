@@ -16,9 +16,10 @@ import Image from 'next/image';
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile, isClassFile } from "@/lib/vfs";
+import { isTextFile, isImageFile, isAudioFile, isClassFile, isSceneFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
 import { WelcomeScreen } from "./welcome-screen";
+import { SceneEditor } from "./scene-editor";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -32,6 +33,7 @@ interface EditorPaneProps {
   onOutlineChange: (outline: OutlineData[]) => void;
   onOpenFolder: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
+  onCreateNoCodeProject: () => void;
 }
 
 export function EditorPane({
@@ -46,10 +48,11 @@ export function EditorPane({
   onOutlineChange,
   onOpenFolder,
   onCloneRepository,
+  onCreateNoCodeProject,
 }: EditorPaneProps) {
 
   if (openFiles.length === 0) {
-    return <WelcomeScreen onOpenFolder={onOpenFolder} onCloneRepository={onCloneRepository} />;
+    return <WelcomeScreen onOpenFolder={onOpenFolder} onCloneRepository={onCloneRepository} onCreateNoCodeProject={onCreateNoCodeProject} />;
   }
 
   const AudioPlayer = ({ file }: { file: VFSFile }) => {
@@ -79,6 +82,10 @@ export function EditorPane({
     
     if (isClassFile(file.name)) {
         return <JavaClassViewer file={file} />;
+    }
+
+    if (isSceneFile(file.name)) {
+      return <SceneEditor file={file} />;
     }
 
     // Default to Code Editor for text files
