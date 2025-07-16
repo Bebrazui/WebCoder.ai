@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 const TILE_TYPES = {
   EMPTY: 0,
@@ -42,12 +43,13 @@ export default function NoCodeHPage() {
   const [grid, setGrid] = useState<TileValue[]>(defaultGrid);
   const [activeBrush, setActiveBrush] = useState<TileValue | 'ERASER'>(TILE_TYPES.WALL);
   const [isPainting, setIsPainting] = useState(false);
+  const { toast } = useToast();
 
   const handleTileClick = useCallback((index: number) => {
     const newGrid = [...grid];
     const valueToSet = activeBrush === 'ERASER' ? TILE_TYPES.EMPTY : activeBrush;
     
-    // Ensure only one player
+    // Ensure only one player if the player brush is active
     if (valueToSet === TILE_TYPES.PLAYER) {
       const playerIndex = newGrid.findIndex(tile => tile === TILE_TYPES.PLAYER);
       if (playerIndex !== -1) {
@@ -66,18 +68,26 @@ export default function NoCodeHPage() {
   }, [isPainting, handleTileClick]);
 
   const handleLaunchGame = () => {
-    const hasPlayer = grid.some(tile => tile === TILE_TYPES.PLAYER);
-    if (!hasPlayer) {
-      alert("Please place a player on the grid before launching the game.");
-      return;
-    }
+    // The editor no longer validates game logic. It just prepares the data.
     const levelData = {
       grid,
       size: GRID_SIZE,
     };
     localStorage.setItem('nocodeh-level-data', JSON.stringify(levelData));
     window.open('/nocode/play', '_blank');
+    toast({
+        title: "Game Launched!",
+        description: "Your game has been opened in a new tab.",
+    })
   };
+
+  const handleClearGrid = () => {
+      setGrid(defaultGrid);
+      toast({
+          title: "Grid Cleared",
+          description: "The level has been reset."
+      })
+  }
 
   const Tile = useCallback(({ value, index }: { value: TileValue; index: number }) => {
     const TileIcon = TILE_COMPONENTS[value];
@@ -126,7 +136,7 @@ export default function NoCodeHPage() {
             <Play className="mr-2" />
             Launch Game
           </Button>
-           <Button size="lg" variant="destructive" className="w-full" onClick={() => setGrid(defaultGrid)}>
+           <Button size="lg" variant="destructive" className="w-full" onClick={handleClearGrid}>
             <Trash2 className="mr-2" />
             Clear Grid
           </Button>
@@ -143,6 +153,7 @@ export default function NoCodeHPage() {
               aspectRatio: '1 / 1',
               border: '1px solid hsl(var(--border))',
             }}
+            onContextMenu={(e) => e.preventDefault()}
           >
               {grid.map((tile, index) => (
                   <Tile key={index} value={tile} index={index} />

@@ -2,10 +2,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { User, BrickWall, CircleDollarSign, Ghost, Crown, XCircle } from 'lucide-react';
+import { User, BrickWall, CircleDollarSign, Ghost, Crown, XCircle, Gamepad2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 const TILE_TYPES = {
   EMPTY: 0,
@@ -31,31 +32,36 @@ export interface LevelData {
 }
 
 interface NoCodeHGameProps {
-  levelData: LevelData;
+  initialLevelData: LevelData;
 }
 
-export function NoCodeHGame({ levelData }: NoCodeHGameProps) {
-  const [grid, setGrid] = useState<TileValue[]>(levelData.grid);
+export function NoCodeHGame({ initialLevelData }: NoCodeHGameProps) {
+  const [grid, setGrid] = useState<TileValue[]>(initialLevelData.grid);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
 
-  const { size } = levelData;
+  // Game logic now validates the level data itself.
+  const initialPlayerIndex = useMemo(() => initialLevelData.grid.findIndex(tile => tile === TILE_TYPES.PLAYER), [initialLevelData.grid]);
+
+  const { size } = initialLevelData;
   const initialPlayerPos = useMemo(() => {
-    const startIdx = levelData.grid.findIndex(tile => tile === TILE_TYPES.PLAYER);
+    if (initialPlayerIndex === -1) return null;
     return {
-      x: startIdx % size,
-      y: Math.floor(startIdx / size),
+      x: initialPlayerIndex % size,
+      y: Math.floor(initialPlayerIndex / size),
     };
-  }, [levelData, size]);
+  }, [initialPlayerIndex, size]);
   
   const [playerPos, setPlayerPos] = useState(initialPlayerPos);
 
-  const totalCoins = useMemo(() => levelData.grid.filter(tile => tile === TILE_TYPES.COIN).length, [levelData.grid]);
+  const totalCoins = useMemo(() => initialLevelData.grid.filter(tile => tile === TILE_TYPES.COIN).length, [initialLevelData.grid]);
 
   const movePlayer = useCallback((dx: number, dy: number) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || !playerPos) return;
 
     setPlayerPos(prevPos => {
+      if (!prevPos) return null;
+
       const newX = prevPos.x + dx;
       const newY = prevPos.y + dy;
       const newIndex = newY * size + newX;
@@ -83,11 +89,10 @@ export function NoCodeHGame({ levelData }: NoCodeHGameProps) {
           newGrid[newIndex] = TILE_TYPES.PLAYER; // Move player
       }
 
-
       setGrid(newGrid);
       return { x: newX, y: newY };
     });
-  }, [grid, size, gameState]);
+  }, [grid, size, gameState, playerPos]);
 
   useEffect(() => {
     if (totalCoins > 0 && score === totalCoins) {
@@ -100,22 +105,10 @@ export function NoCodeHGame({ levelData }: NoCodeHGameProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
       switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-          movePlayer(0, -1);
-          break;
-        case 'ArrowDown':
-        case 's':
-          movePlayer(0, 1);
-          break;
-        case 'ArrowLeft':
-        case 'a':
-          movePlayer(-1, 0);
-          break;
-        case 'ArrowRight':
-        case 'd':
-          movePlayer(1, 0);
-          break;
+        case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+        case 'ArrowDown': case 's': movePlayer(0, 1); break;
+        case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+        case 'ArrowRight': case 'd': movePlayer(1, 0); break;
       }
     };
 
@@ -124,10 +117,28 @@ export function NoCodeHGame({ levelData }: NoCodeHGameProps) {
   }, [movePlayer]);
   
   const resetGame = () => {
-      setGrid(levelData.grid);
+      setGrid(initialLevelData.grid);
       setScore(0);
       setPlayerPos(initialPlayerPos);
       setGameState('playing');
+  }
+
+  // If there's no player, the game is unplayable. Show an error screen.
+  if (!playerPos) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 text-center">
+            <Alert variant="destructive" className="max-w-md">
+                <Gamepad2 className="h-4 w-4" />
+                <AlertTitle>Cannot Start Game</AlertTitle>
+                <AlertDescription>
+                    No player start position was found on the level grid. Please add a player in the editor.
+                </AlertDescription>
+            </Alert>
+            <Link href="/nocode" passHref>
+                <Button className="mt-6">Back to Editor</Button>
+            </Link>
+        </div>
+      );
   }
 
   return (
@@ -167,7 +178,7 @@ export function NoCodeHGame({ levelData }: NoCodeHGameProps) {
                             <h2 className="text-5xl font-bold">Game Over</h2>
                           </>
                       )}
-                      <p className="text-xl mt-2">Your score: {score}</p>
+                      <p className="text-xl mt-2">Your final score: {score}</p>
                       <div className="flex gap-4 mt-6">
                         <Button size="lg" onClick={resetGame}>Play Again</Button>
                         <Link href="/nocode" passHref>

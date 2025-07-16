@@ -18,6 +18,8 @@ export default function PlayPage() {
       const data = localStorage.getItem('nocodeh-level-data');
       if (data) {
         const parsedData = JSON.parse(data);
+        // The game engine is now responsible for validation.
+        // It will check for a player inside the game component.
         if(parsedData.grid && parsedData.size) {
             setLevelData(parsedData);
         } else {
@@ -60,5 +62,7 @@ export default function PlayPage() {
     );
   }
 
-  return <NoCodeHGame levelData={levelData} />;
+  // The NoCodeHGame component will now handle its own internal state,
+  // including checking if a player exists on the provided grid.
+  return <NoCodeHGame initialLevelData={levelData} />;
 }
