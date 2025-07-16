@@ -53,7 +53,7 @@ fn main() {
                 status: "error".to_string(),
                 message: format!("Ошибка парсинга JSON: {}", e),
             };
-            writeln!(&mut io.stderr(), "{}", serde_json::to_string(&error_resp).unwrap()).unwrap();
+            writeln!(&mut io::stderr(), "{}", serde_json::to_string(&error_resp).unwrap()).unwrap();
             std::process::exit(1);
         }
     }
