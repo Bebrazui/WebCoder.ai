@@ -13,7 +13,7 @@ import {
 import { Sidebar } from "./sidebar-view";
 import { EditorPane } from "./editor-pane";
 import { StatusBar } from "./status-bar";
-import { useVfs } from "@/hooks/use-vfs";
+import { useVfs, type VfsHook } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Skeleton } from "./ui/skeleton";
 import { CommandPalette } from "./command-palette";
@@ -32,8 +32,11 @@ const TerminalView = dynamic(
   }
 );
 
+interface IdeProps {
+    vfs: VfsHook;
+}
 
-export function Ide() {
+export function Ide({ vfs }: IdeProps) {
   const { 
     vfsRoot, 
     loading, 
@@ -56,7 +59,7 @@ export function Ide() {
     findFileByPath,
     compileJavaProject,
     createNoCodeHProject,
-  } = useVfs();
+  } = vfs;
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());

@@ -6,25 +6,23 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Button } from './ui/button';
 import { FolderSearch, Github, FileArchive, Code2, Gamepad2, FilePlus } from 'lucide-react';
 import { CloneRepositoryDialog } from './clone-repository-dialog';
-import { useVfs } from '@/hooks/use-vfs';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
 
 interface WelcomeScreenProps {
   onOpenFolder: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
   onCreateNoCodeProject: () => void;
+  onAddZipToVfs: (file: File) => void;
 }
 
-export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeProject }: WelcomeScreenProps) {
+export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeProject, onAddZipToVfs }: WelcomeScreenProps) {
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const zipInputRef = useRef<HTMLInputElement>(null);
-  const { addZipToVfs } = useVfs();
   const { toast } = useToast();
 
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      addZipToVfs(e.target.files[0]);
+      onAddZipToVfs(e.target.files[0]);
     }
   };
   
@@ -36,7 +34,7 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeP
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-background p-8">
+    <div className="flex h-screen flex-col items-center justify-center bg-background p-8">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
             <h1 className="text-4xl font-bold font-headline tracking-tight">Welcome to WebCoder.ai</h1>

@@ -77,6 +77,8 @@ export type GitStatus = {
     status: 'new' | 'modified' | 'deleted' | 'unmodified';
 };
 
+export type VfsHook = ReturnType<typeof useVfs>;
+
 
 export function useVfs() {
   const [vfsRoot, setVfsRoot] = useState<VFSDirectory>(defaultRoot);

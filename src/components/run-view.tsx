@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, FolderInput, Binary, Airplay } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -19,7 +19,7 @@ interface LaunchConfig {
     name: string;
     type: string;
     request: 'launch';
-    args: any;
+    args?: any;
     [key: string]: any; // Allow other properties
 }
 
@@ -36,6 +36,11 @@ const findJavaFiles = (node: VFSNode): boolean => {
     }
     return false;
 };
+
+const findNoCodeHProject = (rootNode: VFSNode): boolean => {
+    return rootNode.type === 'directory' && rootNode.children.some(c => c.name === '.nocodeh');
+};
+
 
 const findBuildFolder = (node: VFSNode): boolean => {
     if (node.type === 'directory' && node.name === 'build') {
@@ -63,6 +68,13 @@ const defaultJavaConfig: LaunchConfig = {
       age: 42
     }
 };
+
+const noCodeHConfig: LaunchConfig = {
+    name: "Run NoCodeH Game",
+    type: "nocodeh",
+    request: "launch",
+};
+
 
 export function RunView() {
   const { toast } = useToast();
@@ -113,6 +125,10 @@ export function RunView() {
         configs.push(defaultJavaConfig);
     }
     
+    if (findNoCodeHProject(vfsRoot)) {
+        configs.unshift(noCodeHConfig);
+    }
+
     setLaunchConfigs(configs);
 
     if (configs.length > 0 && (!selectedConfigName || !configs.some(c => c.name === selectedConfigName))) {
@@ -129,7 +145,7 @@ export function RunView() {
   const isJavaConfig = selectedConfig?.type === 'java';
 
   useEffect(() => {
-    if (selectedConfig) {
+    if (selectedConfig && selectedConfig.args) {
         setJsonInput(JSON.stringify(selectedConfig.args, null, 2));
     } else {
         setJsonInput('{}');
@@ -139,12 +155,12 @@ export function RunView() {
   const getFullConfig = useCallback(() => {
       if (!selectedConfig) return null;
 
-      let argsToUse;
+      let argsToUse = {};
       try {
-          if (editorSettings.manualJsonInput && jsonInput.trim()) {
+          if (editorSettings.manualJsonInput && jsonInput.trim() && selectedConfig.args) {
               argsToUse = JSON.parse(jsonInput);
-          } else {
-              argsToUse = selectedConfig.args || {};
+          } else if (selectedConfig.args) {
+              argsToUse = selectedConfig.args;
           }
       } catch (e: any) {
           toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
@@ -161,6 +177,14 @@ export function RunView() {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
       }
+      
+      // Special case for NoCodeH runner
+      if (fullConfig.type === 'nocodeh') {
+          window.open('/nocode/play', '_blank');
+          toast({ title: "Game Launched!", description: "Your NoCodeH game has been opened in a new tab."});
+          return;
+      }
+
 
       setIsActionLoading(true);
       setResult(null);
@@ -269,7 +293,10 @@ export function RunView() {
                             <SelectContent>
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
-                                        {config.name}
+                                        <div className="flex items-center gap-2">
+                                            {config.type === 'nocodeh' ? <Gamepad2 className="h-4 w-4" /> : <BrainCircuit className="h-4 w-4" />}
+                                            <span>{config.name}</span>
+                                        </div>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -281,12 +308,12 @@ export function RunView() {
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
                             <AlertDescription>
-                                {selectedConfig.program || selectedConfig.projectPath || selectedConfig.mainClass || '...'}
+                                {selectedConfig.program || selectedConfig.projectPath || selectedConfig.mainClass || 'Ready to launch in browser.'}
                             </AlertDescription>
                         </Alert>
                     )}
 
-                    {editorSettings.manualJsonInput && (
+                    {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && (
                         <div className="space-y-2">
                             <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                             <Textarea
