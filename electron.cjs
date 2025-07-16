@@ -1,50 +1,58 @@
-
 // electron.cjs
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const isDev = require('electron-is-dev');
+const isDev = process.env.NODE_ENV !== 'production';
 
 function createWindow() {
-  // Создаем окно браузера.
+  // Create the browser window.
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: path.join(__dirname, 'preload.js'),
+      // Important for security:
+      nodeIntegration: false,
+      contextIsolation: true,
+      // Allow running preload script even with a remote URL in dev
+      webSecurity: isDev ? false : true, 
     },
+    // icon: path.join(__dirname, 'icons/icon.png') // Future: add an icon
   });
 
-  // Загружаем ваше Next.js приложение.
-  // В режиме разработки мы используем URL сервера разработки.
-  // В продакшене мы бы загружали статический HTML-файл.
-  const startUrl = isDev
-    ? 'http://localhost:9002' // Убедитесь, что порт совпадает с портом в package.json
-    : `file://${path.join(__dirname, '../out/index.html')}`;
-  
-  win.loadURL(startUrl);
+  win.setTitle('WebCoder.ai');
 
-  // Открываем DevTools, если в режиме разработки.
+  // Load the app.
   if (isDev) {
+    // In development, load from the Next.js dev server.
+    // Make sure your Next.js app is running on port 9002.
+    win.loadURL('http://localhost:9002');
+    // Open the DevTools automatically in development.
     win.webContents.openDevTools();
+  } else {
+    // In production, load the static HTML file.
+    win.loadFile(path.join(__dirname, 'out/index.html'));
   }
 }
 
-// Этот метод будет вызываться, когда Electron закончит
-// инициализацию и будет готов к созданию окон браузера.
-app.whenReady().then(createWindow);
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+app.whenReady().then(() => {
+  createWindow();
 
-// Выход из приложения, когда все окна закрыты (кроме macOS).
+  app.on('activate', () => {
+    // On macOS it's common to re-create a window in the app when the
+    // dock icon is clicked and there are no other windows open.
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-});
-
-app.on('activate', () => {
-  // На macOS обычно создают новое окно в приложении, когда
-  // иконка в доке нажата, и нет других открытых окон.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
   }
 });
