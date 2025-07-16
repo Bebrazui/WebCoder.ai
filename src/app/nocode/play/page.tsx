@@ -23,7 +23,7 @@ export default function PlayPage() {
       if (!vfsRoot || vfsRoot.children.length === 0) {
         throw new Error("No project loaded.");
       }
-
+      
       const gameConfigNode = vfsRoot.children.find(c => c.name === 'game.json');
       if (!gameConfigNode || gameConfigNode.type !== 'file') {
         throw new Error("`game.json` not found in the project root.");
@@ -33,8 +33,12 @@ export default function PlayPage() {
 
       // Find and parse the starting scene
       const scenePath = config.start_scene;
-      const sceneNode = vfsRoot.children.find(c => c.type === 'directory' && c.name === 'scenes')?.children.find(s => s.path === scenePath);
-
+      const scenesDir = vfsRoot.children.find(c => c.type === 'directory' && c.name === 'scenes') as any;
+      if (!scenesDir) {
+          throw new Error("Could not find /scenes directory.");
+      }
+      const sceneNode = scenesDir.children.find((s: any) => s.path === scenePath);
+      
       if (!sceneNode || sceneNode.type !== 'file') {
         throw new Error(`Start scene "${scenePath}" not found.`);
       }

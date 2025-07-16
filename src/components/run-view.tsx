@@ -38,7 +38,8 @@ const findJavaFiles = (node: VFSNode): boolean => {
 };
 
 const findNoCodeHProject = (rootNode: VFSNode): boolean => {
-    return rootNode.type === 'directory' && rootNode.children.some(c => c.name === '.nocodeh');
+    if (rootNode.type !== 'directory') return false;
+    return rootNode.children.some(c => c.name === '.nocodeh');
 };
 
 
