@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   },
   // This is required for isomorphic-git to work.
   transpilePackages: ['isomorphic-git'],
+  // Set output to 'export' for static builds that Electron can use
+  output: 'export',
 };
 
 export default nextConfig;
