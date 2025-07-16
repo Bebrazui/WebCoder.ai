@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -32,7 +33,7 @@ type SidebarContext = {
   setOpen: (open: boolean) => void
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
-  isMobile: boolean
+  isMobile: boolean | undefined
   toggleSidebar: () => void
 }
 
@@ -172,7 +173,9 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, open, openMobile, setOpenMobile } = useSidebar()
-
+    
+    // On the server, isMobile is undefined. We should render the desktop sidebar markup
+    // to avoid a hydration mismatch. The mobile view will be rendered on the client if needed.
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
