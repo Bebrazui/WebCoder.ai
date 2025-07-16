@@ -71,8 +71,10 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository }: WelcomeScreen
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
                      <Link href="/nocode" passHref>
-                        <Button variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
-                            <Gamepad2 className="mr-2"/> NoCodeH (By WebCoder)
+                        <Button asChild variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
+                            <a>
+                                <Gamepad2 className="mr-2"/> NoCodeH (By WebCoder)
+                            </a>
                         </Button>
                     </Link>
                     <Button variant="outline" size="lg" onClick={() => handleCreateProject('React')}>
