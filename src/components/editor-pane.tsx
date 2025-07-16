@@ -10,7 +10,7 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Save } from "lucide-react";
+import { X, Save, Code } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { FileIcon } from "./file-icon";
@@ -18,7 +18,6 @@ import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
 import { isTextFile, isImageFile, isAudioFile, isClassFile, isSceneFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
-import { WelcomeScreen } from "./welcome-screen";
 import { SceneEditor } from "./scene-editor";
 
 interface EditorPaneProps {
@@ -31,9 +30,6 @@ interface EditorPaneProps {
   onFileSave: (path: string) => void;
   onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onOutlineChange: (outline: OutlineData[]) => void;
-  onOpenFolder: () => void;
-  onCloneRepository: (url: string) => Promise<boolean>;
-  onCreateNoCodeProject: () => void;
 }
 
 export function EditorPane({
@@ -46,13 +42,17 @@ export function EditorPane({
   onFileSave,
   onEditorReady,
   onOutlineChange,
-  onOpenFolder,
-  onCloneRepository,
-  onCreateNoCodeProject,
 }: EditorPaneProps) {
 
   if (openFiles.length === 0) {
-    return <WelcomeScreen onOpenFolder={onOpenFolder} onCloneRepository={onCloneRepository} onCreateNoCodeProject={onCreateNoCodeProject} />;
+    return (
+      <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground bg-background">
+        <Code className="h-16 w-16 mb-4" />
+        <h2 className="text-xl font-medium font-headline">No file selected</h2>
+        <p>Select a file from the explorer to begin editing.</p>
+        <p className="text-xs mt-2">Right-click in the explorer to create new files or folders.</p>
+      </div>
+    );
   }
 
   const AudioPlayer = ({ file }: { file: VFSFile }) => {

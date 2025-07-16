@@ -11,18 +11,19 @@ export default function Home() {
 
   if (vfs.loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center bg-background">
         <Skeleton className="h-32 w-32" />
       </div>
     );
   }
 
-  // Check if it's the default "empty" project
+  // Check if it's the default "empty" project which means nothing is loaded.
   const isDefaultProject = 
     vfs.vfsRoot.children.length === 1 &&
     vfs.vfsRoot.children[0].name === 'welcome.md';
 
   if (isDefaultProject) {
+    // Render ONLY the welcome screen if no project is loaded
     return (
       <main>
         <h1 className="sr-only">WebCoder.ai - Project Hub</h1>

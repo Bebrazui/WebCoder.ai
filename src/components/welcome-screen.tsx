@@ -24,6 +24,10 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeP
     if (e.target.files && e.target.files[0]) {
       onAddZipToVfs(e.target.files[0]);
     }
+    // Reset input to allow uploading the same file again
+    if (e.target) {
+      e.target.value = '';
+    }
   };
   
   const handleCreateProject = (lang: string) => {

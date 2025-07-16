@@ -327,11 +327,6 @@ export function Ide({ vfs }: IdeProps) {
     }
   };
 
-  const handleCreateNoCodeProject = () => {
-    createNoCodeHProject();
-    resetEditorState();
-  };
-
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
@@ -404,9 +399,6 @@ export function Ide({ vfs }: IdeProps) {
                     onFileSave={handleSaveFile}
                     onEditorReady={(editor) => { editorRef.current = editor }}
                     onOutlineChange={setOutlineData}
-                    onOpenFolder={handleOpenFolder}
-                    onCloneRepository={handleCloneRepo}
-                    onCreateNoCodeProject={handleCreateNoCodeProject}
                 />
               </ResizablePanel>
               {isTerminalOpen && (
