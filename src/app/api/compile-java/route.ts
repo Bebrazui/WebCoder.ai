@@ -10,12 +10,12 @@ import { dataURIToArrayBuffer } from '@/lib/utils';
 async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'proj-compile-'));
 
-    const writeFile = async (node: VFSNode, currentPath: string) => {
+    const writeFileRecursive = async (node: VFSNode, currentPath: string) => {
         const fullPath = path.join(currentPath, node.name);
         if (node.type === 'directory') {
             await fs.mkdir(fullPath, { recursive: true });
             for (const child of node.children) {
-                await writeFile(child, fullPath);
+                await writeFileRecursive(child, fullPath);
             }
         } else {
              const content = node.content.startsWith('data:')
@@ -25,14 +25,16 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         }
     };
     
-    // If projectFiles is [vfsRoot], we iterate its children into the tempDir
-    if (projectFiles.length > 0 && projectFiles[0].type === 'directory') {
-        for (const file of projectFiles[0].children) {
-            await writeFile(file, tempDir);
+    // The project files are usually passed as a single root directory node.
+    // We want to write the *children* of that root node into our temp directory.
+    if (projectFiles.length === 1 && projectFiles[0].type === 'directory') {
+        const rootNode = projectFiles[0];
+        for (const child of rootNode.children) {
+            await writeFileRecursive(child, tempDir);
         }
-    } else { // Fallback for flat array of files
+    } else { // Fallback for a flat array of files (less common case)
         for (const file of projectFiles) {
-            await writeFile(file, tempDir);
+            await writeFileRecursive(file, tempDir);
         }
     }
     return tempDir;
