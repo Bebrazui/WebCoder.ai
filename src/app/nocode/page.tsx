@@ -1,11 +1,11 @@
 // src/app/nocode/page.tsx
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle } from 'lucide-react';
+import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const TILE_TYPES = {
@@ -21,10 +21,10 @@ type TileValue = (typeof TILE_TYPES)[TileType];
 
 const TILE_COMPONENTS: Record<TileValue, React.FC<{ className?: string }>> = {
   [TILE_TYPES.EMPTY]: () => null,
-  [TILE_TYPES.PLAYER]: ({ className }) => <User className={cn("h-6 w-6 text-blue-500", className)} />,
-  [TILE_TYPES.WALL]: ({ className }) => <BrickWall className={cn("h-6 w-6 text-gray-600", className)} />,
-  [TILE_TYPES.COIN]: ({ className }) => <CircleDollarSign className={cn("h-6 w-6 text-yellow-500", className)} />,
-  [TILE_TYPES.ENEMY]: ({ className }) => <Ghost className={cn("h-6 w-6 text-red-500", className)} />,
+  [TILE_TYPES.PLAYER]: ({ className }) => <User className={cn("h-full w-full p-0.5 text-blue-500", className)} />,
+  [TILE_TYPES.WALL]: ({ className }) => <BrickWall className={cn("h-full w-full text-gray-600", className)} />,
+  [TILE_TYPES.COIN]: ({ className }) => <CircleDollarSign className={cn("h-full w-full p-1 text-yellow-500", className)} />,
+  [TILE_TYPES.ENEMY]: ({ className }) => <Ghost className={cn("h-full w-full p-0.5 text-red-500", className)} />,
 };
 
 const PALETTE_ITEMS: { name: Exclude<TileType, 'EMPTY'> | 'ERASER'; icon: React.ReactNode; value: TileValue | 'ERASER' }[] = [
@@ -43,7 +43,7 @@ export default function NoCodeHPage() {
   const [activeBrush, setActiveBrush] = useState<TileValue | 'ERASER'>(TILE_TYPES.WALL);
   const [isPainting, setIsPainting] = useState(false);
 
-  const handleTileClick = (index: number) => {
+  const handleTileClick = useCallback((index: number) => {
     const newGrid = [...grid];
     const valueToSet = activeBrush === 'ERASER' ? TILE_TYPES.EMPTY : activeBrush;
     
@@ -57,13 +57,13 @@ export default function NoCodeHPage() {
 
     newGrid[index] = valueToSet;
     setGrid(newGrid);
-  };
+  }, [activeBrush, grid]);
 
-  const handleTileInteraction = (index: number, isClick: boolean) => {
+  const handleTileInteraction = useCallback((index: number, isClick: boolean) => {
     if (isClick || isPainting) {
       handleTileClick(index);
     }
-  };
+  }, [isPainting, handleTileClick]);
 
   const handleLaunchGame = () => {
     const hasPlayer = grid.some(tile => tile === TILE_TYPES.PLAYER);
@@ -79,7 +79,7 @@ export default function NoCodeHPage() {
     window.open('/nocode/play', '_blank');
   };
 
-  const Tile = useMemo(() => ({ value, index }: { value: TileValue; index: number }) => {
+  const Tile = useCallback(({ value, index }: { value: TileValue; index: number }) => {
     const TileIcon = TILE_COMPONENTS[value];
     return (
       <div
@@ -90,11 +90,11 @@ export default function NoCodeHPage() {
         <TileIcon />
       </div>
     );
-  }, [isPainting]);
+  }, [handleTileInteraction]);
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-background text-foreground p-4 gap-4" onMouseUp={() => setIsPainting(false)}>
-      <Card className="w-full lg:w-72 flex-shrink-0">
+    <div className="flex flex-col lg:flex-row h-screen bg-background text-foreground p-4 gap-4" onMouseUp={() => setIsPainting(false)} onMouseLeave={() => setIsPainting(false)}>
+      <Card className="w-full lg:w-80 flex-shrink-0">
         <CardHeader>
           <CardTitle>NoCodeH Editor</CardTitle>
         </CardHeader>
@@ -127,27 +127,28 @@ export default function NoCodeHPage() {
             Launch Game
           </Button>
            <Button size="lg" variant="destructive" className="w-full" onClick={() => setGrid(defaultGrid)}>
+            <Trash2 className="mr-2" />
             Clear Grid
           </Button>
         </CardContent>
       </Card>
       
-      <div className="flex-grow flex items-center justify-center bg-muted/30 rounded-lg p-4">
+      <main className="flex-grow flex items-center justify-center bg-muted/30 rounded-lg p-4">
           <div 
-            className="grid"
+            className="grid bg-background shadow-inner"
             style={{ 
               gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
               width: '100%',
-              maxWidth: 'calc(90vh - 8rem)', // Prevent grid from becoming too large
-              aspectRatio: '1 / 1'
+              maxWidth: 'calc(95vh - 4rem)', // Prevent grid from becoming too large
+              aspectRatio: '1 / 1',
+              border: '1px solid hsl(var(--border))',
             }}
-            onMouseLeave={() => setIsPainting(false)}
           >
               {grid.map((tile, index) => (
                   <Tile key={index} value={tile} index={index} />
               ))}
           </div>
-      </div>
+      </main>
     </div>
   );
 }

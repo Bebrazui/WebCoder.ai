@@ -46,8 +46,8 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository }: WelcomeScreen
             {/* Left Side: Get Started */}
             <Card className="flex flex-col">
                 <CardHeader>
-                    <CardTitle>Get Started</CardTitle>
-                    <CardDescription>Import or open an existing project.</CardDescription>
+                    <CardTitle>Open an Existing Project</CardTitle>
+                    <CardDescription>Import from your computer or a repository.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
                      <Button variant="outline" size="lg" onClick={onOpenFolder}>
@@ -73,7 +73,7 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository }: WelcomeScreen
                      <Link href="/nocode" passHref>
                         <Button asChild variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
                             <a>
-                                <Gamepad2 className="mr-2"/> NoCodeH (By WebCoder)
+                                <Gamepad2 className="mr-2"/> No-Code Game Editor
                             </a>
                         </Button>
                     </Link>
