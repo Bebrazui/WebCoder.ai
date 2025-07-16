@@ -1,13 +1,14 @@
 // src/app/nocode/page.tsx
 "use client";
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle, Trash2, Upload } from 'lucide-react';
+import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 const TILE_TYPES = {
   EMPTY: 0,
@@ -44,6 +45,22 @@ export default function NoCodeHPage() {
   const [activeBrush, setActiveBrush] = useState<TileValue | 'ERASER'>(TILE_TYPES.WALL);
   const [isPainting, setIsPainting] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [textureToUpload, setTextureToUpload] = useState<string | null>(null);
+  const [customTextures, setCustomTextures] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+      const loadedTextures: Record<string, string> = {};
+      PALETTE_ITEMS.forEach(item => {
+          if (item.name !== 'ERASER') {
+              const storedTexture = localStorage.getItem(`nocodeh-texture-${item.name}`);
+              if (storedTexture) {
+                  loadedTextures[item.name] = storedTexture;
+              }
+          }
+      });
+      setCustomTextures(loadedTextures);
+  }, []);
 
   const handleTileClick = useCallback((index: number) => {
     const newGrid = [...grid];
@@ -86,13 +103,33 @@ export default function NoCodeHPage() {
           description: "The level has been reset."
       })
   }
-
-  const handleUploadTexture = (itemName: string) => {
-      toast({
-          title: "Feature Coming Soon!",
-          description: `Texture upload for ${itemName} is not yet implemented.`,
-      })
-  }
+  
+  const handleUploadTextureClick = (itemName: string) => {
+    setTextureToUpload(itemName);
+    fileInputRef.current?.click();
+  };
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && textureToUpload) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUri = e.target?.result as string;
+            localStorage.setItem(`nocodeh-texture-${textureToUpload}`, dataUri);
+            setCustomTextures(prev => ({...prev, [textureToUpload]: dataUri }));
+            toast({
+                title: "Texture Uploaded",
+                description: `Custom texture for ${textureToUpload} has been saved.`
+            });
+            setTextureToUpload(null);
+        };
+        reader.readAsDataURL(file);
+    }
+    // Reset file input value to allow re-uploading the same file
+    if(event.target) {
+      event.target.value = '';
+    }
+  };
 
   const Tile = useCallback(({ value, index }: { value: TileValue; index: number }) => {
     const TileIcon = TILE_COMPONENTS[value];
@@ -119,12 +156,13 @@ export default function NoCodeHPage() {
             <HelpCircle className="h-4 w-4" />
             <AlertTitle>How to Use</AlertTitle>
             <AlertDescription>
-              Select an item from the palette and click or drag on the grid to design your level. Click "Launch Game" to play!
+              Select an item, upload a custom texture (optional), and click or drag on the grid.
             </AlertDescription>
           </Alert>
           <div>
             <h3 className="font-semibold mb-3 text-lg">Palette</h3>
             <div className="space-y-2">
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
               {PALETTE_ITEMS.map(item => (
                 <div
                   key={item.name}
@@ -135,13 +173,17 @@ export default function NoCodeHPage() {
                   )}
                 >
                     <div className="flex items-center gap-3">
-                        <div className={cn("h-10 w-10 flex items-center justify-center rounded-md bg-muted text-muted-foreground",  activeBrush === item.value && "bg-primary text-primary-foreground")}>
-                            {item.icon}
+                        <div className={cn("h-10 w-10 flex items-center justify-center rounded-md bg-muted text-muted-foreground relative overflow-hidden",  activeBrush === item.value && "bg-primary text-primary-foreground")}>
+                            {customTextures[item.name] ? (
+                                <Image src={customTextures[item.name]} alt={`${item.name} texture`} layout="fill" objectFit="cover" />
+                            ) : (
+                               item.icon
+                            )}
                         </div>
                         <span className="font-medium">{item.name}</span>
                     </div>
                     {item.name !== 'ERASER' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleUploadTexture(item.name)}}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleUploadTextureClick(item.name)}}>
                             <Upload className="h-4 w-4"/>
                         </Button>
                     )}

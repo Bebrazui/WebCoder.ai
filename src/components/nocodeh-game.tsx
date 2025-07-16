@@ -2,11 +2,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { User, BrickWall, CircleDollarSign, Ghost, Crown, XCircle, Gamepad2 } from 'lucide-react';
+import { User, CircleDollarSign, Ghost, Crown, XCircle, Gamepad2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import Image from 'next/image';
 
 const TILE_TYPES = {
   EMPTY: 0,
@@ -16,15 +17,8 @@ const TILE_TYPES = {
   ENEMY: 4,
 } as const;
 
-type TileValue = (typeof TILE_TYPES)[keyof typeof TILE_TYPES];
-
-const TILE_COMPONENTS: Record<TileValue, React.FC<{ className?: string }>> = {
-  [TILE_TYPES.EMPTY]: () => null,
-  [TILE_TYPES.PLAYER]: ({ className }) => <User className={cn("h-full w-full p-1 text-blue-400 transition-all duration-200", className)} />,
-  [TILE_TYPES.WALL]: ({ className }) => <div className="h-full w-full bg-gray-700/50" />,
-  [TILE_TYPES.COIN]: ({ className }) => <CircleDollarSign className={cn("h-full w-full p-1.5 text-yellow-400 animate-pulse", className)} />,
-  [TILE_TYPES.ENEMY]: ({ className }) => <Ghost className={cn("h-full w-full p-1 text-red-500", className)} />,
-};
+type TileTypeKey = keyof typeof TILE_TYPES;
+type TileValue = (typeof TILE_TYPES)[TileTypeKey];
 
 export interface LevelData {
   grid: TileValue[];
@@ -39,6 +33,37 @@ export function NoCodeHGame({ initialLevelData }: NoCodeHGameProps) {
   const [grid, setGrid] = useState<TileValue[]>(initialLevelData.grid);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
+  const [customTextures, setCustomTextures] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // Load textures from localStorage on client-side mount
+    const loadedTextures: Record<string, string> = {};
+    Object.keys(TILE_TYPES).forEach(key => {
+        const texture = localStorage.getItem(`nocodeh-texture-${key}`);
+        if (texture) {
+            loadedTextures[key] = texture;
+        }
+    });
+    setCustomTextures(loadedTextures);
+  }, []);
+
+  const TileComponent = useCallback(({ type }: { type: TileValue }) => {
+    const typeName = (Object.keys(TILE_TYPES) as TileTypeKey[]).find(key => TILE_TYPES[key] === type);
+    const texture = typeName ? customTextures[typeName] : null;
+
+    if (texture) {
+      return <Image src={texture} alt={`${typeName} texture`} layout="fill" objectFit="contain" className="p-0.5" />;
+    }
+
+    switch (type) {
+        case TILE_TYPES.PLAYER: return <User className="h-full w-full p-1 text-blue-400 transition-all duration-200" />;
+        case TILE_TYPES.WALL: return <div className="h-full w-full bg-gray-700/50" />;
+        case TILE_TYPES.COIN: return <CircleDollarSign className="h-full w-full p-1.5 text-yellow-400 animate-pulse" />;
+        case TILE_TYPES.ENEMY: return <Ghost className="h-full w-full p-1 text-red-500" />;
+        default: return null;
+    }
+  }, [customTextures]);
+
 
   const initialPlayerIndex = useMemo(() => initialLevelData.grid.findIndex(tile => tile === TILE_TYPES.PLAYER), [initialLevelData.grid]);
 
@@ -154,10 +179,9 @@ export function NoCodeHGame({ initialLevelData }: NoCodeHGameProps) {
                 }}
               >
                 {grid.map((tile, index) => {
-                  const TileIcon = TILE_COMPONENTS[tile];
                   return (
-                    <div key={index} className="flex items-center justify-center bg-gray-800/50 border border-gray-700/30">
-                        <TileIcon />
+                    <div key={index} className="relative flex items-center justify-center bg-gray-800/50 border border-gray-700/30">
+                        <TileComponent type={tile} />
                     </div>
                   );
                 })}
