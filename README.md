@@ -1,39 +1,39 @@
 # Firebase Studio
 
-This is a NextJS starter in Firebase Studio, now configured to run as a cross-platform desktop application using Electron.
+Это стартовый проект NextJS в Firebase Studio, теперь настроенный для работы как кроссплатформенное десктопное приложение с использованием Electron.
 
-## Getting Started
+## Начало работы
 
-To get started, take a look at `src/app/page.tsx`.
+Для начала работы взгляните на файл `src/app/page.tsx`.
 
-## Running the Application
+## Запуск приложения
 
-### As a Web App
+### Как веб-приложение
 
-To run the application in your browser for standard web development:
+Чтобы запустить приложение в браузере для стандартной веб-разработки:
 
 ```bash
 npm run dev
 ```
 
-### As a Desktop App (Electron)
+### Как десктопное приложение (Electron)
 
-**1. Run in Development Mode:**
+**1. Запуск в режиме разработки:**
 
-This will start the Next.js development server and open it in an Electron window. This is ideal for testing and debugging.
+Эта команда запустит сервер разработки Next.js и откроет его в окне Electron. Это идеально подходит для тестирования и отладки.
 
 ```bash
 npm run electron:dev
 ```
 
-**2. Build for Production:**
+**2. Сборка для продакшена:**
 
-This command will first build your Next.js application into static files and then package it into an executable for your current operating system (e.g., `.exe` for Windows, `.dmg` for macOS).
+Эта команда сначала соберет ваше Next.js-приложение в статические файлы, а затем упакует его в исполняемый файл для вашей текущей операционной системы (например, `.exe` для Windows, `.dmg` для macOS).
 
 ```bash
 npm run electron:build
 ```
 
-After the build is complete, you will find the finished application inside the `dist` directory.
+После завершения сборки вы найдете готовое приложение в каталоге `dist`.
 
-> **Note:** The first time you run a build, it may take a few minutes to download the required Electron binaries.
+> **Примечание:** При первой сборке может потребоваться несколько минут для загрузки необходимых бинарных файлов Electron.
