@@ -8,7 +8,6 @@ import { AppStateProvider } from '@/hooks/use-app-state';
 export const metadata: Metadata = {
   title: 'WebCoder.ai',
   description: 'A web-based IDE with AI-powered code transformation.',
-  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -27,8 +26,6 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;500;600&display=swap" rel="stylesheet" />
-        <meta name="theme-color" content="#1e293b" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png"></link>
       </head>
       <body className="font-body antialiased">
         <AppStateProvider>

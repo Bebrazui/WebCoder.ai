@@ -1,12 +1,4 @@
 import type {NextConfig} from 'next';
-import withPWAInit from "@ducanh2912/next-pwa";
-
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  // add more options here
-});
-
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -30,4 +22,4 @@ const nextConfig: NextConfig = {
   transpilePackages: ['isomorphic-git'],
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;

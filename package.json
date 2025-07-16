@@ -20,7 +20,6 @@
     "electron:build": "next build && electron-builder"
   },
   "dependencies": {
-    "@ducanh2912/next-pwa": "^10.2.7",
     "@genkit-ai/googleai": "^1.13.0",
     "@genkit-ai/next": "^1.13.0",
     "@hookform/resolvers": "^4.1.3",
