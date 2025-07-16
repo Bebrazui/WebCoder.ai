@@ -12,6 +12,7 @@ import {
   FileArchive,
   Table,
   Terminal,
+  Gamepad2
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 
@@ -23,6 +24,12 @@ export function FileIcon({ filename, ...props }: FileIconProps) {
   const extension = filename.split(".").pop()?.toLowerCase();
 
   switch (extension) {
+    // NoCodeH Project Files
+    case "nocodeh":
+    case "scene":
+    case "object":
+        return <Gamepad2 {...props} color="#a855f7" />;
+
     // Code
     case "js":
     case "jsx":

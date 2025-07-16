@@ -527,7 +527,7 @@ export function useVfs() {
   const moveNodeInVfs = useCallback((sourcePath: string, targetDirPath: string): {newPath: string} | null => {
     let newPath: string | null = null;
     setVfsRoot(currentRoot => {
-        const newRoot = JSON.parse(JSON.stringify(currentRoot));
+        const newRoot = { ...currentRoot };
         const sourceResult = findNodeAndParent(newRoot, sourcePath);
         const targetResult = findNodeAndParent(newRoot, targetDirPath);
 
@@ -804,7 +804,7 @@ export function useVfs() {
         const buildFolder = data.data.buildOutput as VFSDirectory;
         
         setVfsRoot(currentRoot => {
-            const newRoot = { ...currentRoot };
+            const newRoot = JSON.parse(JSON.stringify(currentRoot));
             const existingBuildIndex = newRoot.children.findIndex(c => c.name === 'build' && c.type === 'directory');
             if (existingBuildIndex !== -1) {
                 newRoot.children[existingBuildIndex] = buildFolder;
@@ -822,6 +822,48 @@ export function useVfs() {
         return false;
     }
   }, [vfsRoot, toast, saveVfs]);
+  
+  const createNoCodeHProject = useCallback(() => {
+    const newRoot = createDirectory("NoCodeH Game", "/");
+    
+    // Marker file
+    newRoot.children.push(createFile('.nocodeh', '/.nocodeh', ''));
+
+    // Main config
+    const gameConfig = {
+        "name": "My NoCodeH Game",
+        "version": "1.0.0",
+        "start_scene": "/scenes/main.scene"
+    };
+    newRoot.children.push(createFile('game.json', '/game.json', JSON.stringify(gameConfig, null, 2)));
+
+    // Folders
+    const scenesDir = createDirectory('scenes', '/scenes');
+    const assetsDir = createDirectory('assets', '/assets');
+    const objectsDir = createDirectory('objects', '/objects');
+    
+    // Default scene
+    const mainScene = {
+        "name": "Main Scene",
+        "objects": [
+            { "id": "player_1", "type": "player", "x": 5, "y": 5 },
+            { "id": "wall_1", "type": "wall", "x": 3, "y": 3 },
+        ]
+    };
+    scenesDir.children.push(createFile('main.scene', '/scenes/main.scene', JSON.stringify(mainScene, null, 2)));
+    
+    // Default objects (can be expanded later)
+    objectsDir.children.push(createFile('player.object', '/objects/player.object', JSON.stringify({ "name": "Player", "components": ["Sprite", "PlayerController"] }, null, 2)));
+    objectsDir.children.push(createFile('wall.object', '/objects/wall.object', JSON.stringify({ "name": "Wall", "components": ["Sprite", "Collider"] }, null, 2)));
+
+    newRoot.children.push(scenesDir);
+    newRoot.children.push(assetsDir);
+    newRoot.children.push(objectsDir);
+
+    setVfsRoot(newRoot);
+    saveVfs(newRoot);
+    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready in the explorer." });
+  }, [saveVfs, toast]);
 
 
   return { 
@@ -845,5 +887,6 @@ export function useVfs() {
     commit,
     findFileByPath,
     compileJavaProject,
+    createNoCodeHProject,
   };
 }

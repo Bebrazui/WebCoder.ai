@@ -18,7 +18,7 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onOpenFolder, onCloneRepository }: WelcomeScreenProps) {
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const zipInputRef = useRef<HTMLInputElement>(null);
-  const { addZipToVfs } = useVfs();
+  const { addZipToVfs, createNoCodeHProject } = useVfs();
   const { toast } = useToast();
 
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,13 +70,9 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository }: WelcomeScreen
                     <CardDescription>Start a new project from a template.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
-                     <Link href="/nocode" passHref>
-                        <Button asChild variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
-                            <a>
-                                <Gamepad2 className="mr-2"/> No-Code Game Editor
-                            </a>
-                        </Button>
-                    </Link>
+                    <Button onClick={createNoCodeHProject} variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
+                        <Gamepad2 className="mr-2"/> No-Code Game Project
+                    </Button>
                     <Button variant="outline" size="lg" onClick={() => handleCreateProject('React')}>
                         <Code2 className="mr-2"/> New React Project
                     </Button>
