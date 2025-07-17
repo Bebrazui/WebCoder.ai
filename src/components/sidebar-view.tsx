@@ -5,7 +5,7 @@ import { useState } from "react";
 import { FileExplorer, type FileExplorerProps, LaunchConfig } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench, HeartPulse } from "lucide-react";
+import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench, HeartPulse, Globe } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { GitStatus } from "@/hooks/use-vfs";
@@ -16,6 +16,7 @@ import type * as monaco from 'monaco-editor';
 import { useVfs } from "@/hooks/use-vfs";
 import { ToolsView } from "./plugins/tools-view";
 import { ProjectHealthView } from "./plugins/project-health-view";
+import { BrowserView } from "./plugins/browser-view";
 
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'launchConfigs'> {
@@ -28,7 +29,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'lau
     launchConfigs: LaunchConfig[];
 }
 
-type View = "explorer" | "source-control" | "outline" | "run" | "plugins" | "utilities" | "health";
+type View = "explorer" | "source-control" | "outline" | "run" | "plugins" | "utilities" | "health" | "browser";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -51,6 +52,12 @@ export function Sidebar(props: SidebarProps) {
       icon: PlayCircle,
       label: "Run and Debug",
       component: <RunView onSelectFile={props.onSelectFile} />
+    },
+    {
+      id: "browser",
+      icon: Globe,
+      label: "Web Browser",
+      component: <BrowserView />
     },
     {
       id: "outline",
