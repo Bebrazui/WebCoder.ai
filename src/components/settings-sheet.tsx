@@ -144,16 +144,6 @@ export function SettingsSheet() {
                         />
                     </div>
                 </div>
-                 <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="trash-can" className="col-span-2">Drag & Drop Trash</Label>
-                    <div className="col-span-1 flex justify-end">
-                        <Switch
-                            id="trash-can"
-                            checked={editorSettings.trashCanEnabled}
-                            onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, trashCanEnabled: checked })}
-                        />
-                    </div>
-                </div>
             </div>
 
             </div>

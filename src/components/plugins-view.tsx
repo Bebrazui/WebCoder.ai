@@ -1,10 +1,10 @@
-
+// src/components/plugins-view.tsx
 "use client";
 
-import { useState } from "react";
 import { Puzzle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolsView } from "@/components/plugins/tools-view";
+import { MarketplaceView } from "@/components/plugins/marketplace-view";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 
@@ -21,7 +21,7 @@ export function PluginsView() {
         <div className="px-4 pt-2 flex-shrink-0">
             <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="tools">Utilities</TabsTrigger>
-                <TabsTrigger value="marketplace" disabled>Marketplace</TabsTrigger>
+                <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
             </TabsList>
         </div>
         <TabsContent value="tools" className="flex-grow mt-2 flex flex-col overflow-y-hidden">
@@ -29,8 +29,10 @@ export function PluginsView() {
                 <ToolsView />
             </ScrollArea>
         </TabsContent>
-        <TabsContent value="marketplace" className="flex-grow mt-0">
-          {/* Marketplace content will go here */}
+        <TabsContent value="marketplace" className="flex-grow mt-2 flex flex-col overflow-y-hidden">
+            <ScrollArea className="h-full scrollbar-hide">
+                <MarketplaceView />
+            </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>
