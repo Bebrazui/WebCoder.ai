@@ -24,8 +24,10 @@ export function PluginsView() {
                 <TabsTrigger value="marketplace" disabled>Marketplace</TabsTrigger>
             </TabsList>
         </div>
-        <TabsContent value="tools" className="flex-grow overflow-y-auto mt-2">
-            <ToolsView />
+        <TabsContent value="tools" className="flex-grow mt-2 flex flex-col overflow-y-hidden">
+            <ScrollArea className="h-full scrollbar-hide">
+                <ToolsView />
+            </ScrollArea>
         </TabsContent>
         <TabsContent value="marketplace" className="flex-grow mt-0">
           {/* Marketplace content will go here */}
