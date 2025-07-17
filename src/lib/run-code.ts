@@ -135,12 +135,15 @@ const runners = {
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         const args = [scriptPath, JSON.stringify(config.args)];
-
-        // Try 'python3' first, as it's more common in modern Linux environments.
-        let result = await executeCommand('python3', args, tempDir);
         
-        // If 'python3' is not found (ENOENT), try 'python'.
-        if (result.code === 127 && result.stderr.includes('command not found')) {
+        // Use the specific command from the config if available (e.g., 'python3'),
+        // otherwise default to a smart check.
+        const command = config.command || 'python3';
+
+        let result = await executeCommand(command, args, tempDir);
+        
+        // If the specified command failed, and it was 'python3', try 'python' as a fallback.
+        if (result.code === 127 && command === 'python3' && result.stderr.includes('command not found')) {
             console.log("`python3` not found, trying `python`...");
             result = await executeCommand('python', args, tempDir);
         }

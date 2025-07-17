@@ -152,28 +152,28 @@ export function TerminalView() {
 
 
     const executeSystemCommand = async (command: string, args: string[]): Promise<{ stdout: string, stderr: string, code: number | null }> => {
-        const programPath = args[0]; // e.g. "my_script.py"
-        if (!programPath) {
-            return { stdout: '', stderr: 'No script specified.', code: 1 };
-        }
+        const programPath = args[0];
         
         let runnerType = '';
-        const extension = command.split('.').pop();
+        const extension = programPath?.split('.').pop();
+        
         if (command === 'python' || command === 'python3' || extension === 'py') runnerType = 'python';
         else if (command === 'go' && args[0] === 'run') { runnerType = 'go'; args.shift(); }
         else if (command === 'ruby' || extension === 'rb') runnerType = 'ruby';
         else if (command === 'php' || extension === 'php') runnerType = 'php';
-        // Add more runners as needed
 
         if (!runnerType) {
             return { stdout: '', stderr: `Unknown command: ${command}`, code: 1 };
         }
+         if (!programPath) {
+            return { stdout: '', stderr: 'No script specified.', code: 1 };
+        }
         
-        // This is a simplified execution model. We pass the whole project and a config.
         const config = {
             name: `Terminal Run: ${command} ${programPath}`,
             type: runnerType,
             request: 'launch',
+            command: command, // Pass the actual command used (python vs python3)
             program: programPath,
             args: {} // Terminal args parsing is complex, skipping for now.
         };
@@ -333,12 +333,10 @@ export function TerminalView() {
                 const entry = entries[0];
                 if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
                     try {
-                         // Debounce or use rAF to avoid excessive calls
                         requestAnimationFrame(() => {
                             termInstance.current?.fitAddon.fit();
                         });
                     } catch(e) {
-                         // This can still fail on rapid resizes, safe to ignore.
                          console.warn("FitAddon failed:", e);
                     }
                 }
