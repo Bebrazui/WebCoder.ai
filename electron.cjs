@@ -1,47 +1,37 @@
-
-// electron.cjs
+// main.js
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('node:path');
 const createMenuTemplate = require('./menu.js');
 
-// URL для разработки и для продакшена
-const devUrl = 'http://localhost:9002';
-const prodUrl = `file://${path.join(__dirname, 'out', 'index.html')}`;
 const isDev = process.env.NODE_ENV !== 'production';
 
-let mainWindow;
-
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      // Важно для интеграции с Node.js в рендерере, если потребуется
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-    // Добавляем эти опции для кастомной рамки
+    // Эти опции включают кастомную рамку
     frame: false,
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 15, y: 15 }, // Для macOS
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      // Эти опции важны для безопасности, но для разработки
+      // и интеграции с Next.js мы их настраиваем так:
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
   });
 
-  // Устанавливаем меню приложения
-  const menuTemplate = createMenuTemplate(app, mainWindow);
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  Menu.setApplicationMenu(menu);
+  // Загружаем URL в зависимости от режима (разработка или продакшн)
+  const startUrl = isDev ? 'http://localhost:9002' : `file://${path.join(__dirname, 'out/index.html')}`;
+  mainWindow.loadURL(startUrl);
 
-  // Загружаем URL
-  const urlToLoad = isDev ? devUrl : prodUrl;
-  mainWindow.loadURL(urlToLoad);
-
-  // Открываем DevTools, если в режиме разработки
+  // Открываем DevTools в режиме разработки
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
-  // --- IPC обработчики для управления окном ---
+  // --- IPC Handlers for window controls ---
   ipcMain.on('window:minimize', () => {
     mainWindow.minimize();
   });
@@ -58,6 +48,7 @@ function createWindow() {
     mainWindow.close();
   });
   
+  // Send maximization state to renderer
   mainWindow.on('maximize', () => {
     mainWindow.webContents.send('window:isMaximized', true);
   });
@@ -65,19 +56,26 @@ function createWindow() {
   mainWindow.on('unmaximize', () => {
     mainWindow.webContents.send('window:isMaximized', false);
   });
+  
+  // --- Application Menu ---
+  const menuTemplate = createMenuTemplate(app, mainWindow);
+  const menu = Menu.buildFromTemplate(menuTemplate);
+  Menu.setApplicationMenu(menu);
 
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
   }
 });

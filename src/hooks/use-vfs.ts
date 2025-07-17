@@ -812,7 +812,7 @@ export function useVfs() {
         
         setVfsRoot(currentRoot => {
             const newRoot = JSON.parse(JSON.stringify(currentRoot));
-            const existingBuildIndex = newRoot.children.findIndex(c => c.name === 'build' && c.type === 'directory');
+            const existingBuildIndex = newRoot.children.findIndex((c:VFSNode) => c.name === 'build' && c.type === 'directory');
             if (existingBuildIndex !== -1) {
                 newRoot.children[existingBuildIndex] = buildFolder;
             } else {
@@ -867,6 +867,20 @@ export function useVfs() {
     toast({ title: "NoCodeH Project Created", description: "Your new game project is ready in the explorer." });
   }, [saveVfs, toast]);
 
+  const createBlankProject = useCallback(() => {
+    const newRoot = createDirectory("Blank Project", "/");
+    newRoot.children.push(createFile(
+        "README.md", 
+        "/README.md", 
+        `# My Blank Project
+
+Start adding your files here!`
+    ));
+    setVfsRoot(newRoot);
+    saveVfs(newRoot);
+    toast({ title: "Blank Project Created", description: "A new empty project has been initialized." });
+  }, [saveVfs, toast]);
+
 
   return { 
     vfsRoot, 
@@ -890,5 +904,6 @@ export function useVfs() {
     findFileByPath,
     compileJavaProject,
     createNoCodeHProject,
+    createBlankProject,
   };
 }

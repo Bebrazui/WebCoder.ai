@@ -35,6 +35,7 @@ export default function Home() {
           onCloneRepository={vfs.cloneRepository}
           onCreateNoCodeProject={vfs.createNoCodeHProject}
           onAddZipToVfs={vfs.addZipToVfs}
+          onCreateBlankProject={vfs.createBlankProject}
         />
       </main>
     );

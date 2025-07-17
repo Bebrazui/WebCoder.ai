@@ -13,9 +13,10 @@ interface WelcomeScreenProps {
   onCloneRepository: (url: string) => Promise<boolean>;
   onCreateNoCodeProject: () => void;
   onAddZipToVfs: (file: File) => void;
+  onCreateBlankProject: () => void;
 }
 
-export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeProject, onAddZipToVfs }: WelcomeScreenProps) {
+export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeProject, onAddZipToVfs, onCreateBlankProject }: WelcomeScreenProps) {
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -73,14 +74,14 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeP
                     <CardDescription>Start a new project from a template.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
+                    <Button onClick={onCreateBlankProject} variant="outline" size="lg">
+                        <FilePlus className="mr-2"/> Blank Project
+                    </Button>
                     <Button onClick={onCreateNoCodeProject} variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
                         <Gamepad2 className="mr-2"/> No-Code Game Project
                     </Button>
                     <Button variant="outline" size="lg" onClick={() => handleCreateProject('React')}>
                         <Code2 className="mr-2"/> New React Project
-                    </Button>
-                    <Button variant="outline" size="lg" onClick={() => handleCreateProject('Vanilla JS')}>
-                        <FilePlus className="mr-2"/> Blank Project
                     </Button>
                 </CardContent>
             </Card>
