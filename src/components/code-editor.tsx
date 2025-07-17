@@ -274,6 +274,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
           minimap: { enabled: true },
           automaticLayout: true,
           scrollBeyondLastLine: false,
+          cursorSmoothCaretAnimation: 'on',
         }}
       />
       <div className="absolute bottom-4 right-4 z-10 flex gap-2">
