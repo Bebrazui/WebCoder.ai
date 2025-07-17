@@ -1,4 +1,3 @@
-
 // src/components/ide.tsx
 "use client";
 
@@ -64,6 +63,7 @@ export function Ide({ vfs }: IdeProps) {
     findFileByPath,
     compileJavaProject,
     createNoCodeHProject,
+    exitProject,
   } = vfs;
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function Ide({ vfs }: IdeProps) {
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
-  const { editorSettings, isElectron } = useAppState();
+  const { isElectron } = useAppState();
 
   const launchConfigs = useMemo(() => {
     const launchFile = findFileByPath('launch.json');
@@ -217,6 +217,15 @@ export function Ide({ vfs }: IdeProps) {
     setActiveFilePath(null);
     setDirtyFiles(new Set());
   }, [dirtyFiles.size]);
+
+  const handleExitProject = useCallback(() => {
+    const hasDirtyFiles = dirtyFiles.size > 0;
+    if (hasDirtyFiles && !confirm("You have unsaved changes. Are you sure you want to exit the project? Your changes will be lost.")) {
+        return;
+    }
+    exitProject();
+    resetEditorState();
+  }, [dirtyFiles.size, exitProject, resetEditorState]);
   
   const handleRenameNode = (node: VFSNode, newName: string) => {
     const oldPath = node.path;
@@ -363,6 +372,7 @@ export function Ide({ vfs }: IdeProps) {
         onCloseFile={() => activeFilePath && handleFileClose(activeFilePath)}
         onCloseAllFiles={handleCloseAllFiles}
         onDownloadZip={downloadVfsAsZip}
+        onExitProject={handleExitProject}
         onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
         onEditorAction={triggerEditorAction}
         isSidebarVisible={isSidebarVisible}

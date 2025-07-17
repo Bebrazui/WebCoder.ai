@@ -1,4 +1,4 @@
-
+// src/components/menu-bar.tsx
 "use client";
 
 import {
@@ -28,6 +28,7 @@ interface MenuBarProps {
     onCloseFile: () => void;
     onCloseAllFiles: () => void;
     onDownloadZip: () => void;
+    onExitProject: () => void;
     onCommandPaletteToggle: () => void;
     onEditorAction: (actionId: string) => void;
     isSidebarVisible: boolean;
@@ -47,6 +48,7 @@ export function MenuBar({
     onCloseFile,
     onCloseAllFiles,
     onDownloadZip,
+    onExitProject,
     onCommandPaletteToggle,
     onEditorAction,
     isSidebarVisible,
@@ -80,8 +82,9 @@ export function MenuBar({
                         <MenubarItem onClick={onCloseAllFiles}>Close All Files</MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem onClick={onDownloadZip}>Download as ZIP...</MenubarItem>
+                        <MenubarItem onClick={onExitProject}>Exit Project</MenubarItem>
                         <MenubarSeparator />
-                        <MenubarItem disabled>Exit</MenubarItem>
+                        <MenubarItem disabled>Exit Application</MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>

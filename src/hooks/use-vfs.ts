@@ -1,4 +1,3 @@
-
 // src/hooks/use-vfs.ts
 "use client";
 
@@ -885,6 +884,12 @@ Start adding your files here!`
     toast({ title: "Blank Project Created", description: "A new empty project has been initialized." });
   }, [saveVfs, toast]);
 
+  const exitProject = useCallback(() => {
+    setVfsRoot(defaultRoot);
+    saveVfs(defaultRoot, { silent: true });
+    setDirectoryHandle(null); // Ensure we are no longer in FS API mode
+  }, [saveVfs]);
+
 
   return { 
     vfsRoot, 
@@ -911,5 +916,6 @@ Start adding your files here!`
     compileJavaProject,
     createNoCodeHProject,
     createBlankProject,
+    exitProject,
   };
 }
