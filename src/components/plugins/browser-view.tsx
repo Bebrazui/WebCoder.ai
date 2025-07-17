@@ -5,11 +5,13 @@ import { useState, useRef, KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Globe, ArrowLeft, ArrowRight, RotateCw, Home, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export function BrowserView() {
     const [url, setUrl] = useState('https://www.google.com/webhp?igu=1');
     const [inputValue, setInputValue] = useState(url);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const { toast } = useToast();
 
     const handleGo = () => {
         let finalUrl = inputValue.trim();
@@ -33,9 +35,25 @@ export function BrowserView() {
         }
     };
     
-    const goBack = () => iframeRef.current?.contentWindow?.history.back();
-    const goForward = () => iframeRef.current?.contentWindow?.history.forward();
-    const reload = () => iframeRef.current?.contentWindow?.location.reload();
+    const safeExec = (action: (win: Window) => void, actionName: string) => {
+        try {
+            if (iframeRef.current?.contentWindow) {
+                action(iframeRef.current.contentWindow);
+            }
+        } catch (e) {
+            console.warn(`Browser action "${actionName}" blocked by cross-origin policy.`);
+            toast({
+                variant: 'destructive',
+                title: 'Action Blocked',
+                description: `Cannot perform '${actionName}' on a cross-origin page.`,
+            });
+        }
+    }
+    
+    const goBack = () => safeExec(win => win.history.back(), 'Go Back');
+    const goForward = () => safeExec(win => win.history.forward(), 'Go Forward');
+    const reload = () => safeExec(win => win.location.reload(), 'Reload');
+    
     const goHome = () => {
         const homeUrl = 'https://www.google.com/webhp?igu=1';
         setUrl(homeUrl);
@@ -44,9 +62,15 @@ export function BrowserView() {
     const clearUrl = () => setInputValue('');
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-        const selection = iframeRef.current?.contentWindow?.getSelection();
-        if (selection && selection.toString()) {
-            e.dataTransfer.setData('text/plain', selection.toString());
+        try {
+            const selection = iframeRef.current?.contentWindow?.getSelection();
+            if (selection && selection.toString()) {
+                e.dataTransfer.setData('text/plain', selection.toString());
+            }
+        } catch (err) {
+            console.warn("Could not get selection from cross-origin iframe for drag event.");
+            // Prevent dragging anything if we can't access the selection
+            e.preventDefault();
         }
     }
 
@@ -95,6 +119,7 @@ export function BrowserView() {
                            }
                         } catch(e) {
                             // Cross-origin error, we can't access the location, which is expected.
+                            // The inputValue will just stay as it was.
                         }
                     }}
                 ></iframe>
