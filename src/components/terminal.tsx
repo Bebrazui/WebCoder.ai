@@ -329,21 +329,29 @@ export function TerminalView() {
                 }
             });
 
-             const resizeObserver = new ResizeObserver(() => {
-                requestAnimationFrame(() => {
+             const resizeObserver = new ResizeObserver((entries) => {
+                const entry = entries[0];
+                if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
                     try {
-                        fitAddon.fit();
-                    } catch (e) {
-                        // This can happen if the terminal is not yet fully visible.
-                        // It's safe to ignore.
+                         // Debounce or use rAF to avoid excessive calls
+                        requestAnimationFrame(() => {
+                            termInstance.current?.fitAddon.fit();
+                        });
+                    } catch(e) {
+                         // This can still fail on rapid resizes, safe to ignore.
+                         console.warn("FitAddon failed:", e);
                     }
-                });
+                }
              });
              if (terminalRef.current) {
                 resizeObserver.observe(terminalRef.current);
              }
             
-             setTimeout(() => fitAddon.fit(), 100);
+             setTimeout(() => {
+                try {
+                    fitAddon.fit();
+                } catch(e) {}
+            }, 100);
             
              return () => {
                 resizeObserver.disconnect();
@@ -368,5 +376,3 @@ export function TerminalView() {
 
     return <div ref={terminalRef} className="h-full w-full p-2 bg-background" />;
 }
-
-    
