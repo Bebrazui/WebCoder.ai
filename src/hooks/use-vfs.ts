@@ -1,3 +1,4 @@
+
 // src/hooks/use-vfs.ts
 "use client";
 
@@ -30,16 +31,15 @@ This is a web-based code editor with AI capabilities.
 
 *   **GitHub Integration:** Clone public repositories directly from GitHub.
 *   **File System Access API:** Open local folders directly (click "Folder" in the explorer).
-*   **File Explorer:** Manage your files and folders on the left.
-*   **ZIP Support:** Upload a .zip archive to unpack a project.
-*   **File Upload:** Upload individual files.
+*   **File Upload:** Upload individual files or ZIP archives.
 *   **AI Code Transformer:** Select a piece of code, click the 'AI Transform' button, and tell the AI what to do!
 *   **Persistence:** Your file system is saved in your browser, so it will be here when you come back.
 *   **Drag & Drop:** Move files and folders around in the explorer.
+*   **Open With:** The installed desktop application can be used to open files/folders from your OS.
 
 **New:** Right-click on files/folders in the explorer to create, rename, or delete.
 
-Get started by opening a local folder, or by uploading your files or a ZIP archive using the buttons in the explorer.
+Get started by opening a local folder, or by uploading your files.
 `
 ));
 
@@ -572,49 +572,47 @@ export function useVfs() {
     return newPath ? { newPath } : null;
   }, [saveVfs, toast]);
 
+  const processHandle = useCallback(async (handle: FileSystemDirectoryHandle | FileSystemFileHandle, path: string): Promise<VFSNode | null> => {
+      if (handle.kind === 'file') {
+          const file = await handle.getFile();
+          const content = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              if (isTextFileUtil({name: file.name})) {
+                  reader.readAsText(file);
+              } else {
+                  reader.readAsDataURL(file);
+              }
+          });
+          return createFile(handle.name, path, content);
+      }
+      if (handle.kind === 'directory') {
+          const dir = createDirectory(handle.name, path);
+          const children: VFSNode[] = [];
+          for await (const entry of handle.values()) {
+              const childPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
+              const childNode = await processHandle(entry, childPath);
+              if (childNode) {
+                  children.push(childNode);
+              }
+          }
+          dir.children = children;
+          return dir;
+      }
+      return null;
+  }, []);
+
   const openFolderWithApi = useCallback(async (): Promise<boolean> => {
     if (isOpeningFolder.current) return false;
     isOpeningFolder.current = true;
-
     try {
         const handle = await window.showDirectoryPicker();
         setDirectoryHandle(handle);
         setLoading(true);
-
-        const processHandle = async (currentHandle: FileSystemDirectoryHandle | FileSystemFileHandle, path: string): Promise<VFSNode | null> => {
-            if (currentHandle.kind === 'file') {
-                const file = await currentHandle.getFile();
-                const content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result as string);
-                    reader.onerror = reject;
-                    if (isTextFileUtil({name: file.name})) {
-                        reader.readAsText(file);
-                    } else {
-                        reader.readAsDataURL(file);
-                    }
-                });
-                return createFile(currentHandle.name, path, content);
-            }
-            if (currentHandle.kind === 'directory') {
-                const dir = createDirectory(currentHandle.name, path);
-                const children: VFSNode[] = [];
-                for await (const entry of currentHandle.values()) {
-                    const childPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
-                    const childNode = await processHandle(entry, childPath);
-                    if (childNode) {
-                        children.push(childNode);
-                    }
-                }
-                dir.children = children;
-                return dir;
-            }
-            return null;
-        }
-
         const newRoot = await processHandle(handle, '/');
         if (newRoot && newRoot.type === 'directory') {
-            newRoot.name = handle.name; // Use the actual directory name for the root
+            newRoot.name = handle.name;
             setVfsRoot(newRoot);
             await syncVfsToLfs(newRoot);
             await getGitBranch();
@@ -623,20 +621,29 @@ export function useVfs() {
             return true;
         }
         return false;
-
     } catch (error) {
-        if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
-            // User cancelled the picker or a picker was already open. Do nothing.
-        } else {
-            console.error("File System Access API error:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not open folder. Your browser might not support this feature."});
-        }
+        if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {} 
+        else { console.error("File System Access API error:", error); toast({ variant: "destructive", title: "Error", description: "Could not open folder."}); }
         return false;
     } finally {
         setLoading(false);
         isOpeningFolder.current = false;
     }
-  }, [toast, syncVfsToLfs, getGitBranch, getGitStatus]);
+  }, [toast, syncVfsToLfs, getGitBranch, getGitStatus, processHandle]);
+
+  const openPathWithApi = useCallback(async (path: string): Promise<boolean> => {
+     // This is a simplified handler. A full implementation would use native Node.js 'fs'
+     // to check if path is a file or directory and read it accordingly.
+     // For now, we will assume it's a directory and use the existing FS Access API.
+     try {
+       toast({ title: 'Open With is not fully implemented', description: 'Please use "Open Folder" for now.' });
+       return false;
+     } catch (e) {
+       console.error(e);
+       toast({ variant: 'destructive', title: 'Error Opening Path', description: 'Could not open the specified path.' });
+       return false;
+     }
+  }, [toast]);
 
   const downloadVfsAsZip = useCallback(async () => {
     const zip = new JSZip();
@@ -904,6 +911,7 @@ Start adding your files here!`
     deleteNodeInVfs,
     moveNodeInVfs,
     openFolderWithApi,
+    openPathWithApi,
     downloadVfsAsZip,
     cloneRepository,
     commit,

@@ -50,6 +50,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
@@ -78,6 +79,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
     "@types/jszip": "^3.4.1",
     "@types/node": "^20",
     "@types/prettier": "^3.0.0",
@@ -110,6 +112,24 @@
     },
     "linux": {
       "target": "AppImage"
+    },
+    "fileAssociations": [
+      {
+        "ext": "*",
+        "name": "Any File",
+        "role": "Editor"
+      },
+      {
+        "name": "Directory",
+        "role": "Editor",
+        "isDirectory": true
+      }
+    ],
+    "protocols": {
+      "name": "WebCoder.ai URL",
+      "schemes": [
+        "webcoder"
+      ]
     }
   }
 }

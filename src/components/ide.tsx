@@ -1,3 +1,4 @@
+
 // src/components/ide.tsx
 "use client";
 
@@ -56,6 +57,7 @@ export function Ide({ vfs }: IdeProps) {
     deleteNodeInVfs,
     moveNodeInVfs,
     openFolderWithApi,
+    openPathWithApi,
     downloadVfsAsZip,
     cloneRepository,
     findFileByPath,
@@ -80,8 +82,16 @@ export function Ide({ vfs }: IdeProps) {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       setIsElectron(true);
       document.body.classList.add('electron-app');
+       // Listen for 'open-path' events from the main process
+      (window as any).electronAPI.onOpenPath(async (path: string) => {
+        toast({ title: 'Opening Path...', description: path });
+        const success = await openPathWithApi(path);
+        if (success) {
+          resetEditorState();
+        }
+      });
     }
-  }, []);
+  }, [openPathWithApi]);
 
   const launchConfigs = useMemo(() => {
     const launchFile = findFileByPath('launch.json');
