@@ -120,6 +120,17 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Стили для Electron */
+  body.electron-app {
+    background-color: transparent;
+  }
+  .draggable {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
 }
 
 /* For Markdown Previewer */

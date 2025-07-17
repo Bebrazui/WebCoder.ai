@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { OutlineData } from "./outline-view";
 import { SettingsSheet } from "./settings-sheet";
 import { useAppState } from "@/hooks/use-app-state";
+import { TitleBar } from "./title-bar";
 
 
 const TerminalView = dynamic(
@@ -71,6 +72,15 @@ export function Ide({ vfs }: IdeProps) {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
   const { editorSettings } = useAppState();
+  const [isElectron, setIsElectron] = useState(false);
+
+  useEffect(() => {
+    // Проверяем, запущено ли приложение в Electron
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      setIsElectron(true);
+      document.body.classList.add('electron-app');
+    }
+  }, []);
 
   const resetEditorState = useCallback(() => {
       setOpenFiles([]);
@@ -335,8 +345,8 @@ export function Ide({ vfs }: IdeProps) {
     editorRef.current?.focus();
   }, []);
 
-  return (
-    <div className="h-screen w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto]">
+  const ideContent = (
+    <div className="h-screen w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto] overflow-hidden rounded-lg">
       <MenuBar 
         onNewFile={handleNewFile}
         onNewFolder={handleNewFolder}
@@ -433,4 +443,19 @@ export function Ide({ vfs }: IdeProps) {
       <SettingsSheet />
     </div>
   );
+
+  return (
+    <div data-is-electron={isElectron}>
+      {isElectron ? (
+        <div className="flex h-screen flex-col bg-transparent">
+          <TitleBar />
+          <div className="flex-grow min-h-0">
+            {ideContent}
+          </div>
+        </div>
+      ) : (
+        ideContent
+      )}
+    </div>
+  )
 }
