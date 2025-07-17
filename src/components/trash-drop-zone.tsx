@@ -1,4 +1,4 @@
-// src/components/trash-drop-zone.tsx
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +11,7 @@ interface TrashDropZoneProps {
   findNodeByPath: (path: string) => VFSNode | null;
 }
 
-const ACTIVATION_AREA_WIDTH = 200; // in pixels
+const ACTIVATION_AREA_WIDTH = 200;
 
 export function TrashDropZone({ onDeleteNode, findNodeByPath }: TrashDropZoneProps) {
   const [isActive, setIsActive] = useState(false);
@@ -21,6 +21,9 @@ export function TrashDropZone({ onDeleteNode, findNodeByPath }: TrashDropZonePro
     e.preventDefault();
     e.stopPropagation();
     dragCounter.current++;
+    if (e.dataTransfer?.types.includes('text/plain')) {
+      setIsActive(true);
+    }
   };
 
   const handleDragLeave = (e: DragEvent) => {
@@ -50,7 +53,9 @@ export function TrashDropZone({ onDeleteNode, findNodeByPath }: TrashDropZonePro
     e.preventDefault();
     e.stopPropagation();
     
-    if (isActive) { // Only delete if dropped inside the active zone
+    const wasActive = e.clientX > window.innerWidth - ACTIVATION_AREA_WIDTH;
+
+    if (wasActive) {
         const path = e.dataTransfer?.getData("text/plain");
         if (path && path !== '/') {
             const nodeToDelete = findNodeByPath(path);
@@ -62,13 +67,11 @@ export function TrashDropZone({ onDeleteNode, findNodeByPath }: TrashDropZonePro
         }
     }
     
-    // Reset state after any drop
     setIsActive(false);
     dragCounter.current = 0;
   };
 
   useEffect(() => {
-    // We attach listeners to the window to capture drag events globally
     window.addEventListener("dragenter", handleDragEnter);
     window.addEventListener("dragleave", handleDragLeave);
     window.addEventListener("dragover", handleDragOver);
@@ -80,15 +83,14 @@ export function TrashDropZone({ onDeleteNode, findNodeByPath }: TrashDropZonePro
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("drop", handleDrop);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, findNodeByPath, onDeleteNode]); // Re-bind if props change
+  }, [findNodeByPath, onDeleteNode]);
 
   return (
     <div
       className={cn(
         "fixed top-0 right-0 h-full w-48 bg-destructive/10 border-l-2 border-dashed border-destructive/50 text-destructive/80 transition-transform duration-300 ease-in-out z-50",
         "flex flex-col items-center justify-center gap-4 text-center p-4",
-        "transform-gpu pointer-events-none", // Crucially, it's not interactive by default
+        "transform-gpu pointer-events-none",
         isActive ? "translate-x-0" : "translate-x-full"
       )}
     >

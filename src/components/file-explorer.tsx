@@ -1,8 +1,7 @@
 
-// src/components/file-explorer.tsx
 "use client";
 
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, { useState, useRef, useMemo, useCallback, createContext, useContext } from "react";
 import { type VFSNode, type VFSDirectory, type VFSFile } from "@/lib/vfs";
 import {
   ChevronRight,
@@ -73,6 +72,16 @@ export interface FileExplorerProps {
   launchConfigs: LaunchConfig[];
 }
 
+const ExplorerContext = createContext<{ clearDragState: () => void } | null>(null);
+
+const useExplorerContext = () => {
+    const context = useContext(ExplorerContext);
+    if (!context) {
+        throw new Error("useExplorerContext must be used within a FileExplorer");
+    }
+    return context;
+};
+
 export function FileExplorer({
   vfsRoot,
   loading,
@@ -93,10 +102,15 @@ export function FileExplorer({
   const zipInputRef = useRef<HTMLInputElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
+  const [dragVersion, setDragVersion] = useState(0);
 
+  const clearDragState = () => {
+      setDragVersion(v => v + 1);
+  };
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      onUploadFile(e.target.files[0], vfsRoot); // Upload to root by default
+      onUploadFile(e.target.files[0], vfsRoot);
     }
   };
   
@@ -121,7 +135,7 @@ export function FileExplorer({
   };
 
   return (
-    <>
+    <ExplorerContext.Provider value={{ clearDragState }}>
       <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-background text-foreground">
         <div className="p-2 border-b border-border">
             <div className="flex justify-between items-center mb-2">
@@ -179,7 +193,7 @@ export function FileExplorer({
           </div>
         </CollapsibleContent>
 
-        <ScrollArea className="flex-grow">
+        <ScrollArea className="flex-grow" onClick={clearDragState}>
           <ContextMenu>
             <ContextMenuTrigger className="block h-full w-full">
               <div className="p-2 text-sm h-full">
@@ -206,6 +220,7 @@ export function FileExplorer({
                     onDeleteNode={onDeleteNode}
                     onMoveNode={onMoveNode}
                     launchConfigs={launchConfigs}
+                    dragVersion={dragVersion}
                   />
                 )}
               </div>
@@ -226,7 +241,7 @@ export function FileExplorer({
         onOpenChange={setIsCloneDialogOpen}
         onClone={onCloneRepository}
       />
-    </>
+    </ExplorerContext.Provider>
   );
 }
 
@@ -240,6 +255,7 @@ const ExplorerNode = ({
   onDeleteNode,
   onMoveNode,
   launchConfigs,
+  dragVersion,
 }: {
   node: VFSNode;
   onSelectFile: (file: VFSFile) => void;
@@ -250,12 +266,18 @@ const ExplorerNode = ({
   onDeleteNode: (node: VFSNode) => void;
   onMoveNode: (sourcePath: string, targetDirPath: string) => void;
   launchConfigs: LaunchConfig[];
+  dragVersion: number;
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
   const { vfsRoot, findFileByPath, createFileInVfs } = useVfs();
   const { toast } = useToast();
+  const { clearDragState } = useExplorerContext();
 
+  React.useEffect(() => {
+    setIsDragOver(false);
+  }, [dragVersion]);
+  
   const normalizePath = (p: string) => {
     let path = p;
     if (path.startsWith('./')) path = path.substring(2);
@@ -416,13 +438,14 @@ const ExplorerNode = ({
   };
 
   const handleDragStart = (e: React.DragEvent) => {
-    if (node.path === '/') return; // Can't drag root
+    if (node.path === '/') return;
     e.dataTransfer.setData("text/plain", node.path);
     e.dataTransfer.effectAllowed = "move";
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (node.type === 'directory') {
       setIsDragOver(true);
     }
@@ -430,13 +453,15 @@ const ExplorerNode = ({
   
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // prevent parent handlers from catching this
+    e.stopPropagation();
     setIsDragOver(false);
+    clearDragState();
     
     if(node.type !== 'directory') return;
     
@@ -473,6 +498,7 @@ const ExplorerNode = ({
              onDragOver={handleDragOver}
              onDragLeave={handleDragLeave}
              onDrop={handleDrop}
+             onDragEnd={clearDragState}
              className={cn('rounded-md', isDragOver && 'bg-accent/50')}
           >
             <div
@@ -517,6 +543,7 @@ const ExplorerNode = ({
                                 onDeleteNode={onDeleteNode}
                                 onMoveNode={onMoveNode}
                                 launchConfigs={launchConfigs}
+                                dragVersion={dragVersion}
                             />
                     ))
                 ) : (
@@ -553,6 +580,7 @@ const ExplorerNode = ({
             <div
                 draggable
                 onDragStart={handleDragStart}
+                onDragEnd={clearDragState}
                 className="flex items-center p-1 rounded-md cursor-pointer hover:bg-accent"
                 style={{ paddingLeft }}
                 onClick={() => onSelectFile(node)}
