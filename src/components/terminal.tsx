@@ -7,7 +7,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { useTheme } from './theme-provider';
 import { useVfs } from '@/hooks/use-vfs';
-import type { VFSNode, VFSDirectory } from '@/lib/vfs';
+import type { VFSNode, VFSDirectory, VFSFile } from '@/lib/vfs';
 
 const themes = {
     dark: {
@@ -64,7 +64,7 @@ class XtermVfsApi {
         }
     }
 
-    private _resolvePath(inputPath: string): string {
+    public _resolvePath(inputPath: string): string {
         if (!inputPath) return this._cwd;
         if (inputPath.startsWith('/')) return inputPath; // Absolute path
 
@@ -134,7 +134,66 @@ class XtermVfsApi {
         this._updateCwdNode();
         this.vfs.createFileInVfs(name, this._cwdNode);
     }
+
+    cp = (source: string, dest: string) => {
+        const sourcePath = this._resolvePath(source);
+        const destPath = this._resolvePath(dest);
+        const sourceNode = this.vfs.findNodeByPath(sourcePath);
+        if (!sourceNode) {
+            this.term.writeln(`\x1b[31mError: Source file not found: ${source}\x1b[0m`);
+            return;
+        }
+        if (sourceNode.type === 'directory') {
+             this.term.writeln(`\x1b[31mError: cp for directories not supported yet. Use cp -r.\x1b[0m`);
+             return;
+        }
+        
+        let destDirNode: VFSNode | null = this.vfs.findNodeByPath(destPath);
+        let destFileName = sourceNode.name;
+        let finalDestPath: string;
+
+        if (destDirNode && destDirNode.type === 'directory') { // copy into dir
+            finalDestPath = destPath;
+        } else { // copy to file path
+            finalDestPath = path.dirname(destPath);
+            destFileName = path.basename(destPath);
+            destDirNode = this.vfs.findNodeByPath(finalDestPath);
+        }
+
+        if (!destDirNode || destDirNode.type !== 'directory') {
+            this.term.writeln(`\x1b[31mError: Destination directory not found: ${finalDestPath}\x1b[0m`);
+            return;
+        }
+        this.vfs.createFileInVfs(destFileName, destDirNode as VFSDirectory, (sourceNode as VFSFile).content);
+    }
+
+    mv = (source: string, dest: string) => {
+         const sourcePath = this._resolvePath(source);
+         const destPath = this._resolvePath(dest);
+         const sourceNode = this.vfs.findNodeByPath(sourcePath);
+         if (!sourceNode) {
+            this.term.writeln(`\x1b[31mError: Source not found: ${source}\x1b[0m`);
+            return;
+        }
+        
+        let destNode = this.vfs.findNodeByPath(destPath);
+        
+        // If destination is a directory, move inside it
+        if(destNode && destNode.type === 'directory') {
+            this.vfs.moveNodeInVfs(sourcePath, destPath);
+        } else { // Else, rename to the destination path
+            const newName = path.basename(destPath);
+            this.vfs.renameNodeInVfs(sourceNode, newName);
+        }
+    }
 }
+
+// Minimal path functions for mv/cp commands
+const path = {
+    basename: (p: string) => p.split('/').filter(Boolean).pop() || '',
+    dirname: (p: string) => p.split('/').slice(0, -1).join('/') || '/',
+};
+
 
 export function TerminalView() {
     const terminalRef = useRef<HTMLDivElement>(null);
@@ -143,6 +202,7 @@ export function TerminalView() {
     const { theme } = useTheme();
     const vfs = useVfs();
     const [prompt, setPrompt] = useState('WebCoder $ ');
+    const commandHistory = useRef<string[]>([]);
 
     useEffect(() => {
         if(apiRef.current) {
@@ -154,21 +214,19 @@ export function TerminalView() {
     const executeSystemCommand = async (command: string, args: string[]): Promise<{ stdout: string, stderr: string, code: number | null }> => {
         let programPath: string | undefined;
         let runnerType = '';
-        const extension = args[0]?.split('.').pop();
-        
         const isRunner = (cmd: string) => ['python', 'python3', 'go', 'ruby', 'php'].includes(cmd);
 
         if (isRunner(command)) {
             if (command === 'go' && args[0] === 'run') {
                 runnerType = 'go';
                 args.shift(); // remove 'run'
-                programPath = this.apiRef.current?._resolvePath(args[0]);
+                programPath = apiRef.current?._resolvePath(args[0]);
             } else {
                 runnerType = command === 'python3' ? 'python' : command;
-                programPath = this.apiRef.current?._resolvePath(args[0]);
+                programPath = apiRef.current?._resolvePath(args[0]);
             }
         } else if(command === 'run') {
-             programPath = this.apiRef.current?._resolvePath(args[0]);
+             programPath = apiRef.current?._resolvePath(args[0]);
              const fileExtension = programPath?.split('.').pop();
              switch(fileExtension) {
                 case 'py': runnerType = 'python'; break;
@@ -239,6 +297,14 @@ export function TerminalView() {
                 term.writeln('\nAny other input will be evaluated as JavaScript.');
             }
         },
+        history: {
+            description: 'Shows command history.',
+            action: (term: Terminal) => {
+                commandHistory.current.forEach((cmd, i) => {
+                    term.writeln(`  ${(i + 1).toString().padStart(3)}  ${cmd}`);
+                });
+            }
+        },
         clear: { description: 'Clears the terminal screen.', action: (term: Terminal) => term.clear() },
         ls: { description: 'Lists files in a directory.', action: (_: any, args: string[]) => apiRef.current?.ls(args[0]) },
         cd: { description: 'Changes the current directory.', action: (_: any, args: string[]) => apiRef.current?.cd(args[0]) },
@@ -246,6 +312,8 @@ export function TerminalView() {
         cat: { description: 'Displays file content.', action: (_: any, args: string[]) => apiRef.current?.cat(args[0]) },
         mkdir: { description: 'Creates a new directory.', action: (_: any, args: string[]) => apiRef.current?.mkdir(args[0]) },
         touch: { description: 'Creates a new empty file.', action: (_: any, args: string[]) => apiRef.current?.touch(args[0]) },
+        cp: { description: 'Copies a file. `cp <src> <dest>`', action: (_:any, args: string[]) => apiRef.current?.cp(args[0], args[1]) },
+        mv: { description: 'Moves/renames a file/dir. `mv <src> <dest>`', action: (_:any, args: string[]) => apiRef.current?.mv(args[0], args[1]) },
         echo: {
             description: 'Prints arguments to the terminal.',
             action: (term: Terminal, args: string[]) => term.writeln(args.join(' '))
@@ -258,7 +326,6 @@ export function TerminalView() {
 
     useEffect(() => {
         let currentLine = '';
-        const commandHistory: string[] = [];
         let historyIndex = -1;
 
         if (terminalRef.current && !termInstance.current) {
@@ -283,6 +350,20 @@ export function TerminalView() {
             term.write(prompt);
 
             const handleCommand = async (line: string) => {
+                if (line.trim() === '!!') {
+                    const lastCommand = commandHistory.current[commandHistory.current.length - 1];
+                    if (lastCommand) {
+                        term.writeln(prompt + lastCommand);
+                        await handleCommand(lastCommand);
+                    }
+                    return;
+                }
+
+                if (line.trim()) {
+                    commandHistory.current.push(line);
+                }
+                historyIndex = commandHistory.current.length;
+
                 const [command, ...args] = line.trim().split(/\s+/);
                 const commandHandler = commands[command.toLowerCase() as keyof typeof commands];
                 
@@ -310,14 +391,10 @@ export function TerminalView() {
                 switch (domEvent.key) {
                     case 'Enter':
                         if (currentLine.trim()) {
-                            commandHistory.push(currentLine);
-                            historyIndex = commandHistory.length;
-                            term.writeln('');
-                            await handleCommand(currentLine);
-                        } else {
-                            term.writeln('');
+                           await handleCommand(currentLine);
                         }
-                        term.write(`\r\n${prompt}`);
+                        term.writeln('');
+                        term.write(prompt);
                         currentLine = '';
                         break;
                     case 'Backspace':
@@ -329,19 +406,19 @@ export function TerminalView() {
                     case 'ArrowUp':
                         if (historyIndex > 0) {
                             historyIndex--;
-                            const newCommand = commandHistory[historyIndex];
+                            const newCommand = commandHistory.current[historyIndex];
                             term.write('\x1b[2K\r' + prompt + newCommand);
                             currentLine = newCommand;
                         }
                         break;
                     case 'ArrowDown':
-                         if (historyIndex < commandHistory.length - 1) {
+                         if (historyIndex < commandHistory.current.length - 1) {
                             historyIndex++;
-                            const newCommand = commandHistory[historyIndex];
+                            const newCommand = commandHistory.current[historyIndex];
                             term.write('\x1b[2K\r' + prompt + newCommand);
                             currentLine = newCommand;
                         } else {
-                            historyIndex = commandHistory.length;
+                            historyIndex = commandHistory.current.length;
                             term.write('\x1b[2K\r' + prompt);
                             currentLine = '';
                         }
@@ -383,6 +460,7 @@ export function TerminalView() {
                 apiRef.current = null;
             };
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [theme, commands, vfs, prompt]);
 
     useEffect(() => {
@@ -401,3 +479,5 @@ export function TerminalView() {
 
     return <div ref={terminalRef} className="h-full w-full p-2 bg-background" />;
 }
+
+    
