@@ -10,6 +10,9 @@ import { ClientOnly } from '@/components/client-only';
 export const metadata: Metadata = {
   title: 'WebCoder.ai',
   description: 'A web-based IDE with AI-powered code transformation.',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({

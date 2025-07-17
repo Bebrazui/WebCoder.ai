@@ -99,19 +99,24 @@
       "electron.cjs",
       "preload.js",
       "menu.js",
-      "out/**/*"
+      "out/**/*",
+      "public/logo.png"
     ],
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "public"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/logo.png"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "public/logo.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "public/logo.png"
     },
     "fileAssociations": [
       {
