@@ -1,3 +1,4 @@
+
 // src/components/file-explorer.tsx
 "use client";
 
@@ -257,16 +258,27 @@ const ExplorerNode = ({
   
   const runnableConfig = useMemo(() => {
     if (node.type !== 'file') return null;
-    const filePath = node.path.startsWith('/') ? node.path.substring(1) : node.path;
+    
+    // Function to normalize a path by removing leading './' or '/'
+    const normalizePath = (p: string) => {
+      if (p.startsWith('./')) return p.substring(2);
+      if (p.startsWith('/')) return p.substring(1);
+      return p;
+    };
+    
+    const filePath = normalizePath(node.path);
     
     return launchConfigs.find(config => {
-        // Normalize paths for comparison
-        const configProgram = config.program?.startsWith('./') ? config.program.substring(2) : config.program;
-
-        return configProgram === filePath ||
-               (config.type === 'java' && node.name === `${config.mainClass}.java`) ||
-               (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(config.cargo.projectPath)) ||
-               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.includes(config.projectPath))
+        if (!config.program) {
+            // Handle cases like Java where there's no program path
+            if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
+            if (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(normalizePath(config.cargo.projectPath))) return true;
+            if (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.startsWith(normalizePath(config.projectPath))) return true;
+            return false;
+        }
+        
+        const configProgram = normalizePath(config.program);
+        return configProgram === filePath;
     });
   }, [node, launchConfigs]);
   
