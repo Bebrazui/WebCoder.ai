@@ -14,6 +14,7 @@ import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState } from "@/hooks/use-app-state";
 import { CheerpJRunnerDialog } from "./cheerpj-runner";
+import { cn } from "@/lib/utils";
 
 interface LaunchConfig {
     name: string;
@@ -21,6 +22,12 @@ interface LaunchConfig {
     request: 'launch';
     args?: any;
     [key: string]: any; // Allow other properties
+}
+
+interface RunResult {
+    stdout: string;
+    stderr: string;
+    hasError: boolean;
 }
 
 interface RunViewProps {
@@ -87,8 +94,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
   const { editorSettings } = useAppState();
   
   const [isActionLoading, setIsActionLoading] = useState(false); // For both run and compile
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<RunResult | null>(null);
   
   const [launchFile, setLaunchFile] = useState<VFSFile | null>(null);
   const [launchConfigs, setLaunchConfigs] = useState<LaunchConfig[]>([]);
@@ -186,7 +192,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
       if (fullConfig.type === 'java-gui') {
           setIsActionLoading(true);
           setResult(null);
-          setError(null);
           try {
              const response = await fetch('/api/prepare-jar', {
                 method: 'POST',
@@ -202,7 +207,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
              setCheerpjJarUrl(data.jarUrl);
              setIsCheerpJOpen(true);
           } catch (err: any) {
-              setError(err.message || "Failed to prepare JAR for GUI runner.");
+              setResult({ stdout: '', stderr: err.message || "Failed to prepare JAR for GUI runner.", hasError: true });
           } finally {
               setIsActionLoading(false);
           }
@@ -211,7 +216,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
 
       setIsActionLoading(true);
       setResult(null);
-      setError(null);
 
       const apiEndpoint = `/api/run-${fullConfig.type}`;
 
@@ -227,15 +231,21 @@ export function RunView({ onSelectFile }: RunViewProps) {
 
         const responseData = await response.json();
 
-        if (!response.ok || !responseData.success) {
-            throw new Error(responseData.error || 'An unknown error occurred.');
+        if (!response.ok) {
+            throw new Error(responseData.error || 'An unknown server error occurred.');
         }
 
-        setResult(responseData.data);
-        toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+        if (!responseData.success) { // Handle backend-reported "soft" errors
+            setResult({ stdout: '', stderr: responseData.error, hasError: true });
+        } else {
+            setResult(responseData.data);
+            if (!responseData.data.hasError) {
+              toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+            }
+        }
       } catch (err: any) {
         console.error(`Failed to run '${fullConfig.name}':`, err);
-        setError(err.message || "Failed to communicate with the server.");
+        setResult({ stdout: '', stderr: err.message || "Failed to communicate with the server.", hasError: true });
       } finally {
         setIsActionLoading(false);
       }
@@ -244,12 +254,11 @@ export function RunView({ onSelectFile }: RunViewProps) {
   const handleCompile = async () => {
     setIsActionLoading(true);
     setResult(null);
-    setError(null);
     const success = await compileJavaProject();
     if(success) {
-      setResult({ message: "Project compiled successfully. The 'build' directory has been created/updated."});
+      setResult({ stdout: "Project compiled successfully. The 'build' directory has been created/updated.", stderr: '', hasError: false });
     } else {
-      setError("Compilation failed. Check console for details.")
+      setResult({ stdout: '', stderr: "Compilation failed. Check the toast notification for more details.", hasError: true });
     }
     setIsActionLoading(false);
   }
@@ -392,23 +401,18 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </Alert>
             )}
 
-            {error && (
-                <Alert variant="destructive">
-                    <ServerCrash className="h-4 w-4" />
-                    <AlertTitle>Action Error</AlertTitle>
-                    <AlertDescription>
-                        <pre className="text-xs whitespace-pre-wrap font-mono">{error}</pre>
-                    </AlertDescription>
-                </Alert>
-            )}
-
             {result && (
                 <div className="space-y-2 pt-4">
-                    <Label>Result</Label>
-                    <div className="rounded-md border bg-muted p-4">
-                        <pre className="text-sm font-mono whitespace-pre-wrap">
-                            {JSON.stringify(result, null, 2)}
-                        </pre>
+                    <Label className={cn(result.hasError && 'text-destructive')}>
+                        {result.hasError ? 'Error Output (stderr)' : 'Output (stdout)'}
+                    </Label>
+                    <div className={cn(
+                        "rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[100px]",
+                        result.hasError ? 'border-destructive/50 text-destructive' : 'border-input'
+                    )}>
+                        <code>
+                            {result.stderr || result.stdout || "Process finished with no output."}
+                        </code>
                     </div>
                 </div>
             )}

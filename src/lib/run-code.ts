@@ -127,7 +127,7 @@ const runJava = async (config: any, tempDir: string) => {
 const runners = {
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
-        return executeCommand('python3', [scriptPath, JSON.stringify(config.args)], tempDir);
+        return executeCommand('python', [scriptPath, JSON.stringify(config.args)], tempDir);
     },
 
     java: runJava,
@@ -193,25 +193,12 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
 
         if (result.code !== 0) {
             const errorMessage = result.stderr || result.stdout || `Process for ${language} exited with non-zero code.`;
-            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 });
+            return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: errorMessage, hasError: true } }, { status: 200 });
         }
+        
+        // Success case
+        return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: result.stderr, hasError: false } });
 
-        try {
-            if (language === 'java' && !result.stdout.trim()) {
-                 return NextResponse.json({ success: true, data: { message: "Process executed successfully with no output." } });
-            }
-            if (!result.stdout.trim()) {
-                 return NextResponse.json({ success: true, data: { message: "Process executed successfully with no output." } });
-            }
-            const parsedOutput = JSON.parse(result.stdout);
-            return NextResponse.json({ success: true, data: parsedOutput });
-        } catch (e) {
-            // Check if there's an error message in stderr, if so, prefer it.
-            const errorMessage = result.stderr.trim() 
-                ? result.stderr 
-                : `Could not parse process output as JSON. Raw output:\n${result.stdout}`;
-            return NextResponse.json({ success: false, error: errorMessage }, { status: 200 });
-        }
     } catch (error: any) {
         console.error(`Error in runLanguage for ${language}:`, error);
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });
