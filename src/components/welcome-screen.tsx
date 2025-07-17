@@ -7,16 +7,16 @@ import { Button } from './ui/button';
 import { FolderSearch, Github, FileArchive, Code2, Gamepad2, FilePlus } from 'lucide-react';
 import { CloneRepositoryDialog } from './clone-repository-dialog';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 interface WelcomeScreenProps {
   onOpenFolder: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
-  onCreateNoCodeProject: () => void;
   onAddZipToVfs: (file: File) => void;
   onCreateBlankProject: () => void;
 }
 
-export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeProject, onAddZipToVfs, onCreateBlankProject }: WelcomeScreenProps) {
+export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, onCreateBlankProject }: WelcomeScreenProps) {
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -77,8 +77,10 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onCreateNoCodeP
                     <Button onClick={onCreateBlankProject} variant="outline" size="lg">
                         <FilePlus className="mr-2"/> Blank Project
                     </Button>
-                    <Button onClick={onCreateNoCodeProject} variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
-                        <Gamepad2 className="mr-2"/> No-Code Game Project
+                    <Button asChild variant="default" size="lg" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white">
+                        <Link href="/nocode" target="_blank">
+                            <Gamepad2 className="mr-2"/> No-Code Game Editor
+                        </Link>
                     </Button>
                     <Button variant="outline" size="lg" onClick={() => handleCreateProject('React')}>
                         <Code2 className="mr-2"/> New React Project

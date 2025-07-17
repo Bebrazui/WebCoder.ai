@@ -87,6 +87,7 @@ export default function NoCodeHPage() {
     const levelData = {
       grid,
       size: GRID_SIZE,
+      textures: customTextures,
     };
     localStorage.setItem('nocodeh-level-data', JSON.stringify(levelData));
     window.open('/nocode/play', '_blank');
@@ -131,15 +132,16 @@ export default function NoCodeHPage() {
     }
   };
 
-  const Tile = useCallback(({ value, index }: { value: TileValue; index: number }) => {
+  const Tile = useCallback(({ value, index, texture }: { value: TileValue; index: number, texture?: string }) => {
     const TileIcon = TILE_COMPONENTS[value];
     return (
       <div
         onMouseDown={() => { setIsPainting(true); handleTileInteraction(index, true); }}
         onMouseEnter={() => handleTileInteraction(index, false)}
-        className="aspect-square border border-muted-foreground/20 flex items-center justify-center cursor-pointer hover:bg-accent transition-colors"
+        className="aspect-square border border-muted-foreground/20 flex items-center justify-center cursor-pointer hover:bg-accent transition-colors relative bg-cover bg-center"
+        style={{ backgroundImage: texture ? `url(${texture})` : 'none' }}
       >
-        <TileIcon />
+        {!texture && <TileIcon />}
       </div>
     );
   }, [handleTileInteraction]);
@@ -148,7 +150,7 @@ export default function NoCodeHPage() {
     <div className="flex flex-col lg:flex-row h-screen bg-background text-foreground p-4 gap-6" onMouseUp={() => setIsPainting(false)} onMouseLeave={() => setIsPainting(false)}>
       <Card className="w-full lg:w-96 flex-shrink-0">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold font-headline">NoCodeH Editor</CardTitle>
+          <CardTitle className="text-2xl font-bold font-headline">No-Code Game Editor</CardTitle>
           <CardDescription>Design your game level visually.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -218,9 +220,11 @@ export default function NoCodeHPage() {
             }}
             onContextMenu={(e) => e.preventDefault()}
           >
-              {grid.map((tile, index) => (
-                  <Tile key={index} value={tile} index={index} />
-              ))}
+              {grid.map((tile, index) => {
+                const tileTypeKey = Object.keys(TILE_TYPES).find(key => TILE_TYPES[key as TileType] === tile) as TileType | undefined;
+                const texture = tileTypeKey ? customTextures[tileTypeKey] : undefined;
+                return <Tile key={index} value={tile} index={index} texture={texture} />
+              })}
           </div>
       </main>
     </div>
