@@ -260,10 +260,13 @@ const ExplorerNode = ({
     const filePath = node.path.startsWith('/') ? node.path.substring(1) : node.path;
     
     return launchConfigs.find(config => {
-        return config.program === filePath ||
+        // Normalize paths for comparison
+        const configProgram = config.program?.startsWith('./') ? config.program.substring(2) : config.program;
+
+        return configProgram === filePath ||
                (config.type === 'java' && node.name === `${config.mainClass}.java`) ||
-               (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath === 'rust_apps') ||
-               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && node.path.includes(config.projectPath))
+               (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(config.cargo.projectPath)) ||
+               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.includes(config.projectPath))
     });
   }, [node, launchConfigs]);
   
