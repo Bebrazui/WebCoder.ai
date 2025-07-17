@@ -5,14 +5,17 @@ import { Ide } from "@/components/ide";
 import { WelcomeScreen } from "@/components/welcome-screen";
 import { useVfs } from "@/hooks/use-vfs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoaderCircle } from "lucide-react";
 
 export default function Home() {
   const vfs = useVfs();
 
   if (vfs.loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Skeleton className="h-32 w-32" />
+      <div className="flex h-screen flex-col items-center justify-center bg-background text-center">
+        <LoaderCircle className="h-12 w-12 animate-spin text-primary mb-4" />
+        <h1 className="text-lg font-semibold text-foreground">Loading Project...</h1>
+        <p className="text-sm text-muted-foreground">Please wait while we set up your environment.</p>
       </div>
     );
   }

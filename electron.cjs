@@ -1,38 +1,52 @@
 // electron.cjs
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const path = require('node:path');
 const createMenuTemplate = require('./menu.js');
 
-const isDev = process.env.NODE_ENV !== 'production';
+// The built directory structure
+//
+// ├─┬─┬ dist
+// │ │ └── main.js
+// │ │
+// │ ├─┬ out
+// │ │ ├── ...
+// │ │
+// │ └── package.json
+//
+process.env.DIST = path.join(__dirname, 'dist');
+process.env.VITE_PUBLIC = app.isPackaged
+  ? process.env.DIST
+  : path.join(process.env.DIST, '../public');
+
+// Squelch security warnings
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
+
+let mainWindow;
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    frame: false, // Отключаем стандартную рамку
+    titleBarStyle: 'hidden', // Скрываем title bar, но оставляем кнопки на macOS
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true
     },
-    frame: false, // Скрываем стандартную рамку
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 15, y: 15 },
-    backgroundColor: '#1e293b' // Цвет фона для темной темы
+    backgroundColor: '#00000000', // Прозрачный фон для скругленных углов
+    vibrancy: 'under-window', // Эффект размытия под окном на macOS
   });
 
-  if (isDev) {
-    // В режиме разработки загружаем URL сервера Next.js
-    mainWindow.loadURL('http://localhost:9002');
-  } else {
-    // В продакшене загружаем собранные файлы
-    mainWindow.loadFile(path.join(__dirname, 'out', 'index.html'));
-  }
-
   // Установка меню приложения
-  const menu = Menu.buildFromTemplate(createMenuTemplate(app, mainWindow));
+  const menuTemplate = createMenuTemplate(app, mainWindow);
+  const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 
-  // Обработчики для управления окном из рендерер-процесса
+  // IPC listeners for window controls
   ipcMain.on('window:minimize', () => {
     mainWindow.minimize();
   });
@@ -48,29 +62,46 @@ function createWindow() {
   ipcMain.on('window:close', () => {
     mainWindow.close();
   });
+  
+  // Send maximization state to renderer
+  const sendMaximizedState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:isMaximized', mainWindow.isMaximized());
+    }
+  }
 
-  // Отправляем состояние окна в рендерер при изменении
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send('window:isMaximized', true);
-  });
+  mainWindow.on('maximize', sendMaximizedState);
+  mainWindow.on('unmaximize', sendMaximizedState);
 
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send('window:isMaximized', false);
+  // You can use `process.env.VITE_DEV_SERVER_URL` when Can be accessed in the development environment
+  const devServerUrl = 'http://localhost:9002'; // Next.js dev server
+
+  if (app.isPackaged) {
+    // If the app is packaged, load the local Next.js build
+    const indexHtml = path.join(__dirname, 'out', 'index.html');
+    mainWindow.loadFile(indexHtml);
+  } else {
+    // In development, load the Next.js dev server URL
+    mainWindow.loadURL(devServerUrl);
+    // Open the DevTools.
+    // mainWindow.webContents.openDevTools();
+  }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 }
-
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+app.whenReady().then(createWindow);
