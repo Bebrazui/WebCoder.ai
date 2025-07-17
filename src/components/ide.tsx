@@ -25,6 +25,7 @@ import { useAppState } from "@/hooks/use-app-state";
 import { TitleBar } from "./title-bar";
 import { LaunchConfig } from "./file-explorer";
 import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 
 
 const TerminalView = dynamic(
@@ -38,6 +39,23 @@ const TerminalView = dynamic(
 interface IdeProps {
     vfs: VfsHook;
 }
+
+const TrashDropZone = ({ isVisible, onDrop, onDragLeave }: { isVisible: boolean, onDrop: (e: React.DragEvent) => void, onDragLeave: (e: React.DragEvent) => void }) => {
+    return (
+        <div
+            onDrop={onDrop}
+            onDragLeave={onDragLeave}
+            className={cn(
+                "absolute bottom-0 right-0 m-4 p-8 rounded-full bg-destructive/20 border-2 border-dashed border-destructive/50 text-destructive/80 transition-all duration-300 ease-in-out z-50",
+                "transform-gpu",
+                isVisible ? "opacity-100 scale-100" : "opacity-0 scale-50 pointer-events-none"
+            )}
+        >
+            <Trash2 className="h-10 w-10" />
+        </div>
+    );
+};
+
 
 export function Ide({ vfs }: IdeProps) {
   const { 
@@ -61,8 +79,10 @@ export function Ide({ vfs }: IdeProps) {
     downloadVfsAsZip,
     cloneRepository,
     findFileByPath,
+    findNodeByPath,
     compileJavaProject,
     createNoCodeHProject,
+    createBlankProject,
     exitProject,
   } = vfs;
   const [openFiles, setOpenFiles] = useState<VFSFile[]>([]);
@@ -76,6 +96,10 @@ export function Ide({ vfs }: IdeProps) {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
   const { isElectron } = useAppState();
+
+  // State for trash can drop zone
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
   const launchConfigs = useMemo(() => {
     const launchFile = findFileByPath('launch.json');
@@ -361,8 +385,62 @@ export function Ide({ vfs }: IdeProps) {
     editorRef.current?.focus();
   }, []);
 
+  // --- Drag and Drop Handlers for Trash ---
+  const handleDragEnter = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current++;
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+          setIsDragging(true);
+      }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current--;
+      if (dragCounter.current === 0) {
+          setIsDragging(false);
+      }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounter.current = 0;
+  };
+  
+  const handleTrashDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounter.current = 0;
+
+      const path = e.dataTransfer.getData("text/plain");
+      if (path && path !== '/') {
+        const nodeToDelete = findNodeByPath(path);
+        if (nodeToDelete) {
+           if (confirm(`Are you sure you want to delete ${nodeToDelete.name}?`)) {
+              handleDeleteNode(nodeToDelete);
+           }
+        }
+      }
+  };
+
+
   const ideContent = (
-    <div className="h-screen w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto] overflow-hidden rounded-lg">
+    <div 
+        className="h-screen w-full bg-background text-foreground grid grid-rows-[auto_1fr_auto] overflow-hidden rounded-lg relative"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+    >
       <MenuBar 
         onNewFile={handleNewFile}
         onNewFolder={handleNewFolder}
@@ -453,6 +531,9 @@ export function Ide({ vfs }: IdeProps) {
               onCommandPaletteToggle={() => setIsCommandPaletteOpen(true)}
             />
       )}
+      
+      <TrashDropZone isVisible={isDragging} onDrop={handleTrashDrop} onDragLeave={handleDragLeave} />
+
       <CommandPalette 
         isOpen={isCommandPaletteOpen}
         setIsOpen={setIsCommandPaletteOpen}
