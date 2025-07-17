@@ -138,14 +138,15 @@ const runners = {
         
         // Use the specific command from the config if available (e.g., 'python3'),
         // otherwise default to a smart check.
-        const command = config.command || 'python3';
+        const primaryCommand = config.command === 'python' ? 'python' : 'python3';
+        const fallbackCommand = primaryCommand === 'python' ? 'python3' : 'python';
 
-        let result = await executeCommand(command, args, tempDir);
+        let result = await executeCommand(primaryCommand, args, tempDir);
         
-        // If the specified command failed, and it was 'python3', try 'python' as a fallback.
-        if (result.code === 127 && command === 'python3' && result.stderr.includes('command not found')) {
-            console.log("`python3` not found, trying `python`...");
-            result = await executeCommand('python', args, tempDir);
+        // If the specified command failed with "command not found", try the fallback.
+        if (result.code === 127) {
+            console.log(`\`${primaryCommand}\` not found, trying \`${fallbackCommand}\`...`);
+            result = await executeCommand(fallbackCommand, args, tempDir);
         }
         
         return result;
@@ -154,14 +155,9 @@ const runners = {
     java: runJava,
 
     go: async (config: any, tempDir: string) => {
-        const programDir = path.dirname(path.join(tempDir, config.program!));
-        const appName = path.basename(config.program!).replace('.go', '');
-        const outputPath = path.join(programDir, appName);
-
-        const compileResult = await executeCommand('go', ['build', '-o', outputPath, '.'], programDir);
-        if (compileResult.code !== 0) return compileResult;
-
-        return executeCommand(outputPath, [JSON.stringify(config.args)], tempDir);
+        const programPath = path.join(tempDir, config.program!);
+        const programDir = path.dirname(programPath);
+        return executeCommand('go', ['run', programPath, JSON.stringify(config.args)], programDir);
     },
     
     rust: async (config: any, tempDir: string) => {
@@ -211,6 +207,11 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         }
 
         const result = await runner(config, tempDir);
+
+        // Treat code 127 (command not found) as a special case for a clearer error message
+        if (result.code === 127) {
+            return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: result.stderr || `The command for '${language}' was not found in the system's PATH.`, hasError: true } }, { status: 200 });
+        }
 
         if (result.code !== 0) {
             const errorMessage = result.stderr || result.stdout || `Process for ${language} exited with non-zero code.`;

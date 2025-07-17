@@ -152,15 +152,34 @@ export function TerminalView() {
 
 
     const executeSystemCommand = async (command: string, args: string[]): Promise<{ stdout: string, stderr: string, code: number | null }> => {
-        const programPath = args[0];
-        
+        let programPath: string | undefined;
         let runnerType = '';
-        const extension = programPath?.split('.').pop();
+        const extension = args[0]?.split('.').pop();
         
-        if (command === 'python' || command === 'python3' || extension === 'py') runnerType = 'python';
-        else if (command === 'go' && args[0] === 'run') { runnerType = 'go'; args.shift(); }
-        else if (command === 'ruby' || extension === 'rb') runnerType = 'ruby';
-        else if (command === 'php' || extension === 'php') runnerType = 'php';
+        const isRunner = (cmd: string) => ['python', 'python3', 'go', 'ruby', 'php'].includes(cmd);
+
+        if (isRunner(command)) {
+            if (command === 'go' && args[0] === 'run') {
+                runnerType = 'go';
+                args.shift(); // remove 'run'
+                programPath = this.apiRef.current?._resolvePath(args[0]);
+            } else {
+                runnerType = command === 'python3' ? 'python' : command;
+                programPath = this.apiRef.current?._resolvePath(args[0]);
+            }
+        } else if(command === 'run') {
+             programPath = this.apiRef.current?._resolvePath(args[0]);
+             const fileExtension = programPath?.split('.').pop();
+             switch(fileExtension) {
+                case 'py': runnerType = 'python'; break;
+                case 'go': runnerType = 'go'; break;
+                case 'rb': runnerType = 'ruby'; break;
+                case 'php': runnerType = 'php'; break;
+                default:
+                    return { stdout: '', stderr: `Unsupported file type for 'run' command: .${fileExtension}`, code: 1 };
+             }
+        }
+
 
         if (!runnerType) {
             return { stdout: '', stderr: `Unknown command: ${command}`, code: 1 };
@@ -191,7 +210,7 @@ export function TerminalView() {
             });
             const responseData = await response.json();
             if (!response.ok || !responseData.success) {
-                return { stdout: '', stderr: responseData.error || 'Execution failed on server.', code: 1 };
+                return { stdout: responseData.data?.stdout || '', stderr: responseData.error || responseData.data?.stderr || 'Execution failed on server.', code: 1 };
             }
             return {
                 stdout: responseData.data.stdout,
@@ -215,8 +234,8 @@ export function TerminalView() {
                     term.writeln(`  \x1b[1;32m${key.padEnd(10)}\x1b[0m - ${description}`);
                 });
                 term.writeln('\n\x1b[1mExternal Commands:\x1b[0m');
-                term.writeln('  \x1b[1;32mpython, go run, ruby, php\x1b[0m');
-                term.writeln('  Example: \x1b[3mpython python_scripts/my_script.py\x1b[0m');
+                term.writeln('  \x1b[1;32mrun, python, python3, go run, ruby, php\x1b[0m');
+                term.writeln('  Example: \x1b[3mrun python_scripts/my_script.py\x1b[0m');
                 term.writeln('\nAny other input will be evaluated as JavaScript.');
             }
         },
@@ -231,6 +250,10 @@ export function TerminalView() {
             description: 'Prints arguments to the terminal.',
             action: (term: Terminal, args: string[]) => term.writeln(args.join(' '))
         },
+        run: {
+            description: 'Runs a script file (e.g., run script.py).',
+            action: async (_: any, args: string[]) => await apiRef.current?.handleExternalCommand('run', args)
+        }
     }), [apiRef.current]);
 
     useEffect(() => {
@@ -266,10 +289,10 @@ export function TerminalView() {
                 const externalRunners = ['python', 'python3', 'go', 'ruby', 'php'];
                 
                 if (commandHandler) {
-                    commandHandler.action(term, args);
+                    await commandHandler.action(term, args);
                 } else if (externalRunners.includes(command.toLowerCase())) {
                     await apiRef.current?.handleExternalCommand(command, args);
-                } else {
+                } else if (command.trim()) {
                     try {
                         const result = new Function(`return ${line}`)();
                         if (result !== undefined) {
@@ -291,6 +314,8 @@ export function TerminalView() {
                             historyIndex = commandHistory.length;
                             term.writeln('');
                             await handleCommand(currentLine);
+                        } else {
+                            term.writeln('');
                         }
                         term.write(`\r\n${prompt}`);
                         currentLine = '';
@@ -368,7 +393,9 @@ export function TerminalView() {
 
     useEffect(() => {
         if(termInstance.current) {
-            termInstance.current.term.write('\x1b[2K\r' + prompt);
+            const term = termInstance.current.term;
+            // Clear the current line and rewrite the prompt
+            term.write('\x1b[2K\r' + prompt);
         }
     }, [prompt])
 
