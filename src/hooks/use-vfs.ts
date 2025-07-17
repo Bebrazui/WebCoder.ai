@@ -338,13 +338,13 @@ export function useVfs() {
         
         if (parentDirResult && parentDirResult.node.type === 'directory') {
           const targetDir = parentDirResult.node;
-          const newPath = targetDir.path === '/' ? `/${file.name}` : `${targetDir.path}/${file.name}`;
           
           if (targetDir.children.some((c: VFSNode) => c.name === file.name)) {
             toast({ variant: "destructive", title: "Error", description: `A file named "${file.name}" already exists.`});
             return currentRoot;
           }
 
+          const newPath = targetDir.path === '/' ? `/${file.name}` : `${targetDir.path}/${file.name}`;
           const newFile = createFile(file.name, newPath, content);
 
           const existingIndex = targetDir.children.findIndex((child: VFSNode) => child.name === file.name);
@@ -849,38 +849,26 @@ export function useVfs() {
   const createNoCodeHProject = useCallback(() => {
     const newRoot = createDirectory("NoCodeH Game", "/");
     
-    newRoot.children.push(createFile('.nocodeh', '/.nocodeh', ''));
+    // Marker file
+    newRoot.children.push(createFile('.nocodeh', '/.nocodeh', 'This file marks the directory as a NoCodeH project.'));
 
-    const gameConfig = {
-        "name": "My NoCodeH Game",
-        "version": "1.0.0",
-        "start_scene": "/scenes/main.scene"
+    // Main level file
+    const defaultGrid = Array(16 * 16).fill(0);
+    const mainLevel = {
+      grid: defaultGrid,
+      size: 16,
+      textures: {}
     };
-    newRoot.children.push(createFile('game.json', '/game.json', JSON.stringify(gameConfig, null, 2)));
+    newRoot.children.push(createFile('level.json', '/level.json', JSON.stringify(mainLevel, null, 2)));
 
-    const scenesDir = createDirectory('scenes', '/scenes');
-    const assetsDir = createDirectory('assets', '/assets');
-    const objectsDir = createDirectory('objects', '/objects');
-    
-    const mainScene = {
-        "name": "Main Scene",
-        "objects": [
-            { "id": "player_1", "type": "player", "x": 5, "y": 5 },
-            { "id": "wall_1", "type": "wall", "x": 3, "y": 3 },
-        ]
-    };
-    scenesDir.children.push(createFile('main.scene', '/scenes/main.scene', JSON.stringify(mainScene, null, 2)));
-    
-    objectsDir.children.push(createFile('player.object', '/objects/player.object', JSON.stringify({ "name": "Player", "components": ["Sprite", "PlayerController"] }, null, 2)));
-    objectsDir.children.push(createFile('wall.object', '/objects/wall.object', JSON.stringify({ "name": "Wall", "components": ["Sprite", "Collider"] }, null, 2)));
-
-    newRoot.children.push(scenesDir);
-    newRoot.children.push(assetsDir);
-    newRoot.children.push(objectsDir);
+    // Add a readme
+    newRoot.children.push(createFile('README.md', '/README.md', '# NoCodeH Game Project\n\nThis project was created with the WebCoder.ai No-Code Game Editor.'));
 
     setVfsRoot(newRoot);
     saveVfs(newRoot);
-    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready in the explorer." });
+    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready. Open `/nocode` to start editing." });
+    // You might want to automatically open the editor here
+    window.open('/nocode', '_blank');
   }, [saveVfs, toast]);
 
   const createBlankProject = useCallback(() => {
