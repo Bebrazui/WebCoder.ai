@@ -374,6 +374,19 @@ export function Ide({ vfs }: IdeProps) {
       createDirectoryInVfs(name, vfsRoot);
     }
   };
+  
+  const handleOpenDocumentation = () => {
+    const readmeFile = findFileByPath('/README.md');
+    if (readmeFile) {
+        handleSelectFile(readmeFile);
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'File not found',
+            description: 'Could not find README.md in the project root.'
+        })
+    }
+  };
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
@@ -403,6 +416,7 @@ export function Ide({ vfs }: IdeProps) {
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
         isStatusBarVisible={isStatusBarVisible}
         onToggleStatusBar={() => setIsStatusBarVisible(p => !p)}
+        onOpenDocumentation={handleOpenDocumentation}
       />
       
       <main className="min-h-0">

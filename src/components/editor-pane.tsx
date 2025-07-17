@@ -16,9 +16,10 @@ import Image from 'next/image';
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile, isClassFile } from "@/lib/vfs";
+import { isTextFile, isImageFile, isAudioFile, isClassFile, isMarkdownFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
 import { LaunchConfig } from "./file-explorer";
+import { MarkdownPreviewer } from "./markdown-previewer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -85,6 +86,10 @@ export function EditorPane({
     if (isClassFile(file.name)) {
         return <JavaClassViewer file={file} />;
     }
+    
+    if (isMarkdownFile(file.name)) {
+        return <MarkdownPreviewer content={file.content} />;
+    }
 
     // Default to Code Editor for text files
     return <CodeEditor
@@ -120,7 +125,7 @@ export function EditorPane({
                 >
                   <FileIcon filename={file.name} className="h-4 w-4" />
                   <span>{file.name}</span>
-                  {isDirty && !isClassFile(file.name) && (
+                  {isDirty && !isClassFile(file.name) && !isMarkdownFile(file.name) && (
                       <div className="flex items-center gap-1 ml-1">
                           <div
                               onClick={(e) => {
