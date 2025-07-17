@@ -7,43 +7,33 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { useTheme } from './theme-provider';
 
-const PROMPT = '$ ';
+const PROMPT = 'WebCoder $ ';
 
 const commands: Record<string, { description: string; output: string[] | ((term: Terminal) => void) }> = {
     'help': {
         description: 'Shows this help message.',
         output: [
+            '',
+            'WebCoder.ai Simulated Terminal',
+            '-------------------------------',
+            'This is a lightweight terminal built into the IDE.',
+            'It does not have access to your computer\'s real shell.',
+            '',
             'Available commands:',
             '  help        - Shows this help message.',
-            '  npm install - Simulates installing dependencies.',
-            '  npm run dev - Simulates running the development server.',
             '  clear       - Clears the terminal screen.',
+            '  info        - Shows project information.',
+            ''
         ]
     },
-    'npm install': {
-        description: 'Simulates installing dependencies.',
-        output: async (term: Terminal) => {
-            term.writeln('Simulating package installation...');
-            await new Promise(res => setTimeout(res, 500));
-            term.writeln('added 350 packages, and audited 351 packages in 10s');
-            term.writeln('42 packages are looking for funding');
-            term.writeln('  run `npm fund` for details');
-            term.writeln('found 0 vulnerabilities');
-        }
-    },
-    'npm run dev': {
-        description: 'Simulates running the development server.',
+    'info': {
+        description: 'Shows project information.',
         output: [
-            '> next dev --turbopack -p 9002',
             '',
-            '  ▲ Next.js 15.3.3',
-            '  - Local:        http://localhost:9002',
-            '  - Environments: .env',
+            'Environment: Next.js + React',
+            'Execution: Via server-side language runners',
+            'UI: ShadCN + TailwindCSS',
             '',
-            ' ✓ Ready in 459ms',
-            ' ✓ Compiled / in 227ms (245 modules)',
-            '',
-            'This is a simulated server. To see your app, please use your browser\'s preview feature.',
         ]
     },
     'clear': {
@@ -61,23 +51,22 @@ const themes = {
         cursor: '#f8fafc',
     },
     oceanic: {
-        background: '#0d1f2d',
-        foreground: '#c0d2e0',
+        background: '#0d1f2d', // Custom
+        foreground: '#c0d2e0', // Custom
         cursor: '#c0d2e0',
     }
 }
 
 export function TerminalView() {
     const terminalRef = useRef<HTMLDivElement>(null);
-    const term = useRef<Terminal | null>(null);
-    const fitAddon = useRef<FitAddon | null>(null);
+    const termInstance = useRef<{ term: Terminal; fitAddon: FitAddon } | null>(null);
     const { theme } = useTheme();
 
     useEffect(() => {
         let currentLine = '';
 
-        if (terminalRef.current && !term.current) {
-            const xterm = new Terminal({
+        if (terminalRef.current && !termInstance.current) {
+            const term = new Terminal({
                 cursorBlink: true,
                 convertEol: true,
                 fontFamily: `'Source Code Pro', monospace`,
@@ -85,82 +74,74 @@ export function TerminalView() {
                 theme: themes[theme as keyof typeof themes] || themes.dark
             });
 
-            fitAddon.current = new FitAddon();
-            xterm.loadAddon(fitAddon.current);
+            const fitAddon = new FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(terminalRef.current);
 
-            xterm.open(terminalRef.current);
+            termInstance.current = { term, fitAddon };
 
-            xterm.writeln('Welcome to WebCoder.ai Terminal!');
-            xterm.writeln('Type `help` to see available commands.');
-            xterm.write(PROMPT);
+            term.writeln('Welcome to WebCoder.ai Terminal!');
+            term.writeln("Type `help` to see available commands.");
+            term.write(PROMPT);
 
-            xterm.onKey(({ key, domEvent }) => {
+            term.onKey(({ key, domEvent }) => {
                 if (domEvent.key === 'Enter') {
                     if (currentLine.trim()) {
-                        xterm.writeln('');
-                        const commandHandler = commands[currentLine.trim()];
+                        term.writeln('');
+                        const commandHandler = commands[currentLine.trim().toLowerCase()];
                         if (commandHandler) {
                              const { output } = commandHandler;
                              if (Array.isArray(output)) {
-                                output.forEach(line => xterm.writeln(line));
+                                output.forEach(line => term.writeln(line));
                              } else {
-                                output(xterm);
+                                output(term);
                              }
                         } else {
-                            xterm.writeln(`command not found: ${currentLine.trim()}`);
+                            term.writeln(`command not found: ${currentLine.trim()}`);
                         }
                     }
-                    xterm.write(`\r\n${PROMPT}`);
+                    term.write(`\r\n${PROMPT}`);
                     currentLine = '';
                 } else if (domEvent.key === 'Backspace') {
                      if (currentLine.length > 0) {
-                        xterm.write('\b \b');
+                        term.write('\b \b');
                         currentLine = currentLine.slice(0, -1);
                     }
                 } else if (!domEvent.ctrlKey && !domEvent.altKey && !domEvent.metaKey) {
-                    xterm.write(key);
+                    term.write(key);
                     currentLine += key;
                 }
             });
 
-            term.current = xterm;
-
-            const resizeObserver = new ResizeObserver(() => {
-                requestAnimationFrame(() => {
-                    try {
-                        fitAddon.current?.fit();
-                    } catch (e) {
-                        // ignore
-                    }
-                });
-            });
-
-            if (terminalRef.current) {
-                resizeObserver.observe(terminalRef.current);
-            }
-
-            requestAnimationFrame(() => {
+            // Fit the terminal when the component mounts and the container is ready.
+             const resizeObserver = new ResizeObserver(() => {
                 try {
-                    fitAddon.current?.fit();
+                    // Use requestAnimationFrame to avoid errors during layout changes
+                    requestAnimationFrame(() => fitAddon.fit());
                 } catch(e) {
-                    // ignore
+                    // This can sometimes fail if the terminal is hidden. Ignore.
                 }
-            });
-
-            return () => {
+             });
+             if (terminalRef.current) {
+                resizeObserver.observe(terminalRef.current);
+             }
+            
+             // Initial fit
+             setTimeout(() => fitAddon.fit(), 10);
+            
+             return () => {
                 resizeObserver.disconnect();
-                xterm.dispose();
-                term.current = null;
+                term.dispose();
+                termInstance.current = null;
             };
         }
-    }, []); // Empty dependency array ensures this runs only once.
+    }, [theme]); // Rerun on theme change
 
     useEffect(() => {
-        if (term.current) {
-            term.current.options.theme = themes[theme as keyof typeof themes] || themes.dark;
+        if (termInstance.current) {
+            termInstance.current.term.options.theme = themes[theme as keyof typeof themes] || themes.dark;
         }
     }, [theme]);
 
-
-    return <div ref={terminalRef} className="h-full w-full p-2" />;
+    return <div ref={terminalRef} className="h-full w-full p-2 bg-background" />;
 }
