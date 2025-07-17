@@ -1,4 +1,3 @@
-
 // src/components/file-explorer.tsx
 "use client";
 
@@ -253,40 +252,132 @@ const ExplorerNode = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { vfsRoot } = useVfs();
+  const { vfsRoot, findFileByPath, createFileInVfs } = useVfs();
   const { toast } = useToast();
+
+  const normalizePath = (p: string) => {
+    if (p.startsWith('./')) return p.substring(2);
+    if (p.startsWith('/')) return p.substring(1);
+    return p;
+  };
   
   const runnableConfig = useMemo(() => {
     if (node.type !== 'file') return null;
-    
-    // Function to normalize a path by removing leading './' or '/'
-    const normalizePath = (p: string) => {
-      if (p.startsWith('./')) return p.substring(2);
-      if (p.startsWith('/')) return p.substring(1);
-      return p;
-    };
-    
     const filePath = normalizePath(node.path);
     
     return launchConfigs.find(config => {
-        if (!config.program) {
-            // Handle cases like Java where there's no program path
-            if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
-            if (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(normalizePath(config.cargo.projectPath))) return true;
-            if (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.startsWith(normalizePath(config.projectPath))) return true;
-            return false;
-        }
-        
-        const configProgram = normalizePath(config.program);
-        return configProgram === filePath;
+      const program = config.program ? normalizePath(config.program) : null;
+      if (program && program === filePath) return true;
+      if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
+      if (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(normalizePath(config.cargo.projectPath))) return true;
+      if (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.startsWith(normalizePath(config.projectPath))) return true;
+      return false;
     });
   }, [node, launchConfigs]);
+
+  const handleAddLaunchJson = useCallback(() => {
+      const content = `{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Java App",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "Main",
+      "sourcePaths": ["java_apps/src"],
+      "classPaths": [],
+      "args": {
+        "name": "Java User",
+        "age": 42
+      }
+    },
+    {
+      "name": "Run Python Script",
+      "type": "python",
+      "request": "launch",
+      "program": "python_scripts/my_script.py",
+      "args": {
+        "name": "From launch.json",
+        "value": 12345
+      }
+    },
+    {
+      "name": "Run Go App",
+      "type": "go",
+      "request": "launch",
+      "program": "go_apps/main.go",
+      "args": {
+        "name": "Go Developer",
+        "value": 987
+      }
+    },
+    {
+      "name": "Run Rust App",
+      "type": "rust",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--release"],
+        "projectPath": "rust_apps"
+      },
+      "args": {
+        "name": "Rustacean",
+        "value": 1010
+      }
+    },
+    {
+      "name": "Run C# App",
+      "type": "csharp",
+      "request": "launch",
+      "projectPath": "csharp_apps/my_csharp_app",
+      "args": {
+        "name": "C# Coder",
+        "value": 777
+      }
+    },
+    {
+      "name": "Run PHP Script",
+      "type": "php",
+      "request": "launch",
+      "program": "php_scripts/my_php_script.php",
+      "args": {
+        "name": "PHP Enthusiast",
+        "value": 555
+      }
+    },
+    {
+      "name": "Run Ruby Script",
+      "type": "ruby",
+      "request": "launch",
+      "program": "ruby_scripts/my_ruby_script.rb",
+      "args": {
+        "name": "Rubyist",
+        "value": 333
+      }
+    }
+  ]
+}
+`;
+      createFileInVfs('launch.json', vfsRoot, content);
+      toast({ title: '`launch.json` created', description: 'File was added to the root of your project. You can now run your script.' });
+  }, [createFileInVfs, vfsRoot, toast]);
   
-  const handleRunScript = async (config: LaunchConfig) => {
-    toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view or terminal for output.`});
+  const handleRunScript = useCallback(async (config: LaunchConfig) => {
+    const launchFile = findFileByPath('launch.json');
+    if (!launchFile) {
+        if (window.confirm("`launch.json` not found. Would you like to create a default one?")) {
+            handleAddLaunchJson();
+        }
+        return;
+    }
+      
+    if (!config) {
+        toast({ variant: 'destructive', title: "Not Runnable", description: "No launch configuration found for this file. Please check your launch.json." });
+        return;
+    }
+
+    toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view for output.`});
     const apiEndpoint = `/api/run-${config.type}`;
     try {
-        // The RunView has more complex logic for handling args, but for this context menu, we use the default.
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -302,7 +393,7 @@ const ExplorerNode = ({
     } catch(e: any) {
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
-  };
+  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot]);
 
 
   const paddingLeft = `${level * 1}rem`;
