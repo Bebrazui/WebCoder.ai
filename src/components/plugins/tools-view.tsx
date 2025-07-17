@@ -1,4 +1,4 @@
-
+// src/components/plugins/tools-view.tsx
 "use client";
 
 import React, { useState } from 'react';
