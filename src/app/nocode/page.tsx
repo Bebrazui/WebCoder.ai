@@ -126,7 +126,6 @@ export default function NoCodeHPage() {
         };
         reader.readAsDataURL(file);
     }
-    // Reset file input value to allow re-uploading the same file
     if(event.target) {
       event.target.value = '';
     }
@@ -212,7 +211,7 @@ export default function NoCodeHPage() {
             style={{ 
               gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
               width: '100%',
-              maxWidth: 'calc(100vh - 8rem)', // Prevent grid from becoming too large
+              maxWidth: 'calc(100vh - 8rem)',
               aspectRatio: '1 / 1',
               border: '2px solid hsl(var(--border))',
               borderRadius: '0.5rem',

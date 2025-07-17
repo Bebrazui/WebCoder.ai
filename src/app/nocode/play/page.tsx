@@ -42,17 +42,20 @@ const useGameLogic = (initialLevelData: LevelData | null) => {
     const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
 
     useEffect(() => {
-        if (!levelData) return;
-        const pPos = levelData.grid.indexOf(TILE_TYPES.PLAYER);
+        if (!initialLevelData) return;
+        
+        setLevelData(initialLevelData); // Sync state when initial data changes
+
+        const pPos = initialLevelData.grid.indexOf(TILE_TYPES.PLAYER);
         setPlayerPos(pPos);
         
-        const coinIndices = levelData.grid.reduce((acc: number[], tile, index) => {
+        const coinIndices = initialLevelData.grid.reduce((acc: number[], tile, index) => {
             if (tile === TILE_TYPES.COIN) acc.push(index);
             return acc;
         }, []);
         setCoins(coinIndices);
         setGameState('playing');
-    }, [levelData]);
+    }, [initialLevelData]);
 
     const movePlayer = useCallback((dx: number, dy: number) => {
         if (gameState !== 'playing' || !levelData) return;
@@ -64,12 +67,12 @@ const useGameLogic = (initialLevelData: LevelData | null) => {
         const newX = x + dx;
         const newY = y + dy;
 
-        if (newX < 0 || newX >= size || newY < 0 || newY >= size) return; // Out of bounds
+        if (newX < 0 || newX >= size || newY < 0 || newY >= size) return;
 
         const newPos = newY * size + newX;
         const targetTile = grid[newPos];
 
-        if (targetTile === TILE_TYPES.WALL) return; // Can't move into walls
+        if (targetTile === TILE_TYPES.WALL) return;
 
         setPlayerPos(newPos);
 
@@ -84,30 +87,34 @@ const useGameLogic = (initialLevelData: LevelData | null) => {
         }
     }, [playerPos, coins, gameState, levelData]);
     
-    const resetGame = useCallback(() => {
-        setLevelData(initialLevelData);
-    }, [initialLevelData]);
-
-    return { playerPos, coins, gameState, movePlayer, resetGame };
+    return { playerPos, coins, gameState, movePlayer };
 }
 
 export default function PlayPage() {
   const [levelData, setLevelData] = useState<LevelData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const data = localStorage.getItem('nocodeh-level-data');
-      if (!data) {
-        throw new Error("No level data found in storage. Please create a level in the editor first.");
+  const loadLevel = useCallback(() => {
+      try {
+          const data = localStorage.getItem('nocodeh-level-data');
+          if (!data) {
+              throw new Error("No level data found in storage. Please create a level in the editor first.");
+          }
+          setLevelData(JSON.parse(data));
+      } catch (e: any) {
+          setError(`Failed to load level data: ${e.message}`);
       }
-      setLevelData(JSON.parse(data));
-    } catch (e: any) {
-      setError(`Failed to load level data: ${e.message}`);
-    }
   }, []);
 
-  const { playerPos, coins, gameState, movePlayer, resetGame } = useGameLogic(levelData);
+  useEffect(() => {
+    loadLevel();
+  }, [loadLevel]);
+
+  const { playerPos, coins, gameState, movePlayer } = useGameLogic(levelData);
+
+  const resetGame = () => {
+    loadLevel(); // This re-loads from storage, effectively resetting the game
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -149,23 +156,24 @@ export default function PlayPage() {
   
   const Tile = ({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) => {
     const tileTypeKey = Object.keys(TILE_TYPES).find(key => TILE_TYPES[key as TileTypeKey] === tileType) as TileTypeKey | undefined;
-    const texture = tileTypeKey ? textures[tileTypeKey] : undefined;
-    const WallIcon = TILE_COMPONENTS[TILE_TYPES.WALL];
+    const wallTexture = textures.WALL;
+    const playerTexture = textures.PLAYER;
+    const coinTexture = textures.COIN;
+    const enemyTexture = textures.ENEMY;
 
     return (
         <div 
           className="aspect-square flex items-center justify-center relative bg-gray-800 bg-cover bg-center"
-          style={{ backgroundImage: tileType === TILE_TYPES.WALL && texture ? `url(${texture})` : 'none' }}
+          style={{ backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none' }}
         >
-          {tileType === TILE_TYPES.WALL && !texture && <WallIcon />}
           {isPlayerHere && (
-              textures.PLAYER ? <Image src={textures.PLAYER} layout="fill" objectFit="contain" alt="player"/> : <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
+              playerTexture ? <Image src={playerTexture} layout="fill" objectFit="contain" alt="player"/> : <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
           )}
           {isCoinHere && (
-              textures.COIN ? <Image src={textures.COIN} layout="fill" objectFit="contain" alt="coin"/> : <TILE_COMPONENTS[TILE_TYPES.COIN] />
+              coinTexture ? <Image src={coinTexture} layout="fill" objectFit="contain" alt="coin"/> : <TILE_COMPONENTS[TILE_TYPES.COIN] />
           )}
            {tileType === TILE_TYPES.ENEMY && (
-              textures.ENEMY ? <Image src={textures.ENEMY} layout="fill" objectFit="contain" alt="enemy"/> : <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
+              enemyTexture ? <Image src={enemyTexture} layout="fill" objectFit="contain" alt="enemy"/> : <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
           )}
         </div>
     );

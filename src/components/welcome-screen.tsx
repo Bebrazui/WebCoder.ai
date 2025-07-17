@@ -27,7 +27,6 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, 
     if (e.target.files && e.target.files[0]) {
       onAddZipToVfs(e.target.files[0]);
     }
-    // Reset input to allow uploading the same file again
     if (e.target) {
       e.target.value = '';
     }
@@ -49,7 +48,6 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, 
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Side: Get Started */}
             <Card className="flex flex-col">
                 <CardHeader>
                     <CardTitle>Open an Existing Project</CardTitle>
@@ -69,7 +67,6 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, 
                 </CardContent>
             </Card>
 
-            {/* Right Side: Create New */}
             <Card className="flex flex-col">
                  <CardHeader>
                     <CardTitle>Create New</CardTitle>

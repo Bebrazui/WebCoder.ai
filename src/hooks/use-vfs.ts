@@ -95,12 +95,9 @@ export function useVfs() {
       const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
 
       const detailedStatuses = matrix.map(([filepath, head, workdir, stage]) => {
-        // Based on https://isomorphic-git.org/docs/en/statusMatrix
         if (workdir === 0) return { filepath, status: 'deleted' as const };
         if (head === 0 && workdir > 0) return { filepath, status: 'new' as const };
         if (stage === 0) return { filepath, status: 'modified' as const };
-        // Any other combination that reaches here could be more complex (e.g. conflicts)
-        // but for our purposes, we'll mark as modified if there's a diff.
         if (head > 0 && workdir > 0 && head !== workdir) return { filepath, status: 'modified' as const };
         
         return { filepath, status: 'unmodified' as const };
@@ -108,7 +105,6 @@ export function useVfs() {
         
         setGitStatus(detailedStatuses);
     } catch (e) {
-        // Not a git repository or other error
         setGitStatus([]);
     } finally {
         setIsGitStatusLoading(false);
@@ -121,7 +117,6 @@ export function useVfs() {
         const branch = await git.currentBranch({ fs, dir: GIT_DIR, fullname: false });
         setCurrentBranch(branch || 'main');
     } catch (e) {
-        // Not a git repository or other error
         setCurrentBranch('main');
     }
   }, []);
@@ -166,10 +161,14 @@ export function useVfs() {
         const entries = await pfs.readdir('/');
         for(const entry of entries) {
             if (entry === '.' || entry === '..') continue;
-            await pfs.rm(`/${entry}`, { recursive: true });
+            const path = `/${entry}`;
+            try {
+                await pfs.unlink(path);
+            } catch {
+                await pfs.rmdir(path, { recursive: true });
+            }
         }
     } catch (e) {
-        // May fail, which is fine
     }
 
     const syncNode = async (node: VFSNode, parentPath: string) => {
@@ -179,10 +178,8 @@ export function useVfs() {
         
         if (node.type === 'directory') {
             try {
-                // Check if directory exists before creating
                 await pfs.stat(currentPath);
             } catch (e) {
-                // Doesn't exist, so create it
                 await pfs.mkdir(currentPath, { recursive: true });
             }
             for (const child of node.children) {
@@ -207,7 +204,7 @@ export function useVfs() {
 
   const saveVfs = useCallback(async (root: VFSDirectory, options: { silent?: boolean } = {}) => {
     if (directoryHandle) {
-        return; // Don't save to localforage if using File System Access API
+        return;
     }
     try {
       await localforage.setItem(VFS_KEY, root);
@@ -243,7 +240,6 @@ export function useVfs() {
       } catch (error) {
         console.error("Failed to load VFS from IndexedDB", error);
         toast({ variant: "destructive", title: "Error", description: "Could not load your project from local storage."});
-        // Fallback to default if loading fails catastrophically
         setVfsRoot(defaultRoot);
         await saveVfs(defaultRoot, { silent: true });
       } finally {
@@ -254,11 +250,11 @@ export function useVfs() {
     if (!directoryHandle) {
       loadVfs();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [directoryHandle]);
   
   const addZipToVfs = useCallback((file: File) => {
-    setDirectoryHandle(null); // When a zip is uploaded, we switch off FS API mode.
+    setDirectoryHandle(null);
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -281,7 +277,7 @@ export function useVfs() {
                 const part = pathParts[i];
                 const isFile = i === pathParts.length - 1;
 
-                if (!isFile) { // It's a directory
+                if (!isFile) {
                     let dir = currentDir.children.find(c => c.name === part && c.type === 'directory') as VFSDirectory;
                     if (!dir) {
                         const dirPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
@@ -289,14 +285,14 @@ export function useVfs() {
                         currentDir.children.push(dir);
                     }
                     currentDir = dir;
-                } else { // It's a file
+                } else {
                     const fileIsText = isTextFileUtil({name: part});
                     let fileContent: string;
                     if (fileIsText) {
                         fileContent = await zipEntry.async('text');
                     } else {
                         const base64Content = await zipEntry.async('base64');
-                        const mime = 'application/octet-stream'; // Simple default
+                        const mime = 'application/octet-stream';
                         fileContent = `data:${mime};base64,${base64Content}`;
                     }
                     const newPath = currentDir.path === '/' ? `/${part}` : `${currentDir.path}/${part}`;
@@ -326,7 +322,7 @@ export function useVfs() {
         addZipToVfs(file);
         return;
     }
-    setDirectoryHandle(null); // When a file is uploaded, we switch off FS API mode.
+    setDirectoryHandle(null);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -376,7 +372,6 @@ export function useVfs() {
         if (result && result.node.type === 'file') {
             result.node.content = newContent;
             updatedFile = result.node;
-            // Note: We don't save here anymore to support dirty states
             return newRoot;
         }
         return currentRoot;
@@ -393,9 +388,9 @@ export function useVfs() {
             for (let i = 0; i < pathParts.length; i++) {
                 const part = pathParts[i];
                 if (currentHandle.kind === 'directory') {
-                    if (i === pathParts.length - 1) { // file handle
+                    if (i === pathParts.length - 1) {
                         currentHandle = await currentHandle.getFileHandle(part);
-                    } else { // directory handle
+                    } else {
                         currentHandle = await currentHandle.getDirectoryHandle(part);
                     }
                 }
@@ -413,7 +408,6 @@ export function useVfs() {
             toast({ variant: "destructive", title: "Save Error", description: "Could not save file to your computer."});
         }
     } else {
-        // Fallback to localforage if no directory is open
         setVfsRoot(currentRoot => {
             const newRoot = JSON.parse(JSON.stringify(currentRoot));
             const result = findNodeAndParent(newRoot, file.path);
@@ -443,7 +437,6 @@ export function useVfs() {
         const newFile = createFile(name, newPath, content);
         targetDir.children.push(newFile);
         saveVfs(newRoot);
-        // toast({ title: 'File created', description: `Created ${name}` });
         return newRoot;
       }
       return currentRoot;
@@ -485,9 +478,6 @@ export function useVfs() {
         }
 
         const nodeToRename = result.parent.children.find(c => c.path === node.path)!;
-        const oldPath = nodeToRename.path;
-        
-        // Recursively update children paths if it's a directory
         const updateChildrenPaths = (dir: VFSNode, newParentPath: string) => {
           dir.path = newParentPath === '/' ? `/${dir.name}`: `${newParentPath}/${dir.name}`;
           if (dir.type === 'directory') {
@@ -549,12 +539,9 @@ export function useVfs() {
             return currentRoot;
         }
         
-        // Remove from old parent
         const sourceIndex = sourceResult.parent.children.findIndex(c => c.path === sourcePath);
         sourceResult.parent.children.splice(sourceIndex, 1);
 
-        // Add to new parent and update paths
-        const oldPath = nodeToMove.path;
         const updatePaths = (node: VFSNode, newParentPath: string) => {
             node.path = newParentPath === '/' ? `/${node.name}` : `${newParentPath}/${node.name}`;
             if (node.type === 'directory') {
@@ -634,9 +621,6 @@ export function useVfs() {
   }, [toast, syncVfsToLfs, getGitBranch, getGitStatus, processHandle]);
 
   const openPathWithApi = useCallback(async (path: string): Promise<boolean> => {
-     // This is a simplified handler. A full implementation would use native Node.js 'fs'
-     // to check if path is a file or directory and read it accordingly.
-     // For now, we will assume it's a directory and use the existing FS Access API.
      try {
        toast({ title: 'Open With is not fully implemented', description: 'Please use "Open Folder" for now.' });
        return false;
@@ -665,7 +649,6 @@ export function useVfs() {
       }
     };
     
-    // We add the root's children, not the root itself, to avoid a wrapping folder
     vfsRoot.children.forEach(child => addNodeToZip(child, zip));
 
     try {
@@ -693,7 +676,6 @@ export function useVfs() {
     try {
         await fs.init(GIT_FS_NAME, { wipe: true });
     } catch (e) {
-        // Folder might not exist, that's okay.
     }
     
     try {
@@ -728,14 +710,13 @@ export function useVfs() {
   }, [toast, getGitBranch, getGitStatus, saveVfs, syncLfsToVfs]);
 
   const commit = useCallback(async (message: string, token: string) => {
-    // Get the list of changed files
     const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
 
     for (const [filepath, head, workdir] of matrix) {
         if (filepath === '.') continue;
-        if (workdir === 0) { // Deleted
+        if (workdir === 0) {
             await git.remove({ fs, dir: GIT_DIR, filepath });
-        } else if (head === 0 || workdir > 0) { // New or modified
+        } else if (head === 0 || workdir > 0) {
             await git.add({ fs, dir: GIT_DIR, filepath });
         }
     }
@@ -752,7 +733,6 @@ export function useVfs() {
     
     toast({ title: 'Committed!', description: `Changes committed with SHA: ${sha.substring(0, 7)}`});
     
-    // Attempt to push
     try {
         if (!token) {
             toast({ variant: "destructive", title: 'Push Skipped', description: 'Please provide a GitHub token to push changes.' });
@@ -779,7 +759,6 @@ export function useVfs() {
         console.error("Push failed", e);
         toast({ variant: 'destructive', title: 'Push Failed', description: e.message || 'An unknown error occurred during push.' });
     } finally {
-        // Refresh status after commit and potential push
         await getGitStatus();
     }
   }, [getGitStatus, toast]);
@@ -814,7 +793,7 @@ export function useVfs() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 projectFiles: [vfsRoot],
-                config: { sourcePaths: ['.'] } // Assuming sources are at root
+                config: { sourcePaths: ['.'] }
             }),
         });
 
@@ -847,27 +826,13 @@ export function useVfs() {
   
   const createNoCodeHProject = useCallback(() => {
     const newRoot = createDirectory("NoCodeH Game", "/");
-    
-    // Marker file
     newRoot.children.push(createFile('.nocodeh', '/.nocodeh', 'This file marks the directory as a NoCodeH project.'));
-
-    // Main level file
-    const defaultGrid = Array(16 * 16).fill(0);
-    const mainLevel = {
-      grid: defaultGrid,
-      size: 16,
-      textures: {}
-    };
-    newRoot.children.push(createFile('level.json', '/level.json', JSON.stringify(mainLevel, null, 2)));
-
-    // Add a readme
-    newRoot.children.push(createFile('README.md', '/README.md', '# NoCodeH Game Project\n\nThis project was created with the WebCoder.ai No-Code Game Editor.'));
+    newRoot.children.push(createFile('README.md', '/README.md', '# NoCodeH Game Project\n\nThis project was created with the WebCoder.ai No-Code Game Editor.\n\nOpen `/nocode` in your browser to start editing.'));
 
     setVfsRoot(newRoot);
     saveVfs(newRoot);
-    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready. Open `/nocode` to start editing." });
-    // You might want to automatically open the editor here
-    window.open('/nocode', '_blank');
+    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready." });
+    window.location.href = '/nocode';
   }, [saveVfs, toast]);
 
   const createBlankProject = useCallback(() => {
@@ -887,14 +852,14 @@ Start adding your files here!`
   const exitProject = useCallback(() => {
     setVfsRoot(defaultRoot);
     saveVfs(defaultRoot, { silent: true });
-    setDirectoryHandle(null); // Ensure we are no longer in FS API mode
+    setDirectoryHandle(null);
   }, [saveVfs]);
 
 
   return { 
     vfsRoot, 
     loading,
-    fs, // Export fs for git operations
+    fs,
     currentBranch,
     gitStatus,
     isGitStatusLoading,

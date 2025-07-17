@@ -16,9 +16,8 @@ import Image from 'next/image';
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile, isClassFile, isSceneFile } from "@/lib/vfs";
+import { isTextFile, isImageFile, isAudioFile, isClassFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
-import { SceneEditor } from "./scene-editor";
 import { LaunchConfig } from "./file-explorer";
 
 interface EditorPaneProps {
@@ -85,10 +84,6 @@ export function EditorPane({
     
     if (isClassFile(file.name)) {
         return <JavaClassViewer file={file} />;
-    }
-
-    if (isSceneFile(file.name)) {
-      return <SceneEditor file={file} />;
     }
 
     // Default to Code Editor for text files
