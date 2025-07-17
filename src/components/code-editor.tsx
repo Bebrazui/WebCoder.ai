@@ -1,3 +1,4 @@
+
 // src/components/code-editor.tsx
 "use client";
 
@@ -241,6 +242,16 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     updateOutline();
   }, [debouncedValue, updateOutline]);
 
+  // Apply editor settings when they change
+  useEffect(() => {
+    editorRef.current?.updateOptions({
+      fontFamily: editorSettings.fontFamily,
+      fontSize: editorSettings.fontSize,
+      wordWrap: editorSettings.wordWrap ? "on" : "off",
+      cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
+    });
+  }, [editorSettings]);
+
   const handleTransform = (newCode: string) => {
     const editor = editorRef.current;
     if (editor) {
@@ -268,13 +279,14 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         language={language}
         loading={<Skeleton className="h-full w-full" />}
         options={{
-          fontFamily: editorSettings.fontFamily,
-          fontSize: editorSettings.fontSize,
-          wordWrap: editorSettings.wordWrap ? "on" : "off",
           minimap: { enabled: true },
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          cursorSmoothCaretAnimation: 'on',
+          // Initial settings are applied here
+          fontFamily: editorSettings.fontFamily,
+          fontSize: editorSettings.fontSize,
+          wordWrap: editorSettings.wordWrap ? "on" : "off",
+          cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
         }}
       />
       <div className="absolute bottom-4 right-4 z-10 flex gap-2">

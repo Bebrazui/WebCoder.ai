@@ -1,4 +1,7 @@
+
 import type {Config} from 'tailwindcss';
+
+const plugin = require('tailwindcss/plugin');
 
 export default {
   darkMode: ['class'],
@@ -95,5 +98,10 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    plugin(function({ addVariant }: { addVariant: any }) {
+        addVariant('no-animations', '[data-animations-disabled="true"] &')
+    }),
+    require('tailwindcss-animate'),
+    ],
 } satisfies Config;

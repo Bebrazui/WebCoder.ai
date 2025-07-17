@@ -65,6 +65,16 @@ export function SettingsSheet() {
                         </SelectContent>
                     </Select>
                 </div>
+                 <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="animations-enabled" className="col-span-2">UI Animations</Label>
+                     <div className="col-span-1 flex justify-end">
+                        <Switch
+                            id="animations-enabled"
+                            checked={editorSettings.animationsEnabled}
+                            onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, animationsEnabled: checked })}
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-4 rounded-lg border p-4">
@@ -107,6 +117,16 @@ export function SettingsSheet() {
                             id="word-wrap"
                             checked={editorSettings.wordWrap}
                             onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, wordWrap: checked })}
+                        />
+                    </div>
+                </div>
+                 <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="smooth-cursor">Smooth Cursor</Label>
+                    <div className="col-span-2">
+                        <Switch
+                            id="smooth-cursor"
+                            checked={editorSettings.smoothCursor}
+                            onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, smoothCursor: checked })}
                         />
                     </div>
                 </div>

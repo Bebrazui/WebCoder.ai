@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AppStateProvider } from '@/hooks/use-app-state';
 import { ElectronEnabler } from '@/components/electron-enabler';
 import { ClientOnly } from '@/components/client-only';
+import { AnimationDisabler } from '@/components/animation-disabler';
 
 export const metadata: Metadata = {
   title: 'WebCoder.ai',
@@ -35,6 +36,7 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <AppStateProvider>
           <ThemeProvider>
+              <AnimationDisabler />
               {children}
               <Toaster />
               <ClientOnly>

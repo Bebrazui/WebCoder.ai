@@ -9,6 +9,7 @@ export interface EditorSettings {
   fontSize: number;
   wordWrap: boolean;
   manualJsonInput: boolean;
+  animationsEnabled: boolean;
 }
 
 interface AppState {
@@ -26,6 +27,7 @@ const defaultEditorSettings: EditorSettings = {
   fontSize: 14,
   wordWrap: true,
   manualJsonInput: false,
+  animationsEnabled: true,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
