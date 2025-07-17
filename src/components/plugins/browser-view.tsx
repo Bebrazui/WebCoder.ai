@@ -7,31 +7,41 @@ import { Input } from '@/components/ui/input';
 import { Globe, ArrowLeft, ArrowRight, RotateCw, Home, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+// A simple CORS proxy prefix
+const CORS_PROXY_PREFIX = 'https://cors-anywhere.herokuapp.com/';
+
 export function BrowserView() {
-    const [url, setUrl] = useState('https://www.google.com/webhp?igu=1');
-    const [inputValue, setInputValue] = useState(url);
+    const [currentUrl, setCurrentUrl] = useState('https://www.google.com/webhp?igu=1');
+    const [inputValue, setInputValue] = useState(currentUrl);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const { toast } = useToast();
 
-    const handleGo = () => {
-        let finalUrl = inputValue.trim();
+    const navigateTo = (url: string) => {
+        let finalUrl = url.trim();
         if (!finalUrl) return;
 
-        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-            if (/^localhost(:\d+)?/.test(finalUrl)) {
-                finalUrl = 'http://' + finalUrl;
-            } else if (/\S\.\S/.test(finalUrl)) {
-                 finalUrl = 'https://' + finalUrl;
-            } else {
-                finalUrl = `https://www.google.com/search?q=${encodeURIComponent(finalUrl)}`;
+        // Check if it's likely a search query vs a URL
+        const isUrl = finalUrl.startsWith('http') || finalUrl.includes('.') || finalUrl.startsWith('localhost');
+
+        if (isUrl) {
+            if (!finalUrl.startsWith('http')) {
+                finalUrl = 'https://' + finalUrl;
             }
+        } else {
+            // It's a search query
+            finalUrl = `https://www.google.com/search?q=${encodeURIComponent(finalUrl)}`;
         }
-        setUrl(finalUrl);
+        
+        // Use the proxy for non-localhost URLs
+        const proxiedUrl = finalUrl.startsWith('http://localhost') ? finalUrl : `${CORS_PROXY_PREFIX}${finalUrl}`;
+        
+        setCurrentUrl(proxiedUrl);
+        setInputValue(finalUrl); // Keep the real URL in the input bar
     };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
-            handleGo();
+            navigateTo(inputValue);
         }
     };
     
@@ -42,22 +52,26 @@ export function BrowserView() {
             }
         } catch (e) {
             console.warn(`Browser action "${actionName}" blocked by cross-origin policy.`);
-            toast({
-                variant: 'destructive',
-                title: 'Action Blocked',
-                description: `Cannot perform '${actionName}' on a cross-origin page.`,
-            });
         }
     }
     
     const goBack = () => safeExec(win => win.history.back(), 'Go Back');
     const goForward = () => safeExec(win => win.history.forward(), 'Go Forward');
-    const reload = () => safeExec(win => win.location.reload(), 'Reload');
+    const reload = () => {
+        if (iframeRef.current) {
+            // Reloading the iframe src is more reliable than contentWindow.location.reload
+            iframeRef.current.src = 'about:blank';
+            setTimeout(() => {
+                if (iframeRef.current) {
+                   iframeRef.current.src = currentUrl;
+                }
+            }, 50);
+        }
+    };
     
     const goHome = () => {
         const homeUrl = 'https://www.google.com/webhp?igu=1';
-        setUrl(homeUrl);
-        setInputValue(homeUrl);
+        navigateTo(homeUrl);
     }
     const clearUrl = () => setInputValue('');
 
@@ -69,8 +83,20 @@ export function BrowserView() {
             }
         } catch (err) {
             console.warn("Could not get selection from cross-origin iframe for drag event.");
-            // Prevent dragging anything if we can't access the selection
             e.preventDefault();
+        }
+    }
+
+    const handleIframeLoad = () => {
+        try {
+            const frameLocation = iframeRef.current?.contentWindow?.location.href;
+            if (frameLocation && frameLocation !== 'about:blank') {
+                // The URL in the iframe will be the proxied one, so we clean it up for the input bar
+                const originalUrl = frameLocation.replace(CORS_PROXY_PREFIX, '');
+                setInputValue(originalUrl);
+            }
+        } catch (e) {
+            // This error is expected due to cross-origin policies. We just can't update the URL bar.
         }
     }
 
@@ -97,7 +123,7 @@ export function BrowserView() {
                         />
                          {inputValue && <X className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 cursor-pointer text-muted-foreground hover:text-foreground" onClick={clearUrl}/>}
                     </div>
-                    <Button onClick={handleGo} size="sm" className="h-9">Go</Button>
+                    <Button onClick={() => navigateTo(inputValue)} size="sm" className="h-9">Go</Button>
                 </div>
             </div>
             <div 
@@ -107,21 +133,11 @@ export function BrowserView() {
             >
                  <iframe
                     ref={iframeRef}
-                    src={url}
+                    src={currentUrl}
                     className="w-full h-full border-0"
                     title="Web Browser"
-                    sandbox="allow-scripts allow-forms allow-same-origin"
-                    onLoad={() => {
-                        try {
-                           const currentSrc = iframeRef.current?.contentWindow?.location.href;
-                           if (currentSrc && currentSrc !== 'about:blank') {
-                             setInputValue(currentSrc);
-                           }
-                        } catch(e) {
-                            // Cross-origin error, we can't access the location, which is expected.
-                            // The inputValue will just stay as it was.
-                        }
-                    }}
+                    sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+                    onLoad={handleIframeLoad}
                 ></iframe>
             </div>
         </div>
