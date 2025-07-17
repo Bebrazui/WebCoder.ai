@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppStateProvider } from '@/hooks/use-app-state';
+import { ElectronEnabler } from '@/components/electron-enabler';
 
 export const metadata: Metadata = {
   title: 'WebCoder.ai',
@@ -27,12 +28,13 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;500;600&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased has-[[data-is-electron=true]]:bg-transparent">
+      <body className="font-body antialiased">
         <AppStateProvider>
           <ThemeProvider>
               {children}
               <Toaster />
           </ThemeProvider>
+          <ElectronEnabler />
         </AppStateProvider>
       </body>
     </html>

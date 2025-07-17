@@ -16,6 +16,8 @@ interface AppState {
   setIsSettingsOpen: (isOpen: boolean) => void;
   editorSettings: EditorSettings;
   setEditorSettings: (settings: EditorSettings) => void;
+  isElectron: boolean;
+  setIsElectron: (isElectron: boolean) => void;
 }
 
 const defaultEditorSettings: EditorSettings = {
@@ -31,6 +33,7 @@ const AppStateContext = createContext<AppState | undefined>(undefined);
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editorSettings, setEditorSettingsState] = useState<EditorSettings>(defaultEditorSettings);
+  const [isElectron, setIsElectron] = useState(false);
 
   // Load settings from localStorage on the client side only
   useEffect(() => {
@@ -60,7 +63,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppStateContext.Provider value={{ isSettingsOpen, setIsSettingsOpen, editorSettings, setEditorSettings }}>
+    <AppStateContext.Provider value={{ 
+        isSettingsOpen, setIsSettingsOpen, 
+        editorSettings, setEditorSettings,
+        isElectron, setIsElectron
+    }}>
       {children}
     </AppStateContext.Provider>
   );

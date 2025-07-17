@@ -74,24 +74,7 @@ export function Ide({ vfs }: IdeProps) {
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
-  const { editorSettings } = useAppState();
-  const [isElectron, setIsElectron] = useState(false);
-
-  useEffect(() => {
-    // Проверяем, запущено ли приложение в Electron
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      setIsElectron(true);
-      document.body.classList.add('electron-app');
-       // Listen for 'open-path' events from the main process
-      (window as any).electronAPI.onOpenPath(async (path: string) => {
-        toast({ title: 'Opening Path...', description: path });
-        const success = await openPathWithApi(path);
-        if (success) {
-          resetEditorState();
-        }
-      });
-    }
-  }, [openPathWithApi]);
+  const { editorSettings, isElectron } = useAppState();
 
   const launchConfigs = useMemo(() => {
     const launchFile = findFileByPath('launch.json');
