@@ -31,14 +31,27 @@ class XtermVfsApi {
     private vfs: ReturnType<typeof useVfs>;
     private _cwd: string = '/';
     private _cwdNode: VFSDirectory;
+    private executeSystemCommand: (command: string, args: string[]) => Promise<{ stdout: string, stderr: string, code: number | null }>;
 
-    constructor(term: Terminal, vfs: ReturnType<typeof useVfs>) {
+    constructor(term: Terminal, vfs: ReturnType<typeof useVfs>, executeSystemCommand: (command: string, args: string[]) => Promise<{ stdout: string, stderr: string, code: number | null }>) {
         this.term = term;
         this.vfs = vfs;
         this._cwdNode = vfs.vfsRoot;
+        this.executeSystemCommand = executeSystemCommand;
     }
 
     get cwd(): string { return this._cwd; }
+    
+    public async handleExternalCommand(command: string, args: string[]) {
+        this.term.writeln(`\x1b[90mExecuting: ${command} ${args.join(' ')}...\x1b[0m`);
+        const result = await this.executeSystemCommand(command, args);
+        if (result.stdout) {
+            this.term.write(result.stdout.replace(/\n/g, '\r\n'));
+        }
+        if (result.stderr) {
+            this.term.write(`\x1b[31m${result.stderr.replace(/\n/g, '\r\n')}\x1b[0m`);
+        }
+    }
 
     private _updateCwdNode() {
         const result = this.vfs.findNodeByPath(this._cwd);
@@ -138,16 +151,72 @@ export function TerminalView() {
     }, [apiRef.current?.cwd, vfs.vfsRoot]);
 
 
+    const executeSystemCommand = async (command: string, args: string[]): Promise<{ stdout: string, stderr: string, code: number | null }> => {
+        const programPath = args[0]; // e.g. "my_script.py"
+        if (!programPath) {
+            return { stdout: '', stderr: 'No script specified.', code: 1 };
+        }
+        
+        let runnerType = '';
+        const extension = command.split('.').pop();
+        if (command === 'python' || command === 'python3' || extension === 'py') runnerType = 'python';
+        else if (command === 'go' && args[0] === 'run') { runnerType = 'go'; args.shift(); }
+        else if (command === 'ruby' || extension === 'rb') runnerType = 'ruby';
+        else if (command === 'php' || extension === 'php') runnerType = 'php';
+        // Add more runners as needed
+
+        if (!runnerType) {
+            return { stdout: '', stderr: `Unknown command: ${command}`, code: 1 };
+        }
+        
+        // This is a simplified execution model. We pass the whole project and a config.
+        const config = {
+            name: `Terminal Run: ${command} ${programPath}`,
+            type: runnerType,
+            request: 'launch',
+            program: programPath,
+            args: {} // Terminal args parsing is complex, skipping for now.
+        };
+
+        const apiEndpoint = `/api/run-${config.type}`;
+        
+        try {
+            const response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projectFiles: [vfs.vfsRoot],
+                    config: config,
+                }),
+            });
+            const responseData = await response.json();
+            if (!response.ok || !responseData.success) {
+                return { stdout: '', stderr: responseData.error || 'Execution failed on server.', code: 1 };
+            }
+            return {
+                stdout: responseData.data.stdout,
+                stderr: responseData.data.stderr,
+                code: responseData.data.hasError ? 1 : 0
+            };
+        } catch (e: any) {
+            return { stdout: '', stderr: e.message, code: 1 };
+        }
+    };
+
+
     const commands = useMemo(() => ({
         help: {
             description: 'Shows this help message.',
             action: (term: Terminal) => {
                 term.writeln('WebCoder.ai Interactive Terminal');
                 term.writeln('--------------------------------');
-                term.writeln('Available commands:');
+                term.writeln('\x1b[1mInternal Commands:\x1b[0m');
                 Object.entries(commands).forEach(([key, { description }]) => {
                     term.writeln(`  \x1b[1;32m${key.padEnd(10)}\x1b[0m - ${description}`);
                 });
+                term.writeln('\n\x1b[1mExternal Commands:\x1b[0m');
+                term.writeln('  \x1b[1;32mpython, go run, ruby, php\x1b[0m');
+                term.writeln('  Example: \x1b[3mpython python_scripts/my_script.py\x1b[0m');
                 term.writeln('\nAny other input will be evaluated as JavaScript.');
             }
         },
@@ -184,20 +253,24 @@ export function TerminalView() {
             term.open(terminalRef.current);
 
             termInstance.current = { term, fitAddon };
-            apiRef.current = new XtermVfsApi(term, vfs);
+            apiRef.current = new XtermVfsApi(term, vfs, executeSystemCommand);
 
             term.writeln('Welcome to WebCoder.ai Terminal!');
             term.writeln("Type `help` to see available commands.");
             term.write(prompt);
 
-            const handleCommand = (line: string) => {
+            const handleCommand = async (line: string) => {
                 const [command, ...args] = line.trim().split(/\s+/);
                 const commandHandler = commands[command.toLowerCase() as keyof typeof commands];
+                
+                const externalRunners = ['python', 'python3', 'go', 'ruby', 'php'];
+                
                 if (commandHandler) {
                     commandHandler.action(term, args);
+                } else if (externalRunners.includes(command.toLowerCase())) {
+                    await apiRef.current?.handleExternalCommand(command, args);
                 } else {
                     try {
-                        // Use Function for safer eval
                         const result = new Function(`return ${line}`)();
                         if (result !== undefined) {
                             term.writeln(JSON.stringify(result, null, 2).replace(/\n/g, '\r\n'));
@@ -208,7 +281,7 @@ export function TerminalView() {
                 }
             };
             
-            term.onKey(({ key, domEvent }) => {
+            term.onKey(async ({ key, domEvent }) => {
                 const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
 
                 switch (domEvent.key) {
@@ -217,7 +290,7 @@ export function TerminalView() {
                             commandHistory.push(currentLine);
                             historyIndex = commandHistory.length;
                             term.writeln('');
-                            handleCommand(currentLine);
+                            await handleCommand(currentLine);
                         }
                         term.write(`\r\n${prompt}`);
                         currentLine = '';
@@ -290,3 +363,5 @@ export function TerminalView() {
 
     return <div ref={terminalRef} className="h-full w-full p-2 bg-background" />;
 }
+
+    
