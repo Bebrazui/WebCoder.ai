@@ -133,14 +133,24 @@ export function SettingsSheet() {
             </div>
 
             <div className="space-y-4 rounded-lg border p-4">
-                <h3 className="font-medium">Run/Debug</h3>
+                <h3 className="font-medium">Features</h3>
                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="manual-json" className="col-span-2">Manual JSON Input</Label>
+                    <Label htmlFor="manual-json" className="col-span-2">Manual JSON Input (Debug)</Label>
                     <div className="col-span-1 flex justify-end">
                         <Switch
                             id="manual-json"
                             checked={editorSettings.manualJsonInput}
                             onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, manualJsonInput: checked })}
+                        />
+                    </div>
+                </div>
+                 <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="trash-can" className="col-span-2">Drag & Drop Trash</Label>
+                    <div className="col-span-1 flex justify-end">
+                        <Switch
+                            id="trash-can"
+                            checked={editorSettings.trashCanEnabled}
+                            onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, trashCanEnabled: checked })}
                         />
                     </div>
                 </div>

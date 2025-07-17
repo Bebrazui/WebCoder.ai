@@ -10,6 +10,7 @@ export interface EditorSettings {
   wordWrap: boolean;
   manualJsonInput: boolean;
   animationsEnabled: boolean;
+  trashCanEnabled: boolean;
 }
 
 interface AppState {
@@ -28,6 +29,7 @@ const defaultEditorSettings: EditorSettings = {
   wordWrap: true,
   manualJsonInput: false,
   animationsEnabled: true,
+  trashCanEnabled: true,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
