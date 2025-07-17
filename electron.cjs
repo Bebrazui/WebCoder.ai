@@ -1,78 +1,47 @@
 // electron.cjs
-const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
-const createMenuTemplate = require('./menu.js');
+const { spawn } = require('child_process');
+const createMenuTemplate = require('./menu');
 
-const isDev = !app.isPackaged;
-const devUrl = 'http://localhost:9002';
-const prodUrl = `file://${path.join(__dirname, 'out/index.html')}`;
-
+const isDev = process.env.NODE_ENV === 'development';
 let mainWindow;
-let fileToOpen = null; // Variable to store the file path from command line argument
-
-// --- "Open With" Handling ---
-// For Windows and Linux, the path is in process.argv.
-// We need to grab it before the app is ready.
-if (process.argv.length >= 2 && !isDev) {
-  const openPath = process.argv[1];
-  if (openPath && openPath !== '.') {
-    fileToOpen = openPath;
-  }
-}
-
-// For macOS, we listen for the 'open-file' event.
-app.on('open-file', (event, path) => {
-  event.preventDefault();
-  if (mainWindow) {
-    // If the window is already open, send the path to the renderer process.
-    mainWindow.webContents.send('open-path', path);
-  } else {
-    // If the app is not open, store the path to be opened after the window is created.
-    fileToOpen = path;
-  }
-});
-
+// Keep a reference to the current child process
+let childProcess = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1400,
+    height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // Required for preload script to work
     },
-    titleBarStyle: 'hidden', // For custom title bar
-    trafficLightPosition: { x: 15, y: 15 }, // macOS traffic lights position
+    // The following options are for a frameless window with custom title bar
+    frame: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#232F34', // Match your dark theme background
   });
 
-  // Set up the application menu
-  const menuTemplate = createMenuTemplate(app, mainWindow);
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  Menu.setApplicationMenu(menu);
+  const startUrl = isDev
+    ? 'http://localhost:9002' // Port from package.json
+    : `file://${path.join(__dirname, 'out/index.html')}`;
 
-  // Load the app URL
-  const url = isDev ? devUrl : prodUrl;
-  mainWindow.loadURL(url);
+  mainWindow.loadURL(startUrl);
 
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
-  // After the window has finished loading, check if there's a file to open.
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (fileToOpen) {
-      mainWindow.webContents.send('open-path', fileToOpen);
-      fileToOpen = null; // Clear it after sending
-    }
-  });
+  // Set up the application menu
+  const menu = Menu.buildFromTemplate(createMenuTemplate(app, mainWindow));
+  Menu.setApplicationMenu(menu);
 
-  // --- Window Control IPC Handlers ---
-  ipcMain.on('window:minimize', () => {
-    mainWindow.minimize();
-  });
+  mainWindow.on('closed', () => (mainWindow = null));
 
+  // Listen for window control events from the renderer
+  ipcMain.on('window:minimize', () => mainWindow.minimize());
   ipcMain.on('window:maximize', () => {
     if (mainWindow.isMaximized()) {
       mainWindow.unmaximize();
@@ -80,48 +49,70 @@ function createWindow() {
       mainWindow.maximize();
     }
   });
+  ipcMain.on('window:close', () => mainWindow.close());
 
-  ipcMain.on('window:close', () => {
-    mainWindow.close();
-  });
-
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send('window:isMaximized', true);
-  });
-
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send('window:isMaximized', false);
-  });
+  // Send maximization state to renderer
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window:isMaximized', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:isMaximized', false));
 }
 
-// Ensure the app is single-instance to handle "Open With" correctly
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
+// --- IPC for Terminal Command Execution ---
+ipcMain.on('execute-command', (event, { command, args, cwd }) => {
+  // If another process is running, kill it first
+  if (childProcess) {
+    childProcess.kill();
+    childProcess = null;
+  }
+  
+  // Use shell: true to handle complex commands like those with pipes or redirects,
+  // and to ensure system PATH is respected.
+  childProcess = spawn(command, args, { cwd, shell: true });
 
-      // Handle file passed to second instance
-      const openPath = commandLine.pop();
-      if (openPath && openPath !== '.') {
-         mainWindow.webContents.send('open-path', openPath);
-      }
+  childProcess.stdout.on('data', (data) => {
+    event.sender.send('terminal-output', data.toString());
+  });
+
+  childProcess.stderr.on('data', (data) => {
+    // Send stderr data to the same output channel for simplicity, xterm can color it.
+    event.sender.send('terminal-output', data.toString());
+  });
+
+  childProcess.on('close', (code) => {
+    event.sender.send('terminal-command-complete', code);
+    childProcess = null; // Clear the process reference
+  });
+
+  childProcess.on('error', (err) => {
+    event.sender.send('terminal-output', `\r\nFailed to start command: ${err.message}\r\n`);
+    event.sender.send('terminal-command-complete', 1);
+    childProcess = null; // Clear the process reference
+  });
+});
+
+ipcMain.on('terminal-input', (event, data) => {
+    if (childProcess) {
+        childProcess.stdin.write(data);
     }
-  });
+});
 
-  app.whenReady().then(() => {
-    createWindow();
+// Handle Ctrl+C from terminal
+ipcMain.on('terminal-kill', () => {
+  if (childProcess) {
+    childProcess.kill('SIGINT'); // Send SIGINT for graceful shutdown
+    childProcess = null;
+  }
+});
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-      }
-    });
+
+app.on('ready', () => {
+  createWindow();
+
+  // Handle opening files with the app on macOS
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    mainWindow.webContents.send('open-path', path);
   });
-}
+});
 
 
 app.on('window-all-closed', () => {
@@ -129,3 +120,31 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+app.on('activate', () => {
+  if (mainWindow === null) {
+    createWindow();
+  }
+});
+
+// This will be triggered by file associations on Windows/Linux
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+  // The last argument is the file/folder path
+  const openPath = commandLine.pop();
+  if (openPath && mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    mainWindow.webContents.send('open-path', openPath);
+  }
+});
+
+// On Windows, the path is in process.argv
+if (process.platform === 'win32' && process.argv.length >= 2) {
+    const openPath = process.argv[1];
+    // A simple check to see if it's a path and not a flag
+    if (openPath && !openPath.startsWith('--')) {
+        app.on('ready', () => {
+            mainWindow.webContents.send('open-path', openPath);
+        });
+    }
+}

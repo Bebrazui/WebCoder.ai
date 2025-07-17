@@ -13,10 +13,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close: () => ipcRenderer.send('window:close'),
   
   // Window state events
-  onIsMaximized: (callback) => ipcRenderer.on('window:isMaximized', (_event, value) => callback(value)),
+  onIsMaximized: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on('window:isMaximized', handler);
+    return () => ipcRenderer.removeListener('window:isMaximized', handler);
+  },
 
   // File/path opening events from main process
-  onOpenPath: (callback) => ipcRenderer.on('open-path', (_event, value) => callback(value))
+  onOpenPath: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on('open-path', handler);
+    return () => ipcRenderer.removeListener('open-path', handler);
+  },
+
+  // Terminal commands
+  executeCommand: (command, args, cwd) => ipcRenderer.send('execute-command', { command, args, cwd }),
+  onTerminalOutput: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('terminal-output', handler);
+    return () => ipcRenderer.removeListener('terminal-output', handler);
+  },
+  onTerminalCommandComplete: (callback) => {
+    const handler = (_event, code) => callback(code);
+    ipcRenderer.on('terminal-command-complete', handler);
+    return () => ipcRenderer.removeListener('terminal-command-complete', handler);
+  },
+  sendTerminalInput: (data) => ipcRenderer.send('terminal-input', data),
+  killProcess: () => ipcRenderer.send('terminal-kill'),
 });
 
-console.log('Preload script loaded.');
+console.log('Preload script loaded with terminal API.');
