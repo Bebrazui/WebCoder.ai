@@ -206,7 +206,7 @@ export function useVfs() {
     }
   }, []);
 
-  const saveVfs = useCallback(async (root: VFSDirectory) => {
+  const saveVfs = useCallback(async (root: VFSDirectory, options: { silent?: boolean } = {}) => {
     if (directoryHandle) {
         return; // Don't save to localforage if using File System Access API
     }
@@ -216,8 +216,11 @@ export function useVfs() {
       await getGitStatus();
     } catch (error) {
       console.error("Failed to save VFS to IndexedDB", error);
+      if (!options.silent) {
+        toast({ variant: "destructive", title: "Save Error", description: "Could not save project." });
+      }
     }
-  }, [directoryHandle, syncVfsToLfs, getGitStatus]);
+  }, [directoryHandle, syncVfsToLfs, getGitStatus, toast]);
 
   useEffect(() => {
     localforage.config({
@@ -234,7 +237,7 @@ export function useVfs() {
           await syncVfsToLfs(savedRoot);
         } else {
           setVfsRoot(defaultRoot);
-          await saveVfs(defaultRoot);
+          await saveVfs(defaultRoot, { silent: true });
         }
         await getGitBranch();
         await getGitStatus();
@@ -243,7 +246,7 @@ export function useVfs() {
         toast({ variant: "destructive", title: "Error", description: "Could not load your project from local storage."});
         // Fallback to default if loading fails catastrophically
         setVfsRoot(defaultRoot);
-        await saveVfs(defaultRoot);
+        await saveVfs(defaultRoot, { silent: true });
       } finally {
         setLoading(false);
       }
