@@ -264,20 +264,87 @@ export function RunView({ onSelectFile }: RunViewProps) {
   }
 
   const handleAddLaunchJson = useCallback(() => {
-      const content = `
-{
+      const content = `{
   "version": "0.2.0",
   "configurations": [
+    {
+      "name": "Run Java App",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "Main",
+      "sourcePaths": ["java_apps/src"],
+      "classPaths": [],
+      "args": {
+        "name": "Java User",
+        "age": 42
+      }
+    },
     {
       "name": "Run Python Script",
       "type": "python",
       "request": "launch",
-      "program": "my_script.py",
-      "args": { "name": "World" }
+      "program": "python_scripts/my_script.py",
+      "args": {
+        "name": "From launch.json",
+        "value": 12345
+      }
+    },
+    {
+      "name": "Run Go App",
+      "type": "go",
+      "request": "launch",
+      "program": "go_apps/main.go",
+      "args": {
+        "name": "Go Developer",
+        "value": 987
+      }
+    },
+    {
+      "name": "Run Rust App",
+      "type": "rust",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--release"],
+        "projectPath": "rust_apps"
+      },
+      "args": {
+        "name": "Rustacean",
+        "value": 1010
+      }
+    },
+    {
+      "name": "Run C# App",
+      "type": "csharp",
+      "request": "launch",
+      "projectPath": "csharp_apps/my_csharp_app",
+      "args": {
+        "name": "C# Coder",
+        "value": 777
+      }
+    },
+    {
+      "name": "Run PHP Script",
+      "type": "php",
+      "request": "launch",
+      "program": "php_scripts/my_php_script.php",
+      "args": {
+        "name": "PHP Enthusiast",
+        "value": 555
+      }
+    },
+    {
+      "name": "Run Ruby Script",
+      "type": "ruby",
+      "request": "launch",
+      "program": "ruby_scripts/my_ruby_script.rb",
+      "args": {
+        "name": "Rubyist",
+        "value": 333
+      }
     }
   ]
 }
-      `.trim();
+`;
       createFileInVfs('launch.json', vfsRoot as VFSDirectory, content);
       toast({ title: '`launch.json` created', description: 'File was added to the root of your project.' });
   }, [createFileInVfs, vfsRoot, toast]);
