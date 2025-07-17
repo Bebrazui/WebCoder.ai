@@ -1,7 +1,7 @@
 // src/components/ide.tsx
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import hotkeys from "hotkeys-js";
 import type * as monaco from "monaco-editor";
@@ -23,6 +23,7 @@ import type { OutlineData } from "./outline-view";
 import { SettingsSheet } from "./settings-sheet";
 import { useAppState } from "@/hooks/use-app-state";
 import { TitleBar } from "./title-bar";
+import { LaunchConfig } from "./file-explorer";
 
 
 const TerminalView = dynamic(
@@ -81,6 +82,18 @@ export function Ide({ vfs }: IdeProps) {
       document.body.classList.add('electron-app');
     }
   }, []);
+
+  const launchConfigs = useMemo(() => {
+    const launchFile = findFileByPath('launch.json');
+    if (launchFile) {
+        try {
+            return JSON.parse(launchFile.content).configurations as LaunchConfig[] || [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+  }, [findFileByPath, vfsRoot]); // Depend on vfsRoot to re-evaluate when files change
 
   const resetEditorState = useCallback(() => {
       setOpenFiles([]);
@@ -391,6 +404,7 @@ export function Ide({ vfs }: IdeProps) {
                   outlineData={outlineData}
                   onSymbolSelect={handleSymbolSelect}
                   onCompileJava={compileJavaProject}
+                  launchConfigs={launchConfigs}
                 />
               </ResizablePanel>
               <ResizableHandle withHandle />
@@ -409,6 +423,7 @@ export function Ide({ vfs }: IdeProps) {
                     onFileSave={handleSaveFile}
                     onEditorReady={(editor) => { editorRef.current = editor }}
                     onOutlineChange={setOutlineData}
+                    launchConfigs={launchConfigs}
                 />
               </ResizablePanel>
               {isTerminalOpen && (

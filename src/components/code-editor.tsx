@@ -1,13 +1,13 @@
-
+// src/components/code-editor.tsx
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLanguage } from "@/lib/vfs";
+import { getLanguage, type VFSFile } from "@/lib/vfs";
 import { Button } from "@/components/ui/button";
-import { WandSparkles, FileCode2, LoaderCircle } from "lucide-react";
+import { WandSparkles, FileCode2, LoaderCircle, Play } from "lucide-react";
 import { AiTransformDialog } from "./ai-transform-dialog";
 import { OutlineData } from "./outline-view";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -17,6 +17,8 @@ import * as prettierPluginBabel from "prettier/plugins/babel";
 import * as prettierPluginEstree from "prettier/plugins/estree";
 import * as prettierPluginHtml from "prettier/plugins/html";
 import { useAppState } from "@/hooks/use-app-state";
+import { LaunchConfig } from "./file-explorer";
+import { useVfs } from "@/hooks/use-vfs";
 
 interface CodeEditorProps {
   path: string;
@@ -24,6 +26,7 @@ interface CodeEditorProps {
   onChange: (value: string) => void;
   onEditorReady?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onOutlineChange?: (outline: OutlineData[]) => void;
+  launchConfigs: LaunchConfig[];
 }
 
 const mapSymbol = (symbol: monaco.languages.DocumentSymbol): OutlineData => ({
@@ -33,7 +36,7 @@ const mapSymbol = (symbol: monaco.languages.DocumentSymbol): OutlineData => ({
     children: symbol.children ? symbol.children.map(mapSymbol) : [],
 });
 
-export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChange }: CodeEditorProps) {
+export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChange, launchConfigs }: CodeEditorProps) {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monaco | null>(null);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
@@ -42,6 +45,29 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const debouncedValue = useDebounce(value, 500);
   const { toast } = useToast();
   const { editorSettings } = useAppState();
+  const { vfsRoot } = useVfs();
+
+  const handleRunScript = async (config: LaunchConfig) => {
+    toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view or terminal for output.`});
+    const apiEndpoint = `/api/run-${config.type}`;
+    try {
+        // The RunView has more complex logic for handling args, but for this context menu, we use the default.
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectFiles: [vfsRoot],
+                config: config,
+            }),
+        });
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+    } catch(e: any) {
+        toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
+    }
+  };
 
   const updateOutline = useCallback(async () => {
     if (!editorRef.current || !monacoRef.current || !onOutlineChange) return;
@@ -71,6 +97,36 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     if (onEditorReady) {
         onEditorReady(editor);
     }
+    
+    // Custom "Run Script" action
+    editor.addAction({
+      id: 'run-script',
+      label: 'Run Script',
+      keybindings: [],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      precondition: 'true', // Always available in menu, but we'll check runnability in the `run` method.
+      run: (ed: monaco.editor.ICodeEditor) => {
+        const model = ed.getModel();
+        if (!model) return;
+
+        const filePath = model.uri.path.startsWith('/') ? model.uri.path.substring(1) : model.uri.path;
+        
+        const runnableConfig = launchConfigs.find(config => {
+            const fileNode = { name: filePath.split('/').pop() || '', path: filePath };
+            return config.program === filePath ||
+                (config.type === 'java' && fileNode.name === `${config.mainClass}.java`) ||
+                (config.type === 'rust' && fileNode.name === 'main.rs' && config.cargo?.projectPath === 'rust_apps') ||
+                (config.type === 'csharp' && fileNode.name === 'Program.cs' && config.projectPath && fileNode.path.includes(config.projectPath));
+        });
+
+        if (runnableConfig) {
+          handleRunScript(runnableConfig);
+        } else {
+          toast({ variant: 'destructive', title: "Not Runnable", description: "No launch configuration found for this file." });
+        }
+      },
+    });
 
     // --- Enable Rich IntelliSense and validation ---
     const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {

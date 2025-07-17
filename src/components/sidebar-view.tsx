@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileExplorer, type FileExplorerProps } from "./file-explorer";
+import { FileExplorer, type FileExplorerProps, LaunchConfig } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
 import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps } from "lucide-react";
@@ -16,13 +16,14 @@ import type * as monaco from 'monaco-editor';
 import { useVfs } from "@/hooks/use-vfs";
 
 
-export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
+export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'launchConfigs'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
     onCommit: (message: string, token: string) => Promise<void>;
     outlineData: OutlineData[];
     onSymbolSelect: (range: any) => void;
     onCompileJava: () => Promise<boolean>;
+    launchConfigs: LaunchConfig[];
 }
 
 type View = "explorer" | "source-control" | "outline" | "run" | "plugins";

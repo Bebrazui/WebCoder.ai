@@ -19,6 +19,7 @@ import { OutlineData } from "./outline-view";
 import { isTextFile, isImageFile, isAudioFile, isClassFile, isSceneFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
 import { SceneEditor } from "./scene-editor";
+import { LaunchConfig } from "./file-explorer";
 
 interface EditorPaneProps {
   openFiles: VFSFile[];
@@ -30,6 +31,7 @@ interface EditorPaneProps {
   onFileSave: (path: string) => void;
   onEditorReady: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onOutlineChange: (outline: OutlineData[]) => void;
+  launchConfigs: LaunchConfig[];
 }
 
 export function EditorPane({
@@ -42,6 +44,7 @@ export function EditorPane({
   onFileSave,
   onEditorReady,
   onOutlineChange,
+  launchConfigs,
 }: EditorPaneProps) {
 
   if (openFiles.length === 0) {
@@ -95,6 +98,7 @@ export function EditorPane({
       onChange={(newContent) => onFileChange(file.path, newContent)}
       onEditorReady={onEditorReady}
       onOutlineChange={onOutlineChange}
+      launchConfigs={launchConfigs}
     />
   }
 

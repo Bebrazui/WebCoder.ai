@@ -1,4 +1,4 @@
-
+// src/components/file-explorer.tsx
 "use client";
 
 import React, { useState, useRef, useMemo, useCallback } from "react";
@@ -19,6 +19,7 @@ import {
   Download,
   Github,
   Play,
+  Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -36,7 +37,9 @@ import { GlobalSearch } from "./global-search";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
-import { useVfs } from "@/hooks/use-vfs"; // Import for config access
+import { useVfs } from "@/hooks/use-vfs";
+import { useToast } from "@/hooks/use-toast";
+
 
 export interface LaunchConfig {
     name: string;
@@ -45,6 +48,10 @@ export interface LaunchConfig {
     program?: string;
     mainClass?: string;
     projectPath?: string;
+    cargo?: {
+        args: string[];
+        projectPath: string;
+    };
     [key: string]: any;
 }
 
@@ -62,6 +69,7 @@ export interface FileExplorerProps {
   onOpenFolder: () => void;
   onDownloadZip: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
+  launchConfigs: LaunchConfig[];
 }
 
 export function FileExplorer({
@@ -78,6 +86,7 @@ export function FileExplorer({
   onOpenFolder,
   onDownloadZip,
   onCloneRepository,
+  launchConfigs,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -195,6 +204,7 @@ export function FileExplorer({
                     onRenameNode={onRenameNode}
                     onDeleteNode={onDeleteNode}
                     onMoveNode={onMoveNode}
+                    launchConfigs={launchConfigs}
                   />
                 )}
               </div>
@@ -228,6 +238,7 @@ const ExplorerNode = ({
   onRenameNode,
   onDeleteNode,
   onMoveNode,
+  launchConfigs,
 }: {
   node: VFSNode;
   onSelectFile: (file: VFSFile) => void;
@@ -237,22 +248,12 @@ const ExplorerNode = ({
   onRenameNode: (node: VFSNode, newName: string) => void;
   onDeleteNode: (node: VFSNode) => void;
   onMoveNode: (sourcePath: string, targetDirPath: string) => void;
+  launchConfigs: LaunchConfig[];
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { findFileByPath } = useVfs();
-  
-  const launchConfigs = useMemo(() => {
-    const launchFile = findFileByPath('launch.json');
-    if (launchFile) {
-        try {
-            return JSON.parse(launchFile.content).configurations as LaunchConfig[] || [];
-        } catch {
-            return [];
-        }
-    }
-    return [];
-  }, [findFileByPath]);
+  const { vfsRoot } = useVfs();
+  const { toast } = useToast();
   
   const runnableConfig = useMemo(() => {
     if (node.type !== 'file') return null;
@@ -262,27 +263,29 @@ const ExplorerNode = ({
         return config.program === filePath ||
                (config.type === 'java' && node.name === `${config.mainClass}.java`) ||
                (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath === 'rust_apps') ||
-               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath === `csharp_apps/${node.name.replace('.cs', '')}`)
+               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && node.path.includes(config.projectPath))
     });
   }, [node, launchConfigs]);
   
   const handleRunScript = async (config: LaunchConfig) => {
-    // This is a simplified "run" command that just posts to the API.
-    // The RunView has more complex logic, but this demonstrates the concept.
+    toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view or terminal for output.`});
     const apiEndpoint = `/api/run-${config.type}`;
     try {
-        await fetch(apiEndpoint, {
+        // The RunView has more complex logic for handling args, but for this context menu, we use the default.
+        const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                projectFiles: [node], // Simplified, might need full VFS
+                projectFiles: [vfsRoot],
                 config: config,
             }),
         });
-        // In a real app, you'd show output in the terminal. For now, just log.
-        console.log(`Request to run ${config.name} sent.`);
-    } catch(e) {
-        console.error("Failed to run script from context menu", e);
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+    } catch(e: any) {
+        toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
   };
 
@@ -403,6 +406,7 @@ const ExplorerNode = ({
                                 onRenameNode={onRenameNode}
                                 onDeleteNode={onDeleteNode}
                                 onMoveNode={onMoveNode}
+                                launchConfigs={launchConfigs}
                             />
                     ))
                 ) : (
