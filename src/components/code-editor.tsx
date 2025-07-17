@@ -121,6 +121,30 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     }
   }, [onOutlineChange, languageServiceReady]);
 
+  const handleFormat = async () => {
+    if (isFormatting) return;
+    setIsFormatting(true);
+    try {
+        const language = getLanguage(path);
+        const parser = language === 'typescript' || language === 'javascript' ? 'babel-ts' : language;
+        
+        const formattedCode = await prettier.format(value, {
+            parser: parser,
+            plugins: [prettierPluginBabel, prettierPluginEstree, prettierPluginHtml],
+            // Prettier options
+            semi: true,
+            singleQuote: false,
+            trailingComma: "es5",
+        });
+        onChange(formattedCode);
+        toast({ title: "Code formatted", description: "Successfully formatted the code with Prettier." });
+    } catch (error) {
+        console.error("Formatting failed:", error);
+        toast({ variant: "destructive", title: "Formatting failed", description: "Could not format the code. It may contain syntax errors." });
+    } finally {
+        setIsFormatting(false);
+    }
+  };
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor;
@@ -129,14 +153,41 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         onEditorReady(editor);
     }
     
-    // Custom "Run Script" action
+    // --- Add Context Menu Actions ---
+    const addAction = (id: string, label: string, keybindings: number[] | undefined, contextMenuGroupId: string, contextMenuOrder: number) => {
+        editor.addAction({
+            id,
+            label,
+            keybindings,
+            contextMenuGroupId,
+            contextMenuOrder,
+            run: (ed) => ed.trigger('contextmenu', id, {}),
+        });
+    };
+
+    // Navigation Group
+    addAction('editor.action.revealDefinition', 'Go to Definition', [monacoInstance.KeyCode.F12], 'navigation', 1.1);
+    addAction('editor.action.findReferences', 'Find All References', undefined, 'navigation', 1.2);
+
+    // Refactoring Group
+    addAction('editor.action.rename', 'Rename Symbol', [monacoInstance.KeyCode.F2], '2_refactor', 2.1);
+    addAction('editor.action.changeAll', 'Change All Occurrences', undefined, '2_refactor', 2.2);
     editor.addAction({
-      id: 'run-script',
-      label: 'Run Script',
+        id: 'format-document-action',
+        label: 'Format Document',
+        keybindings: [],
+        contextMenuGroupId: '2_refactor',
+        contextMenuOrder: 2.3,
+        run: () => handleFormat(),
+    });
+
+    // Run Group
+    editor.addAction({
+      id: 'run-script-context',
+      label: 'Run Script...',
       keybindings: [],
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.5,
-      precondition: 'true', // Always available in menu, but we'll check runnability in the `run` method.
+      contextMenuGroupId: '9_cutcopypaste', // a group that comes after editing
+      contextMenuOrder: 3,
       run: (ed: monaco.editor.ICodeEditor) => {
         const model = ed.getModel();
         if (!model) return;
@@ -158,6 +209,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         }
       },
     });
+
 
     editor.onMouseUp(() => {
       const selection = editor.getSelection();
@@ -200,31 +252,6 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
           forceMoveMarkers: true
         }]);
       }
-    }
-  };
-
-  const handleFormat = async () => {
-    if (isFormatting) return;
-    setIsFormatting(true);
-    try {
-        const language = getLanguage(path);
-        const parser = language === 'typescript' || language === 'javascript' ? 'babel-ts' : language;
-        
-        const formattedCode = await prettier.format(value, {
-            parser: parser,
-            plugins: [prettierPluginBabel, prettierPluginEstree, prettierPluginHtml],
-            // Prettier options
-            semi: true,
-            singleQuote: false,
-            trailingComma: "es5",
-        });
-        onChange(formattedCode);
-        toast({ title: "Code formatted", description: "Successfully formatted the code with Prettier." });
-    } catch (error) {
-        console.error("Formatting failed:", error);
-        toast({ variant: "destructive", title: "Formatting failed", description: "Could not format the code. It may contain syntax errors." });
-    } finally {
-        setIsFormatting(false);
     }
   };
 
