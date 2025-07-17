@@ -37,7 +37,6 @@ interface MenuBarProps {
     onToggleTerminal: () => void;
     isStatusBarVisible: boolean;
     onToggleStatusBar: () => void;
-    onOpenDocumentation: () => void;
 }
   
 export function MenuBar({
@@ -58,10 +57,9 @@ export function MenuBar({
     onToggleTerminal,
     isStatusBarVisible,
     onToggleStatusBar,
-    onOpenDocumentation,
 }: MenuBarProps) {
     const { theme, setTheme } = useTheme();
-    const { setIsSettingsOpen } = useAppState();
+    const { setIsSettingsOpen, setIsDocsOpen } = useAppState();
 
     return (
         <div className="flex items-center justify-between border-b border-border pl-2 pr-1 h-11">
@@ -159,7 +157,7 @@ export function MenuBar({
                 <MenubarMenu>
                     <MenubarTrigger>Help</MenubarTrigger>
                     <MenubarContent>
-                        <MenubarItem onClick={onOpenDocumentation}>Documentation</MenubarItem>
+                        <MenubarItem onClick={() => setIsDocsOpen(true)}>Documentation</MenubarItem>
                         <MenubarItem onClick={onCommandPaletteToggle}>Show All Commands</MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>

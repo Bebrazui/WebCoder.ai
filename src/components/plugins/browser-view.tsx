@@ -5,7 +5,6 @@ import { useState, useRef, KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Globe, ArrowLeft, ArrowRight, RotateCw, Home, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function BrowserView() {
     const [url, setUrl] = useState('https://www.google.com/webhp?igu=1');
@@ -17,13 +16,11 @@ export function BrowserView() {
         if (!finalUrl) return;
 
         if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-            // Check if it's a localhost URL
             if (/^localhost(:\d+)?/.test(finalUrl)) {
                 finalUrl = 'http://' + finalUrl;
             } else if (/\S\.\S/.test(finalUrl)) {
                  finalUrl = 'https://' + finalUrl;
             } else {
-                // Simple search query
                 finalUrl = `https://www.google.com/search?q=${encodeURIComponent(finalUrl)}`;
             }
         }
@@ -45,6 +42,13 @@ export function BrowserView() {
         setInputValue(homeUrl);
     }
     const clearUrl = () => setInputValue('');
+
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+        const selection = iframeRef.current?.contentWindow?.getSelection();
+        if (selection && selection.toString()) {
+            e.dataTransfer.setData('text/plain', selection.toString());
+        }
+    }
 
 
     return (
@@ -72,7 +76,11 @@ export function BrowserView() {
                     <Button onClick={handleGo} size="sm" className="h-9">Go</Button>
                 </div>
             </div>
-            <div className="flex-grow bg-muted/20 relative">
+            <div 
+                className="flex-grow bg-muted/20 relative"
+                draggable="true"
+                onDragStart={handleDragStart}
+            >
                  <iframe
                     ref={iframeRef}
                     src={url}
@@ -87,7 +95,6 @@ export function BrowserView() {
                            }
                         } catch(e) {
                             // Cross-origin error, we can't access the location, which is expected.
-                            // We just don't update the input value.
                         }
                     }}
                 ></iframe>

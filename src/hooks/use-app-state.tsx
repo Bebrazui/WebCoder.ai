@@ -20,6 +20,8 @@ export interface EditorSettings {
 interface AppState {
   isSettingsOpen: boolean;
   setIsSettingsOpen: (isOpen: boolean) => void;
+  isDocsOpen: boolean;
+  setIsDocsOpen: (isOpen: boolean) => void;
   editorSettings: EditorSettings;
   setEditorSettings: (settings: EditorSettings) => void;
   isElectron: boolean;
@@ -46,6 +48,7 @@ const AppStateContext = createContext<AppState | undefined>(undefined);
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [editorSettings, setEditorSettingsState] = useState<EditorSettings>(defaultEditorSettings);
   const [isElectron, setIsElectron] = useState(false);
   const [clipboardHistory, setClipboardHistory] = useState<string[]>([]);
@@ -84,6 +87,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppStateContext.Provider value={{ 
         isSettingsOpen, setIsSettingsOpen, 
+        isDocsOpen, setIsDocsOpen,
         editorSettings, setEditorSettings,
         isElectron, setIsElectron,
         clipboardHistory, addToClipboardHistory

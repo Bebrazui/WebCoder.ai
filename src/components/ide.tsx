@@ -26,6 +26,7 @@ import { TitleBar } from "./title-bar";
 import { LaunchConfig } from "./file-explorer";
 import { cn } from "@/lib/utils";
 import { TrashDropZone } from "./trash-drop-zone";
+import { DocumentationSheet } from "./documentation-sheet";
 
 
 const TerminalView = dynamic(
@@ -375,19 +376,6 @@ export function Ide({ vfs }: IdeProps) {
     }
   };
   
-  const handleOpenDocumentation = () => {
-    const readmeFile = findFileByPath('/README.md');
-    if (readmeFile) {
-        handleSelectFile(readmeFile);
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'File not found',
-            description: 'Could not find README.md in the project root.'
-        })
-    }
-  };
-
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isFileDirty = activeFile ? dirtyFiles.has(activeFile.path) : false;
 
@@ -416,7 +404,6 @@ export function Ide({ vfs }: IdeProps) {
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
         isStatusBarVisible={isStatusBarVisible}
         onToggleStatusBar={() => setIsStatusBarVisible(p => !p)}
-        onOpenDocumentation={handleOpenDocumentation}
       />
       
       <main className="min-h-0">
@@ -502,6 +489,7 @@ export function Ide({ vfs }: IdeProps) {
         editor={editorRef.current}
       />
       <SettingsSheet />
+      <DocumentationSheet />
     </div>
   );
 
