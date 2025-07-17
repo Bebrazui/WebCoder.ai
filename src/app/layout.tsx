@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppStateProvider } from '@/hooks/use-app-state';
 import { ElectronEnabler } from '@/components/electron-enabler';
+import { ClientOnly } from '@/components/client-only';
 
 export const metadata: Metadata = {
   title: 'WebCoder.ai',
@@ -33,7 +34,9 @@ export default function RootLayout({
           <ThemeProvider>
               {children}
               <Toaster />
-              <ElectronEnabler />
+              <ClientOnly>
+                <ElectronEnabler />
+              </ClientOnly>
           </ThemeProvider>
         </AppStateProvider>
       </body>
