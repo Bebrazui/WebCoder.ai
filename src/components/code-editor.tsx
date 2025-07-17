@@ -2,7 +2,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import Editor, { type OnMount } from "@monaco-editor/react";
+import Editor, { type OnMount, loader } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLanguage, type VFSFile } from "@/lib/vfs";
@@ -46,6 +46,28 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const { toast } = useToast();
   const { editorSettings } = useAppState();
   const { vfsRoot } = useVfs();
+  const [languageServiceReady, setLanguageServiceReady] = useState(false);
+
+  useEffect(() => {
+    // This ensures monaco is loaded and configured before we use it
+    loader.init().then(monacoInstance => {
+        const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {
+            defaults.setCompilerOptions({
+                jsx: monacoInstance.languages.typescript.JsxEmit.React,
+                strict: true,
+                target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
+                module: monacoInstance.languages.typescript.ModuleKind.ESNext,
+                allowSyntheticDefaultImports: true,
+                esModuleInterop: true,
+                allowJs: true,
+                allowNonTsExtensions: true,
+            });
+        };
+        setupCompilerOptions(monacoInstance.languages.typescript.typescriptDefaults);
+        setupCompilerOptions(monacoInstance.languages.typescript.javascriptDefaults);
+        setLanguageServiceReady(true);
+    });
+  }, []);
 
   const handleRunScript = async (config: LaunchConfig) => {
     toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view or terminal for output.`});
@@ -70,25 +92,34 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   };
 
   const updateOutline = useCallback(async () => {
-    if (!editorRef.current || !monacoRef.current || !onOutlineChange) return;
+    if (!editorRef.current || !monacoRef.current || !onOutlineChange || !languageServiceReady) return;
     const model = editorRef.current.getModel();
     if (!model) return;
 
     try {
-        const breadcrumbs = monacoRef.current.languages.typescript.getJavaScriptWorker().then(worker => worker(model.uri));
-        const symbols = await (await monacoRef.current.editor.getDocumentSymbolProvider(model))?.provideDocumentSymbols(model, {
-            dispose: () => {}
-        });
-
-        if (symbols) {
-            onOutlineChange(symbols.map(mapSymbol));
+        // Use the getDocumentSymbolProvider for a more reliable way to get symbols
+        const provider = monacoRef.current.languages.typescript.getTypeScriptWorker
+          ? await monacoRef.current.languages.typescript.getTypeScriptWorker()
+          : null;
+          
+        if (provider) {
+             const symbols = await (await monacoRef.current.editor.getDocumentSymbolProvider(model))?.provideDocumentSymbols(model, {
+                dispose: () => {}
+            });
+            if (symbols) {
+                onOutlineChange(symbols.map(mapSymbol));
+            } else {
+                onOutlineChange([]);
+            }
         } else {
             onOutlineChange([]);
         }
+
     } catch (e) {
+        console.warn("Could not get document symbols:", e);
         onOutlineChange([]); // Clear outline on error
     }
-  }, [onOutlineChange]);
+  }, [onOutlineChange, languageServiceReady]);
 
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
@@ -127,24 +158,6 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         }
       },
     });
-
-    // --- Enable Rich IntelliSense and validation ---
-    const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {
-      defaults.setCompilerOptions({
-        jsx: monacoInstance.languages.typescript.JsxEmit.React,
-        strict: true,
-        target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
-        module: monacoInstance.languages.typescript.ModuleKind.ESNext,
-        allowSyntheticDefaultImports: true,
-        esModuleInterop: true,
-        allowJs: true,
-        allowNonTsExtensions: true,
-      });
-    };
-
-    setupCompilerOptions(monacoInstance.languages.typescript.typescriptDefaults);
-    setupCompilerOptions(monacoInstance.languages.typescript.javascriptDefaults);
-    // --- End of IntelliSense setup ---
 
     editor.onMouseUp(() => {
       const selection = editor.getSelection();
