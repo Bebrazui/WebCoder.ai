@@ -1,7 +1,7 @@
 // src/hooks/use-vfs.ts
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import localforage from "localforage";
 import JSZip from "jszip";
 import type { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
@@ -88,6 +88,7 @@ export function useVfs() {
   const [currentBranch, setCurrentBranch] = useState('main');
   const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
   const [isGitStatusLoading, setIsGitStatusLoading] = useState(false);
+  const isOpeningFolder = useRef(false);
 
   const getGitStatus = useCallback(async () => {
     setIsGitStatusLoading(true);
@@ -572,6 +573,9 @@ export function useVfs() {
   }, [saveVfs, toast]);
 
   const openFolderWithApi = useCallback(async (): Promise<boolean> => {
+    if (isOpeningFolder.current) return false;
+    isOpeningFolder.current = true;
+
     try {
         const handle = await window.showDirectoryPicker();
         setDirectoryHandle(handle);
@@ -621,8 +625,8 @@ export function useVfs() {
         return false;
 
     } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-            // User cancelled the picker, do nothing.
+        if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
+            // User cancelled the picker or a picker was already open. Do nothing.
         } else {
             console.error("File System Access API error:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not open folder. Your browser might not support this feature."});
@@ -630,6 +634,7 @@ export function useVfs() {
         return false;
     } finally {
         setLoading(false);
+        isOpeningFolder.current = false;
     }
   }, [toast, syncVfsToLfs, getGitBranch, getGitStatus]);
 
