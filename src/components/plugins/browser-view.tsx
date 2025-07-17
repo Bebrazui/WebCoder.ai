@@ -12,7 +12,7 @@ const CORS_PROXY_PREFIX = 'https://cors-anywhere.herokuapp.com/';
 
 export function BrowserView() {
     const [currentUrl, setCurrentUrl] = useState('https://www.google.com/webhp?igu=1');
-    const [inputValue, setInputValue] = useState(currentUrl);
+    const [inputValue, setInputValue] = useState('https://www.google.com/webhp?igu=1');
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const { toast } = useToast();
 
