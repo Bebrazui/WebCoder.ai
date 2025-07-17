@@ -25,6 +25,7 @@ import { SettingsSheet } from "./settings-sheet";
 import { useAppState } from "@/hooks/use-app-state";
 import { TitleBar } from "./title-bar";
 import { LaunchConfig } from "./file-explorer";
+import { cn } from "@/lib/utils";
 
 
 const TerminalView = dynamic(
@@ -453,7 +454,7 @@ export function Ide({ vfs }: IdeProps) {
   );
 
   return (
-    <div data-is-electron={isElectron}>
+    <div className={cn("h-screen", isElectron && "electron-app")}>
       {isElectron ? (
         <div className="flex h-screen flex-col bg-transparent">
           <TitleBar />

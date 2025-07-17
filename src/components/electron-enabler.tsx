@@ -14,9 +14,7 @@ export function ElectronEnabler() {
     useEffect(() => {
         if (typeof window !== 'undefined' && (window as any).electronAPI) {
             setIsElectron(true);
-            document.body.classList.add('electron-app');
-            document.body.classList.add('has-[[data-is-electron=true]]:bg-transparent');
-
+            
             const onOpenPath = async (path: string) => {
                 toast({ title: 'Opening Path...', description: path });
                 await openPathWithApi(path);

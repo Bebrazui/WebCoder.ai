@@ -122,7 +122,7 @@ body {
   }
   
   /* Стили для Electron */
-  body.electron-app {
+  .electron-app {
     background-color: transparent;
   }
   .draggable {

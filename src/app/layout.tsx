@@ -33,8 +33,8 @@ export default function RootLayout({
           <ThemeProvider>
               {children}
               <Toaster />
+              <ElectronEnabler />
           </ThemeProvider>
-          <ElectronEnabler />
         </AppStateProvider>
       </body>
     </html>
