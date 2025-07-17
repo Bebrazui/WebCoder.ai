@@ -1,3 +1,4 @@
+
 // src/components/file-explorer.tsx
 "use client";
 
@@ -256,9 +257,10 @@ const ExplorerNode = ({
   const { toast } = useToast();
 
   const normalizePath = (p: string) => {
-    if (p.startsWith('./')) return p.substring(2);
-    if (p.startsWith('/')) return p.substring(1);
-    return p;
+    let path = p;
+    if (path.startsWith('./')) path = path.substring(2);
+    if (path.startsWith('/')) path = path.substring(1);
+    return path;
   };
   
   const runnableConfig = useMemo(() => {
@@ -361,7 +363,7 @@ const ExplorerNode = ({
       toast({ title: '`launch.json` created', description: 'File was added to the root of your project. You can now run your script.' });
   }, [createFileInVfs, vfsRoot, toast]);
   
-  const handleRunScript = useCallback(async (config: LaunchConfig) => {
+  const handleRunScript = useCallback(async (config: LaunchConfig | null) => {
     const launchFile = findFileByPath('launch.json');
     if (!launchFile) {
         if (window.confirm("`launch.json` not found. Would you like to create a default one?")) {
@@ -371,7 +373,9 @@ const ExplorerNode = ({
     }
       
     if (!config) {
-        toast({ variant: 'destructive', title: "Not Runnable", description: "No launch configuration found for this file. Please check your launch.json." });
+        if (window.confirm(`No launch configuration found for this file. Would you like to open 'launch.json' to add one?`)) {
+            onSelectFile(launchFile);
+        }
         return;
     }
 
@@ -393,7 +397,7 @@ const ExplorerNode = ({
     } catch(e: any) {
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
-  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot]);
+  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile]);
 
 
   const paddingLeft = `${level * 1}rem`;
@@ -558,9 +562,9 @@ const ExplorerNode = ({
             </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {runnableConfig && (
+        {runnableConfig !== null && (
             <>
-                <ContextMenuItem onClick={() => handleRunScript(runnableConfig)}>
+                <ContextMenuItem onClick={() => handleRunScript(runnableConfig || null)}>
                     <Play className="mr-2 h-4 w-4" /> Run Script
                 </ContextMenuItem>
                 <ContextMenuSeparator />
