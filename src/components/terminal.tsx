@@ -330,9 +330,14 @@ export function TerminalView() {
             });
 
              const resizeObserver = new ResizeObserver(() => {
-                try {
-                    requestAnimationFrame(() => fitAddon.fit());
-                } catch(e) { /* Ignore */ }
+                requestAnimationFrame(() => {
+                    try {
+                        fitAddon.fit();
+                    } catch (e) {
+                        // This can happen if the terminal is not yet fully visible.
+                        // It's safe to ignore.
+                    }
+                });
              });
              if (terminalRef.current) {
                 resizeObserver.observe(terminalRef.current);
