@@ -1,3 +1,4 @@
+
 // src/components/run-view.tsx
 "use client";
 
@@ -68,19 +69,6 @@ const findBuildFolder = (node: VFSNode): boolean => {
     return false;
 }
 
-const defaultJavaConfig: LaunchConfig = {
-    name: "Run Java App (auto-detected)",
-    type: "java",
-    request: "launch",
-    mainClass: "Main",
-    sourcePaths: ["."],
-    classPaths: ["build"],
-    args: {
-      name: "Java User",
-      age: 42
-    }
-};
-
 const noCodeHConfig: LaunchConfig = {
     name: "Run NoCodeH Game",
     type: "nocodeh",
@@ -120,15 +108,14 @@ export function RunView({ onSelectFile }: RunViewProps) {
             toast({ variant: 'destructive', title: 'Invalid launch.json', description: 'Could not parse launch.json file.' });
         }
     }
-
-    const hasJavaConfig = configs.some(c => c.type === 'java');
-    if (!hasJavaConfig && findJavaFiles(vfsRoot)) {
-        configs.push(defaultJavaConfig);
-    }
     
+    // Auto-detect NoCodeH project
     if (findNoCodeHProject(vfsRoot) && !configs.some(c => c.type === 'nocodeh')) {
         configs.unshift(noCodeHConfig);
     }
+    
+    // Add an option to auto-detect runnable files if no specific config exists
+    configs.push({ name: "Auto-detect and Run...", type: "auto", request: "launch" });
 
     setLaunchConfigs(configs);
 
@@ -177,10 +164,36 @@ export function RunView({ onSelectFile }: RunViewProps) {
   }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
 
   const handleRun = useCallback(async (overrideConfig?: LaunchConfig) => {
-      const fullConfig = overrideConfig || getFullConfig();
+      let fullConfig = overrideConfig || getFullConfig();
       if (!fullConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
+      }
+
+      if (fullConfig.type === 'auto') {
+        const filePath = prompt("Enter the path to the script to run (e.g., python_scripts/my_script.py):");
+        if (!filePath) return;
+        
+        const fileExtension = filePath.split('.').pop();
+        let langType = '';
+        switch(fileExtension) {
+            case 'py': langType = 'python'; break;
+            case 'js': langType = 'javascript'; break;
+            case 'go': langType = 'go'; break;
+            case 'rb': langType = 'ruby'; break;
+            case 'php': langType = 'php'; break;
+            default:
+                toast({ variant: 'destructive', title: 'Unsupported File', description: `Auto-run for .${fileExtension} files is not supported.` });
+                return;
+        }
+
+        fullConfig = {
+            name: `Auto-run ${filePath}`,
+            type: langType,
+            request: 'launch',
+            program: filePath,
+            args: {}
+        };
       }
       
       if (fullConfig.type === 'nocodeh') {
@@ -353,7 +366,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
       if (launchFile) {
           onSelectFile(launchFile);
       } else {
-          toast({ variant: 'destructive', title: "Not Found", description: "`launch.json` could not be found." });
+        handleAddLaunchJson();
       }
   }
 
@@ -366,32 +379,24 @@ export function RunView({ onSelectFile }: RunViewProps) {
             <PlayCircle className="h-5 w-5" />
             <span>Run and Debug</span>
         </h2>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditLaunchConfig} disabled={!launchFile}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditLaunchConfig}>
             <Settings2 className="h-4 w-4" />
         </Button>
       </div>
 
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-4">
-            {!launchFile && launchConfigs.length === 0 ? (
+            {launchConfigs.length <= 1 ? ( // Only has "Auto-detect"
                 <Alert variant="default" className="flex flex-col items-center text-center gap-4">
                     <FileWarning className="h-8 w-8" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       Create a `launch.json` file to define run configurations for different languages.
+                       You can run simple scripts using "Auto-detect", or create a `launch.json` file for more complex configurations.
                     </AlertDescription>
                     <Button onClick={handleAddLaunchJson} size="sm">
                         <FilePlus className="mr-2 h-4 w-4" />
                         Add launch.json
                     </Button>
-                </Alert>
-            ) : launchConfigs.length === 0 ? (
-                 <Alert variant="destructive">
-                    <FileWarning className="h-4 w-4" />
-                    <AlertTitle>No Configurations</AlertTitle>
-                    <AlertDescription>
-                       Your `launch.json` is empty or no runnable files were detected. Add a configuration to start.
-                    </AlertDescription>
                 </Alert>
             ) : (
                 <div className="space-y-4">
@@ -405,7 +410,9 @@ export function RunView({ onSelectFile }: RunViewProps) {
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
                                         <div className="flex items-center gap-2">
-                                            {config.type === 'nocodeh' ? <Gamepad2 className="h-4 w-4" /> : <BrainCircuit className="h-4 w-4" />}
+                                            {config.type === 'nocodeh' ? <Gamepad2 className="h-4 w-4" /> 
+                                             : config.type === 'auto' ? <BrainCircuit className="h-4 w-4" /> 
+                                             : <PlayCircle className="h-4 w-4" />}
                                             <span>{config.name}</span>
                                         </div>
                                     </SelectItem>
@@ -414,7 +421,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                         </Select>
                     </div>
 
-                    {selectedConfig && (
+                    {selectedConfig && selectedConfig.type !== 'auto' && (
                          <Alert variant="default">
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
@@ -423,40 +430,33 @@ export function RunView({ onSelectFile }: RunViewProps) {
                             </AlertDescription>
                         </Alert>
                     )}
-
-                    {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && selectedConfig?.type !== 'java-gui' && (
-                        <div className="space-y-2">
-                            <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
-                            <Textarea
-                                id="input-data"
-                                placeholder='{ "key": "value" }'
-                                value={jsonInput}
-                                onChange={(e) => setJsonInput(e.target.value)}
-                                className="font-mono text-sm min-h-[120px]"
-                                rows={5}
-                            />
-                        </div>
-                    )}
                 </div>
             )}
             
-            {launchConfigs.length > 0 && isJavaConfig ? (
-                <div className="grid grid-cols-2 gap-4">
-                    <Button onClick={handleCompile} disabled={isActionLoading || !selectedConfigName} className="w-full">
-                        {isActionLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
-                        Compile
-                    </Button>
-                     <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || !isProjectCompiled} className="w-full">
-                        {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                        Run
-                    </Button>
+            {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
+                <div className="space-y-2">
+                    <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
+                    <Textarea
+                        id="input-data"
+                        placeholder='{ "key": "value" }'
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        className="font-mono text-sm min-h-[120px]"
+                        rows={5}
+                    />
                 </div>
-            ) : (
-                 launchConfigs.length > 0 && <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName} className="w-full">
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+                 <Button onClick={handleCompile} disabled={!isJavaConfig || isActionLoading} className="w-full">
+                    {isActionLoading && isJavaConfig ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                    Compile Java
+                </Button>
+                 <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || (isJavaConfig && !isProjectCompiled)} className="w-full">
                     {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                     Run
                 </Button>
-            )}
+            </div>
 
             {isProjectCompiled && isJavaConfig && (
                  <Alert variant="default" className="border-green-500/50 text-green-700 dark:text-green-400">
@@ -470,17 +470,23 @@ export function RunView({ onSelectFile }: RunViewProps) {
 
             {result && (
                 <div className="space-y-2 pt-4">
-                    <Label className={cn(result.hasError && 'text-destructive')}>
-                        {result.hasError ? 'Error Output (stderr)' : 'Output (stdout)'}
-                    </Label>
-                    <div className={cn(
-                        "rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[100px]",
-                        result.hasError ? 'border-destructive/50 text-destructive' : 'border-input'
-                    )}>
-                        <code>
-                            {result.stderr || result.stdout || "Process finished with no output."}
-                        </code>
-                    </div>
+                    <h3 className="font-medium">Output</h3>
+                    {result.stdout && (
+                        <div>
+                            <Label>stdout</Label>
+                            <pre className="rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[50px]">
+                                <code>{result.stdout || "No standard output."}</code>
+                            </pre>
+                        </div>
+                    )}
+                     {result.stderr && (
+                        <div>
+                            <Label className="text-destructive">stderr</Label>
+                            <pre className="rounded-md border p-4 bg-destructive/10 text-destructive font-mono text-sm whitespace-pre-wrap min-h-[50px]">
+                                <code>{result.stderr || "No standard error output."}</code>
+                            </pre>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
