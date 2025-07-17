@@ -4,7 +4,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, Download, Trash, WandSparkles, ListChecks, ClipboardList, KeyRound } from 'lucide-react';
+import { Check, Download, Trash, WandSparkles, ListChecks, ClipboardList, KeyRound, Copy } from 'lucide-react';
 import { useAppState } from '@/hooks/use-app-state';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -12,7 +12,7 @@ import { TodoListerView } from '@/components/plugins/marketplace/todo-lister-vie
 import { ClipboardHistoryView } from '@/components/plugins/marketplace/clipboard-history-view';
 
 interface Plugin {
-  id: 'trash-can' | 'todo-lister' | 'clipboard-history' | 'random-string-generator';
+  id: 'trash-can' | 'todo-lister' | 'clipboard-history' | 'random-string-generator' | 'image-base64-converter';
   name: string;
   description: string;
   author: string;
@@ -51,6 +51,13 @@ const availablePlugins: Plugin[] = [
     author: 'WebCoder.ai Core',
     icon: KeyRound,
   },
+  {
+    id: 'image-base64-converter',
+    name: 'Image Base64 Converter',
+    description: 'Adds a "Copy as Base64" option to the context menu for image files in the explorer.',
+    author: 'WebCoder.ai Core',
+    icon: Copy,
+  }
 ];
 
 export function MarketplaceView() {
@@ -67,6 +74,8 @@ export function MarketplaceView() {
           return editorSettings.clipboardHistoryEnabled;
       case 'random-string-generator':
             return editorSettings.randomStringGeneratorEnabled;
+      case 'image-base64-converter':
+            return editorSettings.imageBase64ConverterEnabled;
       default:
         return false;
     }
@@ -92,6 +101,10 @@ export function MarketplaceView() {
       case 'random-string-generator':
         isEnabled = !editorSettings.randomStringGeneratorEnabled;
         newSettings.randomStringGeneratorEnabled = isEnabled;
+        break;
+      case 'image-base64-converter':
+        isEnabled = !editorSettings.imageBase64ConverterEnabled;
+        newSettings.imageBase64ConverterEnabled = isEnabled;
         break;
       default:
         return;

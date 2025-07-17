@@ -1,4 +1,4 @@
-
+// src/hooks/use-app-state.tsx
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -14,6 +14,7 @@ export interface EditorSettings {
   todoListerEnabled: boolean;
   clipboardHistoryEnabled: boolean;
   randomStringGeneratorEnabled: boolean;
+  imageBase64ConverterEnabled: boolean;
 }
 
 interface AppState {
@@ -38,6 +39,7 @@ const defaultEditorSettings: EditorSettings = {
   todoListerEnabled: false,
   clipboardHistoryEnabled: false,
   randomStringGeneratorEnabled: false,
+  imageBase64ConverterEnabled: false,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);

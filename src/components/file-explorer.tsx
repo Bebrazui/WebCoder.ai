@@ -1,8 +1,8 @@
-
+// src/components/file-explorer.tsx
 "use client";
 
 import React, { useState, useRef, useMemo, useCallback, createContext, useContext } from "react";
-import { type VFSNode, type VFSDirectory, type VFSFile } from "@/lib/vfs";
+import { type VFSNode, type VFSDirectory, type VFSFile, isImageFile } from "@/lib/vfs";
 import {
   ChevronRight,
   Folder,
@@ -20,6 +20,7 @@ import {
   Github,
   Play,
   Terminal,
+  Copy
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -574,6 +575,14 @@ const ExplorerNode = ({
     );
   }
 
+  const handleCopyBase64 = () => {
+    if (node.type === 'file' && isImageFile(node.name) && node.content.startsWith('data:')) {
+        const base64Content = node.content.split(',')[1];
+        navigator.clipboard.writeText(base64Content);
+        toast({ title: 'Copied!', description: 'Base64 content copied to clipboard.' });
+    }
+  };
+
   return (
     <ContextMenu>
         <ContextMenuTrigger>
@@ -597,6 +606,11 @@ const ExplorerNode = ({
                 </ContextMenuItem>
                 <ContextMenuSeparator />
             </>
+        )}
+        {isImageFile(node.name) && (
+            <ContextMenuItem onClick={handleCopyBase64}>
+                <Copy className="mr-2 h-4 w-4" /> Copy as Base64
+            </ContextMenuItem>
         )}
         <ContextMenuItem onClick={handleRename}>
           <Edit className="mr-2 h-4 w-4" /> Rename

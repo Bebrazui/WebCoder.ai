@@ -12,7 +12,7 @@ export function PluginsView() {
       <div className="p-2 border-b border-border flex-shrink-0">
         <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
             <Puzzle className="h-5 w-5" />
-            <span>Plugins & Marketplace</span>
+            <span>Marketplace</span>
         </h2>
       </div>
       <ScrollArea className="flex-grow scrollbar-hide">
