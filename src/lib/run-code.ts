@@ -7,7 +7,7 @@ import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
 
-type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'compile-java';
+type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp';
 
 // --- Utility Functions ---
 
@@ -99,11 +99,13 @@ const compileJava = async (config: any, tempDir: string) => {
     const sourceFiles = await findJavaFilesRecursive(compilationCwd);
     
     if (sourceFiles.length === 0) {
-        // Not an error if no files, just nothing to do.
         return { stdout: 'No java files found to compile.', stderr: '', code: 0 };
     }
     
-    return executeCommand('javac', ['-d', buildPath, ...sourceFiles], compilationCwd);
+    const jarFiles = (await findJavaFilesRecursive(tempDir)).filter(f => f.endsWith('.jar'));
+    const classpath = [buildPath, ...jarFiles].join(path.delimiter);
+
+    return executeCommand('javac', ['-d', buildPath, '-cp', classpath, ...sourceFiles], compilationCwd);
 };
 
 const runJava = async (config: any, tempDir: string) => {
@@ -111,9 +113,12 @@ const runJava = async (config: any, tempDir: string) => {
     if(compileResult.code !== 0) return compileResult;
 
     const buildPath = path.join(tempDir, 'build');
-    const executionCwd = tempDir; // Run from the root of the temp dir
+    const jarFiles = (await findJavaFilesRecursive(tempDir)).filter(f => f.endsWith('.jar'));
+    const classpath = [buildPath, ...jarFiles].join(path.delimiter);
+
+    const executionCwd = tempDir;
     
-    return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
+    return executeCommand('java', ['-cp', classpath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
 };
 
 
@@ -126,7 +131,6 @@ const runners = {
     },
 
     java: runJava,
-    'compile-java': compileJava,
 
     go: async (config: any, tempDir: string) => {
         const programDir = path.dirname(path.join(tempDir, config.program!));
@@ -193,8 +197,8 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         }
 
         try {
-            if (language === 'compile-java') {
-                 return NextResponse.json({ success: true, data: { message: "Compilation successful.", details: result.stdout } });
+            if (language === 'java' && !result.stdout.trim()) {
+                 return NextResponse.json({ success: true, data: { message: "Process executed successfully with no output." } });
             }
             if (!result.stdout.trim()) {
                  return NextResponse.json({ success: true, data: { message: "Process executed successfully with no output." } });

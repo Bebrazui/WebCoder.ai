@@ -5,7 +5,6 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +13,7 @@ import { useVfs } from "@/hooks/use-vfs";
 import type { VFSFile, VFSNode, VFSDirectory } from "@/lib/vfs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState } from "@/hooks/use-app-state";
+import { CheerpJRunnerDialog } from "./cheerpj-runner";
 
 interface LaunchConfig {
     name: string;
@@ -21,6 +21,10 @@ interface LaunchConfig {
     request: 'launch';
     args?: any;
     [key: string]: any; // Allow other properties
+}
+
+interface RunViewProps {
+    onSelectFile: (file: VFSFile) => void;
 }
 
 const findJavaFiles = (node: VFSNode): boolean => {
@@ -77,9 +81,9 @@ const noCodeHConfig: LaunchConfig = {
 };
 
 
-export function RunView() {
+export function RunView({ onSelectFile }: RunViewProps) {
   const { toast } = useToast();
-  const { vfsRoot, createFileInVfs, compileJavaProject } = useVfs();
+  const { vfsRoot, createFileInVfs, compileJavaProject, findFileByPath } = useVfs();
   const { editorSettings } = useAppState();
   
   const [isActionLoading, setIsActionLoading] = useState(false); // For both run and compile
@@ -91,23 +95,13 @@ export function RunView() {
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
   
+  const [isCheerpJOpen, setIsCheerpJOpen] = useState(false);
+  const [cheerpjJarUrl, setCheerpjJarUrl] = useState('');
+  
   const isProjectCompiled = useMemo(() => findBuildFolder(vfsRoot), [vfsRoot]);
 
-  useEffect(() => {
-    const findLaunchFile = (node: VFSNode): VFSFile | null => {
-        if (node.name === 'launch.json' && node.type === 'file') {
-            return node;
-        }
-        if (node.type === 'directory' && node.path === '/') {
-            for (const child of node.children) {
-                if (child.name === 'launch.json' && child.type === 'file') {
-                    return child;
-                }
-            }
-        }
-        return null;
-    }
-    const file = findLaunchFile(vfsRoot);
+  const findLaunchFileAndConfigs = useCallback(() => {
+    const file = findFileByPath('launch.json');
     setLaunchFile(file);
 
     let configs: LaunchConfig[] = [];
@@ -126,7 +120,7 @@ export function RunView() {
         configs.push(defaultJavaConfig);
     }
     
-    if (findNoCodeHProject(vfsRoot)) {
+    if (findNoCodeHProject(vfsRoot) && !configs.some(c => c.type === 'nocodeh')) {
         configs.unshift(noCodeHConfig);
     }
 
@@ -137,7 +131,11 @@ export function RunView() {
     } else if (configs.length === 0) {
          setSelectedConfigName(null);
     }
-  }, [vfsRoot, toast]);
+  }, [findFileByPath, vfsRoot, toast, selectedConfigName]);
+
+  useEffect(() => {
+    findLaunchFileAndConfigs();
+  }, [vfsRoot, findLaunchFileAndConfigs]);
 
   const selectedConfig = useMemo(() => {
       return launchConfigs.find(c => c.name === selectedConfigName);
@@ -172,20 +170,44 @@ export function RunView() {
       return fullConfig;
   }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
 
-  const handleRun = useCallback(async () => {
-      const fullConfig = getFullConfig();
+  const handleRun = useCallback(async (overrideConfig?: LaunchConfig) => {
+      const fullConfig = overrideConfig || getFullConfig();
       if (!fullConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
       }
       
-      // Special case for NoCodeH runner
       if (fullConfig.type === 'nocodeh') {
           window.open('/nocode/play', '_blank');
           toast({ title: "Game Launched!", description: "Your NoCodeH game has been opened in a new tab."});
           return;
       }
 
+      if (fullConfig.type === 'java-gui') {
+          setIsActionLoading(true);
+          setResult(null);
+          setError(null);
+          try {
+             const response = await fetch('/api/prepare-jar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projectFiles: [vfsRoot],
+                    config: fullConfig
+                })
+             });
+             const data = await response.json();
+             if (!data.success) throw new Error(data.error);
+
+             setCheerpjJarUrl(data.jarUrl);
+             setIsCheerpJOpen(true);
+          } catch (err: any) {
+              setError(err.message || "Failed to prepare JAR for GUI runner.");
+          } finally {
+              setIsActionLoading(false);
+          }
+          return;
+      }
 
       setIsActionLoading(true);
       setResult(null);
@@ -251,14 +273,26 @@ export function RunView() {
       toast({ title: '`launch.json` created', description: 'File was added to the root of your project.' });
   }, [createFileInVfs, vfsRoot, toast]);
 
+  const handleEditLaunchConfig = () => {
+      if (launchFile) {
+          onSelectFile(launchFile);
+      } else {
+          toast({ variant: 'destructive', title: "Not Found", description: "`launch.json` could not be found." });
+      }
+  }
+
 
   return (
+    <>
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="p-2 border-b border-border">
+      <div className="p-2 border-b border-border flex items-center justify-between">
         <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
             <PlayCircle className="h-5 w-5" />
             <span>Run and Debug</span>
         </h2>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditLaunchConfig} disabled={!launchFile}>
+            <Settings2 className="h-4 w-4" />
+        </Button>
       </div>
 
       <ScrollArea className="flex-grow">
@@ -314,7 +348,7 @@ export function RunView() {
                         </Alert>
                     )}
 
-                    {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && (
+                    {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && selectedConfig?.type !== 'java-gui' && (
                         <div className="space-y-2">
                             <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                             <Textarea
@@ -336,13 +370,13 @@ export function RunView() {
                         {isActionLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
                         Compile
                     </Button>
-                     <Button onClick={handleRun} disabled={isActionLoading || !selectedConfigName || !isProjectCompiled} className="w-full">
+                     <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || !isProjectCompiled} className="w-full">
                         {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                         Run
                     </Button>
                 </div>
             ) : (
-                 launchConfigs.length > 0 && <Button onClick={handleRun} disabled={isActionLoading || !selectedConfigName} className="w-full">
+                 launchConfigs.length > 0 && <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName} className="w-full">
                     {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
                     Run
                 </Button>
@@ -381,5 +415,11 @@ export function RunView() {
         </div>
       </ScrollArea>
     </div>
+    <CheerpJRunnerDialog 
+        isOpen={isCheerpJOpen}
+        onOpenChange={setIsCheerpJOpen}
+        jarUrl={cheerpjJarUrl}
+    />
+    </>
   );
 }

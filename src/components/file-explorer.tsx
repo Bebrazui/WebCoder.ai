@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo, useCallback } from "react";
 import { type VFSNode, type VFSDirectory, type VFSFile } from "@/lib/vfs";
 import {
   ChevronRight,
@@ -18,6 +18,7 @@ import {
   X,
   Download,
   Github,
+  Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -35,6 +36,17 @@ import { GlobalSearch } from "./global-search";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
+import { useVfs } from "@/hooks/use-vfs"; // Import for config access
+
+export interface LaunchConfig {
+    name: string;
+    type: string;
+    request: 'launch';
+    program?: string;
+    mainClass?: string;
+    projectPath?: string;
+    [key: string]: any;
+}
 
 export interface FileExplorerProps {
   vfsRoot: VFSDirectory;
@@ -228,6 +240,52 @@ const ExplorerNode = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const { findFileByPath } = useVfs();
+  
+  const launchConfigs = useMemo(() => {
+    const launchFile = findFileByPath('launch.json');
+    if (launchFile) {
+        try {
+            return JSON.parse(launchFile.content).configurations as LaunchConfig[] || [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+  }, [findFileByPath]);
+  
+  const runnableConfig = useMemo(() => {
+    if (node.type !== 'file') return null;
+    const filePath = node.path.startsWith('/') ? node.path.substring(1) : node.path;
+    
+    return launchConfigs.find(config => {
+        return config.program === filePath ||
+               (config.type === 'java' && node.name === `${config.mainClass}.java`) ||
+               (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath === 'rust_apps') ||
+               (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath === `csharp_apps/${node.name.replace('.cs', '')}`)
+    });
+  }, [node, launchConfigs]);
+  
+  const handleRunScript = async (config: LaunchConfig) => {
+    // This is a simplified "run" command that just posts to the API.
+    // The RunView has more complex logic, but this demonstrates the concept.
+    const apiEndpoint = `/api/run-${config.type}`;
+    try {
+        await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectFiles: [node], // Simplified, might need full VFS
+                config: config,
+            }),
+        });
+        // In a real app, you'd show output in the terminal. For now, just log.
+        console.log(`Request to run ${config.name} sent.`);
+    } catch(e) {
+        console.error("Failed to run script from context menu", e);
+    }
+  };
+
 
   const paddingLeft = `${level * 1}rem`;
 
@@ -390,6 +448,14 @@ const ExplorerNode = ({
             </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {runnableConfig && (
+            <>
+                <ContextMenuItem onClick={() => handleRunScript(runnableConfig)}>
+                    <Play className="mr-2 h-4 w-4" /> Run Script
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+            </>
+        )}
         <ContextMenuItem onClick={handleRename}>
           <Edit className="mr-2 h-4 w-4" /> Rename
         </ContextMenuItem>
