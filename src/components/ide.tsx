@@ -78,7 +78,7 @@ export function Ide({ vfs }: IdeProps) {
   const [outlineData, setOutlineData] = useState<OutlineData[]>([]);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
-  const { isElectron, editorSettings } = useAppState();
+  const { isElectron, editorSettings, addToClipboardHistory } = useAppState();
 
   const launchConfigs = useMemo(() => {
     const launchFile = findFileByPath('launch.json');
@@ -152,6 +152,21 @@ export function Ide({ vfs }: IdeProps) {
     editorRef.current?.focus();
     editorRef.current?.trigger('menu-bar', actionId, null);
   };
+  
+  const handleCopy = useCallback(async () => {
+    const editor = editorRef.current;
+    if (editor && document.hasFocus()) {
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            const text = editor.getModel()?.getValueInRange(selection);
+            if (text) {
+                await navigator.clipboard.writeText(text);
+                addToClipboardHistory(text);
+            }
+        }
+    }
+  }, [addToClipboardHistory]);
+
 
   useEffect(() => {
     hotkeys('ctrl+s, command+s', (event) => {
@@ -174,13 +189,17 @@ export function Ide({ vfs }: IdeProps) {
       setIsTerminalOpen(prev => !prev);
     });
 
+    // Clipboard listener
+    document.addEventListener('copy', handleCopy);
+
     return () => {
         hotkeys.unbind('ctrl+s, command+s');
         hotkeys.unbind('ctrl+shift+s, command+shift+s');
         hotkeys.unbind('ctrl+k, command+k');
         hotkeys.unbind('ctrl+`, command+`');
+        document.removeEventListener('copy', handleCopy);
     }
-  }, [handleSaveFile, handleSaveAll]);
+  }, [handleSaveFile, handleSaveAll, handleCopy]);
 
 
   const handleFileClose = useCallback((path: string) => {
@@ -466,6 +485,7 @@ export function Ide({ vfs }: IdeProps) {
         setIsOpen={setIsCommandPaletteOpen}
         onSelectFile={handleSelectFile}
         onToggleTerminal={() => setIsTerminalOpen(p => !p)}
+        editor={editorRef.current}
       />
       <SettingsSheet />
     </div>

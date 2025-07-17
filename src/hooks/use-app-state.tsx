@@ -11,6 +11,9 @@ export interface EditorSettings {
   manualJsonInput: boolean;
   animationsEnabled: boolean;
   trashCanEnabled: boolean;
+  todoListerEnabled: boolean;
+  clipboardHistoryEnabled: boolean;
+  randomStringGeneratorEnabled: boolean;
 }
 
 interface AppState {
@@ -20,6 +23,8 @@ interface AppState {
   setEditorSettings: (settings: EditorSettings) => void;
   isElectron: boolean;
   setIsElectron: (isElectron: boolean) => void;
+  clipboardHistory: string[];
+  addToClipboardHistory: (item: string) => void;
 }
 
 const defaultEditorSettings: EditorSettings = {
@@ -29,7 +34,10 @@ const defaultEditorSettings: EditorSettings = {
   wordWrap: true,
   manualJsonInput: false,
   animationsEnabled: true,
-  trashCanEnabled: true,
+  trashCanEnabled: false,
+  todoListerEnabled: false,
+  clipboardHistoryEnabled: false,
+  randomStringGeneratorEnabled: false,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
@@ -38,6 +46,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editorSettings, setEditorSettingsState] = useState<EditorSettings>(defaultEditorSettings);
   const [isElectron, setIsElectron] = useState(false);
+  const [clipboardHistory, setClipboardHistory] = useState<string[]>([]);
 
   // Load settings from localStorage on the client side only
   useEffect(() => {
@@ -51,7 +60,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
         console.error("Failed to load settings from localStorage", error);
     }
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
@@ -65,12 +74,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const setEditorSettings = (settings: EditorSettings) => {
     setEditorSettingsState(settings);
   };
+  
+  const addToClipboardHistory = (item: string) => {
+    setClipboardHistory(prev => [item, ...prev].slice(0, 20)); // Keep last 20 items
+  };
 
   return (
     <AppStateContext.Provider value={{ 
         isSettingsOpen, setIsSettingsOpen, 
         editorSettings, setEditorSettings,
-        isElectron, setIsElectron
+        isElectron, setIsElectron,
+        clipboardHistory, addToClipboardHistory
     }}>
       {children}
     </AppStateContext.Provider>
