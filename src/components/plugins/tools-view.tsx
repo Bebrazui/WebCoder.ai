@@ -1,7 +1,7 @@
 // src/components/plugins/tools-view.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Clipboard, Hash, Fingerprint, Lock, Shield } from 'lucide-react';
+import { Clipboard, Hash, Fingerprint, Lock, Shield, Database, Trash2, RefreshCw } from 'lucide-react';
 import CryptoJS from 'crypto-js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 // Hashing Component
 function HashGenerator() {
@@ -68,17 +69,99 @@ function HashGenerator() {
     );
 }
 
+// Local Storage Explorer
+function LocalStorageExplorer() {
+    const [storageItems, setStorageItems] = useState<[string, string | null][]>([]);
+    const { toast } = useToast();
+
+    const refreshStorage = () => {
+        const items: [string, string | null][] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+                items.push([key, localStorage.getItem(key)]);
+            }
+        }
+        setStorageItems(items);
+    };
+
+    useEffect(() => {
+        refreshStorage();
+    }, []);
+
+    const handleDelete = (key: string) => {
+        if (confirm(`Are you sure you want to delete the key "${key}" from Local Storage?`)) {
+            localStorage.removeItem(key);
+            refreshStorage();
+            toast({ title: 'Deleted', description: `Key "${key}" removed from Local Storage.` });
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        Local Storage Explorer
+                     </div>
+                     <Button variant="ghost" size="icon" onClick={refreshStorage} className="h-7 w-7">
+                        <RefreshCw className="h-4 w-4" />
+                     </Button>
+                </CardTitle>
+                <CardDescription>View and manage data in your browser's Local Storage.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-64 w-full rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Key</TableHead>
+                                <TableHead>Value</TableHead>
+                                <TableHead className="w-[50px]">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {storageItems.length > 0 ? (
+                                storageItems.map(([key, value]) => (
+                                    <TableRow key={key}>
+                                        <TableCell className="font-mono text-xs font-semibold">{key}</TableCell>
+                                        <TableCell className="font-mono text-xs truncate max-w-xs">{value}</TableCell>
+                                        <TableCell>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(key)}>
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                        Local Storage is empty.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </CardContent>
+        </Card>
+    );
+}
 
 export function ToolsView() {
     return (
-        <div className="p-4 space-y-6">
-            <HashGenerator />
-             <Card className="border-dashed">
-                <CardHeader>
-                    <CardTitle className="text-muted-foreground">More tools coming soon!</CardTitle>
-                    <CardDescription>This section will be filled with more useful utilities.</CardDescription>
-                </CardHeader>
-            </Card>
-        </div>
+        <ScrollArea className="h-full">
+            <div className="p-4 space-y-6">
+                <LocalStorageExplorer />
+                <HashGenerator />
+                 <Card className="border-dashed">
+                    <CardHeader>
+                        <CardTitle className="text-muted-foreground">More tools coming soon!</CardTitle>
+                        <CardDescription>This section will be filled with more useful utilities.</CardDescription>
+                    </CardHeader>
+                </Card>
+            </div>
+        </ScrollArea>
     )
 }

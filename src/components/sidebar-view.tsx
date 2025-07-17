@@ -5,7 +5,7 @@ import { useState } from "react";
 import { FileExplorer, type FileExplorerProps, LaunchConfig } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
-import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench } from "lucide-react";
+import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench, HeartPulse } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { GitStatus } from "@/hooks/use-vfs";
@@ -15,6 +15,7 @@ import { PluginsView } from "./plugins-view";
 import type * as monaco from 'monaco-editor';
 import { useVfs } from "@/hooks/use-vfs";
 import { ToolsView } from "./plugins/tools-view";
+import { ProjectHealthView } from "./plugins/project-health-view";
 
 
 export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'launchConfigs'> {
@@ -27,7 +28,7 @@ export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'lau
     launchConfigs: LaunchConfig[];
 }
 
-type View = "explorer" | "source-control" | "outline" | "run" | "plugins" | "utilities";
+type View = "explorer" | "source-control" | "outline" | "run" | "plugins" | "utilities" | "health";
 
 export function Sidebar(props: SidebarProps) {
   const [activeView, setActiveView] = useState<View>("explorer");
@@ -56,6 +57,12 @@ export function Sidebar(props: SidebarProps) {
       icon: ListTree,
       label: "Outline",
       component: <OutlineView symbols={props.outlineData} onSymbolSelect={props.onSymbolSelect} />
+    },
+    {
+      id: "health",
+      icon: HeartPulse,
+      label: "Project Health",
+      component: <ProjectHealthView />
     },
     {
       id: "plugins",

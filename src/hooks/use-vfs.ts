@@ -894,6 +894,7 @@ Start adding your files here!`
   return { 
     vfsRoot, 
     loading,
+    fs, // Export fs for git operations
     currentBranch,
     gitStatus,
     isGitStatusLoading,
