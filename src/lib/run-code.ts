@@ -59,10 +59,17 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
             resolve({ stdout, stderr, code });
         });
 
-        process.on('error', (err) => {
-            const errorMsg = `Failed to start process '${command}': ${err.message}`;
-            console.error(errorMsg);
-            resolve({ stdout: '', stderr: errorMsg, code: -1 });
+        process.on('error', (err: any) => {
+            // Specifically catch ENOENT
+            if (err.code === 'ENOENT') {
+                 const errorMsg = `Failed to start process '${command}': command not found.`;
+                 console.error(errorMsg, err);
+                 resolve({ stdout: '', stderr: errorMsg, code: 127 }); // 127 is common for "command not found"
+            } else {
+                const errorMsg = `Failed to start process '${command}': ${err.message}`;
+                console.error(errorMsg);
+                resolve({ stdout: '', stderr: errorMsg, code: -1 });
+            }
         });
     });
 }
@@ -127,7 +134,18 @@ const runJava = async (config: any, tempDir: string) => {
 const runners = {
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
-        return executeCommand('python', [scriptPath, JSON.stringify(config.args)], tempDir);
+        const args = [scriptPath, JSON.stringify(config.args)];
+
+        // Try 'python3' first, as it's more common in modern Linux environments.
+        let result = await executeCommand('python3', args, tempDir);
+        
+        // If 'python3' is not found (ENOENT), try 'python'.
+        if (result.code === 127 && result.stderr.includes('command not found')) {
+            console.log("`python3` not found, trying `python`...");
+            result = await executeCommand('python', args, tempDir);
+        }
+        
+        return result;
     },
 
     java: runJava,
