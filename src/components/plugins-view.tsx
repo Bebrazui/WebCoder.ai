@@ -11,23 +11,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 export function PluginsView() {
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="p-2 border-b border-border">
+      <div className="p-2 border-b border-border flex-shrink-0">
         <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
             <Puzzle className="h-5 w-5" />
             <span>Plugins & Tools</span>
         </h2>
       </div>
-      <Tabs defaultValue="tools" className="flex-grow flex flex-col">
-        <div className="px-4 pt-2">
+      <Tabs defaultValue="tools" className="flex-grow flex flex-col overflow-hidden">
+        <div className="px-4 pt-2 flex-shrink-0">
             <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="tools">Utilities</TabsTrigger>
                 <TabsTrigger value="marketplace" disabled>Marketplace</TabsTrigger>
             </TabsList>
         </div>
-        <TabsContent value="tools" className="flex-grow mt-0 overflow-hidden">
-          <ScrollArea className="h-full">
+        <TabsContent value="tools" className="flex-grow overflow-y-auto mt-2">
             <ToolsView />
-          </ScrollArea>
         </TabsContent>
         <TabsContent value="marketplace" className="flex-grow mt-0">
           {/* Marketplace content will go here */}
