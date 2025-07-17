@@ -775,9 +775,10 @@ export function useVfs() {
     }
   }, [getGitStatus, toast]);
 
-  const findFileByPath = useCallback((path: string): VFSFile | null => {
-    const search = (node: VFSNode): VFSFile | null => {
-        if (node.path === path && node.type === 'file') {
+  const findNodeByPath = useCallback((path: string): VFSNode | null => {
+    if (path === '/') return vfsRoot;
+    const search = (node: VFSNode): VFSNode | null => {
+        if (node.path === path) {
             return node;
         }
         if (node.type === 'directory') {
@@ -791,6 +792,11 @@ export function useVfs() {
     return search(vfsRoot);
   }, [vfsRoot]);
   
+  const findFileByPath = useCallback((path: string): VFSFile | null => {
+    const node = findNodeByPath(path);
+    return node?.type === 'file' ? node : null;
+  }, [findNodeByPath]);
+
   const compileJavaProject = useCallback(async (): Promise<boolean> => {
     toast({ title: "Compiling Java Project...", description: "This may take a moment." });
     try {
@@ -902,6 +908,7 @@ Start adding your files here!`
     cloneRepository,
     commit,
     findFileByPath,
+    findNodeByPath,
     compileJavaProject,
     createNoCodeHProject,
     createBlankProject,
