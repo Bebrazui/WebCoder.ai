@@ -1,6 +1,7 @@
 // src/components/editor-pane.tsx
 "use client";
 
+import { useState } from "react";
 import {
   Tabs,
   TabsContent,
@@ -10,13 +11,13 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import type { VFSFile } from "@/lib/vfs";
-import { X, Save, Code } from "lucide-react";
+import { X, Save, Code, Pencil, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import { FileIcon } from "./file-icon";
 import type * as monaco from "monaco-editor";
 import { OutlineData } from "./outline-view";
-import { isTextFile, isImageFile, isAudioFile, isClassFile, isMarkdownFile } from "@/lib/vfs";
+import { isImageFile, isAudioFile, isClassFile, isMarkdownFile } from "@/lib/vfs";
 import { JavaClassViewer } from "./java-class-viewer";
 import { LaunchConfig } from "./file-explorer";
 import { MarkdownPreviewer } from "./markdown-previewer";
@@ -33,6 +34,38 @@ interface EditorPaneProps {
   onOutlineChange: (outline: OutlineData[]) => void;
   launchConfigs: LaunchConfig[];
 }
+
+const MarkdownEditorAndPreviewer = ({ file, onFileChange, onEditorReady, onOutlineChange, launchConfigs }: { file: VFSFile } & Pick<EditorPaneProps, 'onFileChange' | 'onEditorReady' | 'onOutlineChange' | 'launchConfigs'>) => {
+  const [view, setView] = useState<'editor' | 'preview'>('editor');
+
+  return (
+    <div className="flex flex-col h-full">
+        <div className="flex-shrink-0 border-b bg-muted/50 px-2 py-1 flex items-center justify-end">
+            <Tabs value={view} onValueChange={(v) => setView(v as 'editor' | 'preview')} className="w-auto">
+                <TabsList className="h-8 p-1">
+                    <TabsTrigger value="editor" className="h-6 px-3 py-1 text-xs flex items-center gap-1.5"><Pencil className="h-3 w-3"/> Editor</TabsTrigger>
+                    <TabsTrigger value="preview" className="h-6 px-3 py-1 text-xs flex items-center gap-1.5"><Eye className="h-3 w-3"/> Preview</TabsTrigger>
+                </TabsList>
+            </Tabs>
+        </div>
+        <div className="flex-grow">
+            {view === 'editor' ? (
+                 <CodeEditor
+                    path={file.path}
+                    value={file.content}
+                    onChange={(newContent) => onFileChange(file.path, newContent)}
+                    onEditorReady={onEditorReady}
+                    onOutlineChange={onOutlineChange}
+                    launchConfigs={launchConfigs}
+                />
+            ) : (
+                <MarkdownPreviewer content={file.content} />
+            )}
+        </div>
+    </div>
+  )
+}
+
 
 export function EditorPane({
   openFiles,
@@ -88,7 +121,13 @@ export function EditorPane({
     }
     
     if (isMarkdownFile(file.name)) {
-        return <MarkdownPreviewer content={file.content} />;
+        return <MarkdownEditorAndPreviewer 
+            file={file}
+            onFileChange={onFileChange}
+            onEditorReady={onEditorReady}
+            onOutlineChange={onOutlineChange}
+            launchConfigs={launchConfigs}
+        />;
     }
 
     // Default to Code Editor for text files
@@ -125,7 +164,7 @@ export function EditorPane({
                 >
                   <FileIcon filename={file.name} className="h-4 w-4" />
                   <span>{file.name}</span>
-                  {isDirty && !isClassFile(file.name) && !isMarkdownFile(file.name) && (
+                   {isDirty && (
                       <div className="flex items-center gap-1 ml-1">
                           <div
                               onClick={(e) => {
