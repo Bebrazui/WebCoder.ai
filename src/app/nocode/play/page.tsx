@@ -167,13 +167,40 @@ export default function PlayPage() {
           style={{ backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none' }}
         >
           {isPlayerHere && (
-              playerTexture ? <Image src={playerTexture} layout="fill" objectFit="contain" alt="player"/> : <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
+              playerTexture ? (
+                <Image
+                  src={playerTexture}
+                  layout="fill"
+                  objectFit="contain"
+                  alt="player"
+                />
+              ) : (
+                <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
+              )
           )}
           {isCoinHere && (
-              coinTexture ? <Image src={coinTexture} layout="fill" objectFit="contain" alt="coin"/> : <TILE_COMPONENTS[TILE_TYPES.COIN] />
+              coinTexture ? (
+                <Image
+                  src={coinTexture}
+                  layout="fill"
+                  objectFit="contain"
+                  alt="coin"
+                />
+              ) : (
+                <TILE_COMPONENTS[TILE_TYPES.COIN] />
+              )
           )}
            {tileType === TILE_TYPES.ENEMY && (
-              enemyTexture ? <Image src={enemyTexture} layout="fill" objectFit="contain" alt="enemy"/> : <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
+              enemyTexture ? (
+                <Image
+                  src={enemyTexture}
+                  layout="fill"
+                  objectFit="contain"
+                  alt="enemy"
+                />
+              ) : (
+                <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
+              )
           )}
         </div>
     );
