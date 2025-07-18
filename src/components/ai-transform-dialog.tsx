@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { transformCode, type TransformCodeInput } from "@/ai/flows/transform-code";
 import { WandSparkles, LoaderCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { TransformCodeInput, TransformCodeOutput } from "@/ai/flows/transform-code";
+
 
 interface AiTransformDialogProps {
   open: boolean;
@@ -49,16 +50,30 @@ export function AiTransformDialog({
         code: selectedCode,
         instruction,
       };
-      const result = await transformCode(input);
-      onTransform(result.transformedCode);
+      
+      const response = await fetch('/api/transform-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "The AI could not transform the code.");
+      }
+
+      const transformedData = result.data as TransformCodeOutput;
+
+      onTransform(transformedData.transformedCode);
       onOpenChange(false);
       setInstruction("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI transformation failed:", error);
       toast({
         variant: "destructive",
         title: "Transformation Failed",
-        description: "The AI could not transform the code. Please try again.",
+        description: error.message || "An unknown error occurred.",
       });
     } finally {
       setIsLoading(false);
