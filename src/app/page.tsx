@@ -4,7 +4,6 @@
 import { Ide } from "@/components/ide";
 import { WelcomeScreen } from "@/components/welcome-screen";
 import { useVfs } from "@/hooks/use-vfs";
-import { Skeleton } from "@/components/ui/skeleton";
 import { LoaderCircle } from "lucide-react";
 import { ClientOnly } from "@/components/client-only";
 

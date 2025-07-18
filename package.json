@@ -103,7 +103,8 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/logo.png"
+      "icon": "public/logo.png",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
