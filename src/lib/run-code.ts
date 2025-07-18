@@ -6,8 +6,9 @@ import fs from 'fs/promises';
 import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
+import { compileSynthesis } from './synthesis_compiler';
 
-type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp';
+type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'synthesis';
 
 // --- Utility Functions ---
 
@@ -132,6 +133,16 @@ const runJava = async (config: any, tempDir: string) => {
 // --- Language Runners ---
 
 const runners = {
+    synthesis: async (config: any, tempDir: string) => {
+        const programPath = path.join(tempDir, config.program!);
+        try {
+            const code = await fs.readFile(programPath, 'utf8');
+            const output = compileSynthesis(code);
+            return { stdout: output, stderr: '', code: 0 };
+        } catch (e: any) {
+            return { stdout: '', stderr: `Failed to read or compile SYNTHESIS file: ${e.message}`, code: 1 };
+        }
+    },
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         const args = [scriptPath, JSON.stringify(config.args)];

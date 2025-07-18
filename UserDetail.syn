@@ -1,0 +1,36 @@
+
+struct User {
+  id: Int;
+  name: String;
+  email: String?;
+}
+
+component UserDetail(user: User, onEdit: (userId: Int) => Void) {
+  VStack(alignment: .leading, spacing: 10) {
+    Text("User ID: \(user.id)")
+      .font(.headline)
+      .color(.gray)
+
+    Text("Name: \(user.name)")
+      .font(.title)
+
+    if let email = user.email {
+      Text("Email: \(email)")
+        .font(.subheadline)
+        .padding(.top, 5)
+    } else {
+      Text("Email: Not provided")
+        .font(.subheadline)
+        .color(.red)
+    }
+
+    Button("Edit User") {
+      onEdit(user.id)
+    }
+    .style(.primary)
+  }
+  .padding(20)
+  .background(.white)
+  .cornerRadius(12)
+  .shadow(radius: 5)
+}

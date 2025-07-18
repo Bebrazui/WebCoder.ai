@@ -1,0 +1,21 @@
+
+@main
+func AppDelegate {
+  Window("Hello SYNTHESIS!") {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Hello World!")
+        .font(.title)
+        .color(.blue)
+      Text("User ID: \(user.id)") // Пример с интерполяцией
+        .font(.headline)
+        .color(.gray)
+      Button("Click Me") {
+        // Some action
+      }
+    }
+    .padding(20)
+    .background(.white)
+    .cornerRadius(12)
+    .shadow(radius: 5)
+  }
+}
