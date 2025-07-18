@@ -3,6 +3,8 @@
 
 import React, { useState, useEffect, useCallback, CSSProperties, useRef } from 'react';
 import Image from 'next/image';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 const useStateManager = (initialStates: any[]) => {
     const [state, setState] = useState(() => {
@@ -48,6 +50,7 @@ const resolveValue = (valueNode: any, stateManager: any): any => {
                 case '<': return left < right;
                 case '>': return left > right;
                 case '==': return left == right;
+                case '!=': return left != right;
                 default: return false;
             }
         default:
@@ -137,7 +140,9 @@ const NodeRenderer = ({ node, stateManager, components }: { node: any, stateMana
     if (node.type === "ComponentCall") {
         const componentDef = components[node.name];
         if (componentDef) {
-            return <NodeRenderer node={componentDef.body} stateManager={stateManager} components={components} />;
+            // Create a new state manager for the component instance
+            const componentStateManager = useStateManager(componentDef.states || []);
+            return <NodeRenderer node={componentDef.body} stateManager={componentStateManager} components={components} />;
         }
     }
 
@@ -156,7 +161,7 @@ const NodeRenderer = ({ node, stateManager, components }: { node: any, stateMana
         }
     }
 
-    const commonProps = {
+    const commonProps: any = {
         style,
         onClick: handleTap,
         ref: elementRef,
@@ -164,20 +169,20 @@ const NodeRenderer = ({ node, stateManager, components }: { node: any, stateMana
 
     switch (node.type) {
         case 'VStack':
-            return <div {...commonProps} className="flex flex-col items-start">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
+            return <div {...commonProps} className="flex flex-col items-center p-4 gap-4">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
         case 'HStack':
-            return <div {...commonProps} className="flex items-center">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
+            return <div {...commonProps} className="flex items-center gap-4">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
         case 'Text':
-            return <p {...commonProps}>{renderText(node.value)}</p>;
+            return <p {...commonProps} className="text-xl">{renderText(node.value)}</p>;
         case 'Image':
              const src = resolveValue(node.source, stateManager);
              return <div {...commonProps}><img src={src} alt="synthesis-image" style={{width: '100%', height: '100%'}} /></div>;
         case 'TextField':
-            return <input {...commonProps} type="text" placeholder={node.placeholder} value={stateManager.getValue(node.binding.name) || ''} onChange={(e) => stateManager.updateState({ [node.binding.name]: e.target.value })} />;
+            return <Input {...commonProps} type="text" placeholder={node.placeholder} value={stateManager.getValue(node.binding.name) || ''} onChange={(e) => stateManager.updateState({ [node.binding.name]: e.target.value })} />;
         case 'Button':
-            return <button {...commonProps} onClick={() => executeAction(node.action)}>{renderText(node.text)}</button>;
+            return <Button {...commonProps} onClick={() => executeAction(node.action)}>{renderText(node.text)}</Button>;
         case 'If':
-             return resolveValue(node.condition, stateManager) ? <>{node.thenBranch.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</> : <>{node.elseBranch?.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</>;
+             return resolveValue(node.condition, stateManager) ? <>{node.thenBranch.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</> : <>{node.elseBranch?.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />) ?? null}</>;
         case 'Timer':
             return null; // Timer is not a rendered component
         default:
@@ -204,7 +209,8 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
             });
             
             if (!main && Object.keys(components).length > 0) {
-                 main = { type: "Window", title: "SYNTHESIS App", body: { type: "ComponentCall", name: Object.keys(components)[0] }};
+                 const mainComponentName = Object.keys(components).find(name => name.toLowerCase().includes('main') || name.toLowerCase().includes('app')) || Object.keys(components)[0];
+                 main = { type: "Window", title: "SYNTHESIS App", body: { type: "ComponentCall", name: mainComponentName }};
             }
             
             setCustomComponents(components);
@@ -217,8 +223,10 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
     }
     
     let componentDefToRender: any = null;
+    let initialState: any[] = [];
     if (mainComponent.body.type === 'ComponentCall') {
         componentDefToRender = customComponents[mainComponent.body.name];
+        initialState = componentDefToRender?.states || [];
     } else {
         componentDefToRender = { body: mainComponent.body, states: [] };
     }
@@ -227,12 +235,18 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
         return <div className="p-4">Could not find component to render.</div>
     }
 
-    const stateManager = useStateManager(componentDefToRender.states || []);
+    const stateManager = useStateManager(initialState);
 
     const findTimers = (node: any): any[] => {
         let timers: any[] = [];
         if (!node) return timers;
         if (node.type === 'Timer') timers.push(node);
+        if(node.type === 'ComponentCall') {
+            const component = customComponents[node.name];
+            if(component) {
+                 timers = timers.concat(findTimers(component.body));
+            }
+        }
         if (node.children) {
             for (const child of node.children) {
                 timers = timers.concat(findTimers(child));
@@ -268,8 +282,10 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
 
 
     return (
-        <div className="font-sans w-full h-full text-white relative">
-            <NodeRenderer node={componentDefToRender.body} stateManager={stateManager} components={customComponents} />
+        <div className="font-sans w-full h-full text-white relative bg-gray-900 flex items-center justify-center">
+            <div className="bg-gray-800 p-8 rounded-xl shadow-2xl">
+                <NodeRenderer node={componentDefToRender.body} stateManager={stateManager} components={customComponents} />
+            </div>
         </div>
     );
 }

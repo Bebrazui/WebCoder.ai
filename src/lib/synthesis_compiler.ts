@@ -103,7 +103,7 @@ class Lexer {
             throw new Error(`Unterminated string literal at line ${startLine}`);
         }
         this.advance();
-        if (value.length > 0 || tokens[tokens.length-1]?.type === TokenType.InterpolationStart) {
+        if (value.length > 0 || tokens.length > 0 && tokens[tokens.length-1]?.type === TokenType.InterpolationStart) {
              tokens.push({ type: TokenType.StringLiteral, value: value, line: startLine });
         }
         continue;
@@ -325,9 +325,19 @@ class Parser {
     if (this.match({type: TokenType.Punctuation, value: '('})) {
       if (!this.check(TokenType.Punctuation, ')')) {
         do {
-            const argName = this.consume(TokenType.Identifier).value!;
-            this.consume(TokenType.Punctuation, ':');
-            args[argName] = this.parseExpression();
+            const argNameToken = this.peek();
+            // Handle modifiers with unnamed arguments like .font(.title)
+            if(argNameToken.type === TokenType.Punctuation && argNameToken.value === '.') {
+                this.advance(); // consume '.'
+                const valueToken = this.consume(TokenType.Identifier);
+                // Use a conventional name for the unnamed arg, e.g., 'value' or based on modifier name
+                const conventionalArgName = name === 'font' ? 'style' : 'value';
+                args[conventionalArgName] = { type: 'Literal', value: valueToken.value!};
+            } else {
+                const argName = this.consume(TokenType.Identifier).value!;
+                this.consume(TokenType.Punctuation, ':');
+                args[argName] = this.parseExpression();
+            }
         } while (this.match({type: TokenType.Punctuation, value: ','}));
       }
       this.consume(TokenType.Punctuation, ')');
@@ -364,7 +374,7 @@ class Parser {
     } else if (token.type === TokenType.Identifier) {
         node = this.parseAssignmentOrCall();
     } else {
-        throw new Error(`Unexpected token at start of statement: ${token.value}`);
+        throw new Error(`Unexpected token at start of statement: ${this.peek().value}`);
     }
 
     const modifiers: ModifierNode[] = [];
@@ -389,7 +399,7 @@ class Parser {
   private parseImage = (): ImageNode => { this.advance(); this.consume(TokenType.Punctuation, '('); this.consume(TokenType.Identifier, 'source'); this.consume(TokenType.Punctuation, ':'); const s = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return { type: 'Image', source: s, modifiers:[] }; }
   private parseVStack = (): VStackNode => { this.advance(); return { type: 'VStack', children: this.parseBlock(), modifiers: [] }; }
   private parseHStack = (): HStackNode => { this.advance(); return { type: 'HStack', children: this.parseBlock(), modifiers: [] }; }
-  private parseTextField = (): TextFieldNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const p = this.consume(TokenType.StringLiteral).value!; this.consume(TokenType.Punctuation, ','); this.consume(TokenType.Identifier, 'binding'); this.consume(TokenType.Punctuation, ':'); const b = this.parseExpression() as IdentifierNode; this.consume(TokenType.Punctuation, ')'); return { type: "TextField", placeholder: p, binding: b, modifiers: [] }; }
+  private parseTextField = (): TextFieldNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const p = this.consume(TokenType.StringLiteral).value!; this.consume(TokenType.Punctuation, ','); this.consume(TokenType.Identifier, 'text'); this.consume(TokenType.Punctuation, ':'); const b = this.parseExpression() as IdentifierNode; this.consume(TokenType.Punctuation, ')'); return { type: "TextField", placeholder: p, binding: b, modifiers: [] }; }
   private parseButton = (): ButtonNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const t = this.parseTextContent(); this.consume(TokenType.Punctuation, ')'); const a = this.parseBlock(true); return { type: "Button", text: t, action: a, modifiers: [] }; }
   private parseTimer = (): TimerNode => { this.advance(); const a = this.parseBlock(true); return { type: "Timer", action: a }; }
   private parseIf = (): IfNode => { this.advance(); const c = this.parseExpression(); const t = this.parseBlock(); let e = null; if (this.match({type: TokenType.Keyword, value: 'else'})) { if (this.check(TokenType.Keyword, 'if')) { e = [this.parseIf()]; } else { e = this.parseBlock(); } } return { type: "If", condition: c, thenBranch: t, elseBranch: e }; }
@@ -482,6 +492,7 @@ class JsonDescriptionGenerator {
         'StringInterpolation': (n) => ({ type: 'Interpolation', expression: this.generateNode(n.expression) }),
         'Literal': (n) => ({ type: 'Literal', value: n.value }),
         'Modifier': (n) => ({ type: 'Modifier', name: n.name, args: Object.fromEntries(Object.entries(n.args).map(([k, v]) => [k, this.generateNode(v as Node)])) }),
+        'ComponentCall': (n) => ({ type: 'ComponentCall', name: n.name }),
     };
 
     if(generatorMap[node.type]) {
@@ -490,7 +501,9 @@ class JsonDescriptionGenerator {
     
     // Fallback for component call
     if (node.type === 'Identifier') {
-        return { type: 'ComponentCall', name: (node as IdentifierNode).name };
+        const componentCallNode = { type: 'ComponentCall', name: (node as IdentifierNode).name, modifiers: (node as any).modifiers || []};
+        (componentCallNode as any).modifiers = componentCallNode.modifiers.map(m => this.generateNode(m));
+        return componentCallNode;
     }
 
     throw new Error(`Unknown AST node type for generation: ${node.type}`);
