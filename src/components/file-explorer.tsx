@@ -20,7 +20,8 @@ import {
   Github,
   Play,
   Terminal,
-  Copy
+  Copy,
+  Atom
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -298,6 +299,7 @@ const ExplorerNode = ({
     const filePath = normalizePath(node.path);
     
     return launchConfigs.find(config => {
+      if (config.type === 'synthesis') return false; // Handled separately
       const program = config.program ? normalizePath(config.program) : null;
       if (program && program === filePath) return true;
       if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
@@ -332,59 +334,6 @@ const ExplorerNode = ({
         "name": "From launch.json",
         "value": 12345
       }
-    },
-    {
-      "name": "Run Go App",
-      "type": "go",
-      "request": "launch",
-      "program": "go_apps/main.go",
-      "args": {
-        "name": "Go Developer",
-        "value": 987
-      }
-    },
-    {
-      "name": "Run Rust App",
-      "type": "rust",
-      "request": "launch",
-      "cargo": {
-        "args": ["build", "--release"],
-        "projectPath": "rust_apps"
-      },
-      "args": {
-        "name": "Rustacean",
-        "value": 1010
-      }
-    },
-    {
-      "name": "Run C# App",
-      "type": "csharp",
-      "request": "launch",
-      "projectPath": "csharp_apps/my_csharp_app",
-      "args": {
-        "name": "C# Coder",
-        "value": 777
-      }
-    },
-    {
-      "name": "Run PHP Script",
-      "type": "php",
-      "request": "launch",
-      "program": "php_scripts/my_php_script.php",
-      "args": {
-        "name": "PHP Enthusiast",
-        "value": 555
-      }
-    },
-    {
-      "name": "Run Ruby Script",
-      "type": "ruby",
-      "request": "launch",
-      "program": "ruby_scripts/my_ruby_script.rb",
-      "args": {
-        "name": "Rubyist",
-        "value": 333
-      }
     }
   ]
 }
@@ -394,17 +343,15 @@ const ExplorerNode = ({
   }, [createFileInVfs, vfsRoot, toast]);
   
   const handleRunScript = useCallback(async (config: LaunchConfig | null) => {
-    const launchFile = findFileByPath('launch.json');
-    if (!launchFile) {
-        if (window.confirm("`launch.json` not found. Would you like to create a default one?")) {
-            handleAddLaunchJson();
-        }
-        return;
-    }
       
     if (!config) {
+        const launchFile = findFileByPath('launch.json');
         if (window.confirm(`No launch configuration found for this file. Would you like to open 'launch.json' to add one?`)) {
-            onSelectFile(launchFile);
+            if (launchFile) {
+                onSelectFile(launchFile);
+            } else {
+                handleAddLaunchJson();
+            }
         }
         return;
     }
@@ -582,6 +529,18 @@ const ExplorerNode = ({
     );
   }
 
+  const isSynthesisFile = node.name.endsWith('.syn');
+
+  const handleRunSynthesis = () => {
+    const config: LaunchConfig = {
+      name: `Run ${node.name}`,
+      type: 'synthesis',
+      request: 'launch',
+      program: node.path
+    };
+    handleRunScript(config);
+  }
+
   const handleCopyBase64 = () => {
     if (node.type === 'file' && isImageFile(node.name) && node.content.startsWith('data:')) {
         const base64Content = node.content.split(',')[1];
@@ -606,6 +565,14 @@ const ExplorerNode = ({
             </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {isSynthesisFile && (
+            <>
+                <ContextMenuItem onClick={handleRunSynthesis}>
+                    <Atom className="mr-2 h-4 w-4" /> Run SYNTHESIS Script
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+            </>
+        )}
         {runnableConfig !== null && (
             <>
                 <ContextMenuItem onClick={() => handleRunScript(runnableConfig || null)}>

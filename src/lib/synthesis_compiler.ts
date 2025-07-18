@@ -16,12 +16,14 @@ enum TokenType {
 interface Token {
   type: TokenType;
   value?: string;
+  line: number;
 }
 
 // --- 2. Лексер (Токенизатор) ---
 class Lexer {
   private code: string;
   private position: number = 0;
+  private line: number = 1;
 
   constructor(code: string) {
     this.code = code;
@@ -32,7 +34,7 @@ class Lexer {
   }
 
   private isAlpha(char: string): boolean {
-    return /[a-zA-Z]/.test(char);
+    return /[a-zA-Z_]/.test(char);
   }
 
   private isDigit(char: string): boolean {
@@ -48,7 +50,11 @@ class Lexer {
   }
 
   private advance(): string | undefined {
-    return this.code[this.position++];
+    const char = this.code[this.position++];
+    if (char === '\n') {
+      this.line++;
+    }
+    return char;
   }
 
   public tokenize(): Token[] {
@@ -60,12 +66,18 @@ class Lexer {
     ]);
 
     while (this.position < this.code.length) {
+      const startLine = this.line;
       let char = this.peek();
 
       if (char === undefined) break;
 
       if (this.isWhitespace(char)) {
         this.advance();
+        continue;
+      }
+      
+      if (char === '/' && this.code[this.position + 1] === '/') {
+        while(this.peek() !== '\n' && this.peek() !== undefined) this.advance();
         continue;
       }
 
@@ -75,21 +87,21 @@ class Lexer {
         let value = '';
         while (this.peek() !== '"' && this.peek() !== undefined) {
           if (this.peek() === '\\' && this.code[this.position + 1] === '(') { // Обнаружение интерполяции
+             if (value) tokens.push({ type: TokenType.StringLiteral, value: value, line: startLine });
             this.advance(); // Пропустить '\'
             this.advance(); // Пропустить '('
-            tokens.push({ type: TokenType.StringLiteral, value: value });
-            tokens.push({ type: TokenType.InterpolationStart });
-            value = ''; // Сбросить буфер для следующей части строки
-            break; // Выйти из цикла, чтобы лексер продолжил с выражения
+            tokens.push({ type: TokenType.InterpolationStart, line: this.line });
+            value = '';
+            continue;
           }
           value += this.advance();
         }
         if (this.peek() !== '"') {
-            throw new Error(`Unterminated string literal at position ${this.position}`);
+            throw new Error(`Unterminated string literal at line ${startLine}`);
         }
         this.advance(); // Пропустить конечную кавычку
         if (value.length > 0 || tokens[tokens.length-1]?.type === TokenType.InterpolationStart) {
-             tokens.push({ type: TokenType.StringLiteral, value: value });
+             tokens.push({ type: TokenType.StringLiteral, value: value, line: startLine });
         }
         continue;
       }
@@ -100,381 +112,363 @@ class Lexer {
         while (this.isDigit(this.peek() || '') && this.peek() !== undefined) {
           value += this.advance();
         }
-        tokens.push({ type: TokenType.NumberLiteral, value: value });
+        tokens.push({ type: TokenType.NumberLiteral, value: value, line: startLine });
         continue;
       }
 
       // Идентификаторы и ключевые слова
       if (this.isAlpha(char) || char === '@') {
         let value = '';
-        while (this.isAlphaNumeric(this.peek() || '') || this.peek() === '@') {
+        while (this.isAlphaNumeric(this.peek() || '') || this.peek() === '@' || this.peek() === '_') {
           value += this.advance();
         }
         if (keywords.has(value)) {
-          tokens.push({ type: TokenType.Keyword, value: value });
+          tokens.push({ type: TokenType.Keyword, value: value, line: startLine });
         } else {
-          tokens.push({ type: TokenType.Identifier, value: value });
+          tokens.push({ type: TokenType.Identifier, value: value, line: startLine });
         }
         continue;
       }
 
       // Символы пунктуации и операторы
-      switch (char) {
-        case '(': tokens.push({ type: TokenType.Punctuation, value: '(' }); this.advance(); break;
-        case ')': 
-          // This logic is tricky. Let's simplify for now.
-          // The closing parenthesis could be for interpolation or a function call.
-          // The parser will have to decide.
-          tokens.push({ type: TokenType.Punctuation, value: ')' }); 
-          this.advance();
-          break;
-        case '{': tokens.push({ type: TokenType.Punctuation, value: '{' }); this.advance(); break;
-        case '}': tokens.push({ type: TokenType.Punctuation, value: '}' }); this.advance(); break;
-        case '.': tokens.push({ type: TokenType.Punctuation, value: '.' }); this.advance(); break;
-        case ':': tokens.push({ type: TokenType.Punctuation, value: ':' }); this.advance(); break;
-        case ';': tokens.push({ type: TokenType.Punctuation, value: ';' }); this.advance(); break;
-        case '=':
-            tokens.push({ type: TokenType.Operator, value: '=' });
-            this.advance();
-          break;
-        case ',': tokens.push({ type: TokenType.Punctuation, value: ',' }); this.advance(); break;
-        case '?': tokens.push({ type: TokenType.Punctuation, value: '?' }); this.advance(); break;
-        case '!': tokens.push({ type: TokenType.Punctuation, value: '!' }); this.advance(); break;
-        case '<': tokens.push({ type: TokenType.Punctuation, value: '<' }); this.advance(); break;
-        case '>': tokens.push({ type: TokenType.Punctuation, value: '>' }); this.advance(); break;
-        default:
-          throw new Error(`Unexpected character: ${char} at position ${this.position}`);
+      const punctuationMap: {[key: string]: TokenType} = {
+        '(': TokenType.Punctuation, ')': TokenType.Punctuation,
+        '{': TokenType.Punctuation, '}': TokenType.Punctuation,
+        '.': TokenType.Punctuation, ':': TokenType.Punctuation,
+        ';': TokenType.Punctuation, ',': TokenType.Punctuation,
+        '?': TokenType.Punctuation, '!': TokenType.Punctuation,
+        '<': TokenType.Punctuation, '>': TokenType.Punctuation,
+        '=': TokenType.Operator
+      };
+      if (char in punctuationMap) {
+        if (char === ')' && tokens[tokens.length-1]?.type === TokenType.InterpolationStart) {
+             tokens.push({ type: TokenType.InterpolationEnd, line: startLine, value: ')' });
+        } else {
+             tokens.push({ type: punctuationMap[char], value: char, line: startLine });
+        }
+        this.advance();
+      } else {
+         throw new Error(`Unexpected character: ${char} at line ${startLine}`);
       }
     }
 
-    tokens.push({ type: TokenType.EndOfFile });
+    tokens.push({ type: TokenType.EndOfFile, line: this.line });
     return tokens;
   }
 }
 
-// --- 3. Парсер (Базовый синтаксический анализатор) ---
+// --- 3. AST Nodes ---
+interface Node { type: string; }
+interface ProgramNode extends Node { type: "Program"; body: Node[]; }
+interface StructDefinitionNode extends Node { type: "StructDefinition"; name: string; fields: { name: string, typeName: string, isOptional: boolean }[]; }
+interface ComponentDefinitionNode extends Node { type: "ComponentDefinition"; name: string; params: { name: string, typeName: string }[]; body: Node; }
+interface WindowNode extends Node { type: "Window"; title: string; body: Node; }
+interface VStackNode extends Node { type: "VStack"; props: { [key: string]: any }; children: Node[]; }
+interface TextNode extends Node { type: "Text"; value: (string | Node)[]; modifiers: Node[]; }
+interface IfNode extends Node { type: "If"; condition: Node; thenBranch: Node[]; elseBranch: Node[] | null; }
+interface ButtonNode extends Node { type: "Button"; text: string; action: Node[]; modifiers: Node[]; }
+interface ModifierNode extends Node { type: "Modifier"; name: string; args: Node[]; }
+interface StringInterpolationNode extends Node { type: "StringInterpolation"; expression: Node; }
+interface LiteralNode extends Node { type: "Literal"; value: string | number; }
+interface IdentifierNode extends Node { type: "Identifier"; name: string; }
+interface MemberAccessNode extends Node { type: "MemberAccess"; object: Node; property: string; }
 
-// Упрощенные типы узлов AST
-interface Node {
-  type: string;
-}
-
-interface ProgramNode extends Node {
-  type: "Program";
-  body: Node[];
-}
-
-interface WindowNode extends Node {
-  type: "Window";
-  title: string;
-  body: Node;
-}
-
-interface VStackNode extends Node {
-  type: "VStack";
-  props: { [key: string]: any }; // Упрощено
-  children: Node[];
-}
-
-interface TextNode extends Node {
-  type: "Text";
-  value: (string | Node)[]; // Может содержать интерполяцию
-  modifiers: Node[];
-}
-
-interface ModifierNode extends Node {
-  type: "Modifier";
-  name: string;
-  args: Node[];
-}
-
-interface StringInterpolationNode extends Node {
-  type: "StringInterpolation";
-  expression: Node; // Здесь должно быть более сложное выражение
-}
-
-interface LiteralNode extends Node {
-  type: "Literal";
-  value: string | number;
-}
-
-interface IdentifierNode extends Node {
-  name: string;
-}
-
-
+// --- 4. Parser ---
 class Parser {
   private tokens: Token[];
   private position: number = 0;
 
-  constructor(tokens: Token[]) {
-    this.tokens = tokens;
+  constructor(tokens: Token[]) { this.tokens = tokens; }
+  private peek(): Token { return this.tokens[this.position]; }
+  private isAtEnd(): boolean { return this.peek().type === TokenType.EndOfFile; }
+  private advance(): Token { if (!this.isAtEnd()) this.position++; return this.tokens[this.position - 1]; }
+  
+  private check(type: TokenType, value?: string): boolean {
+    if (this.isAtEnd()) return false;
+    const token = this.peek();
+    return token.type === type && (value === undefined || token.value === value);
   }
 
-  private peek(): Token {
-    return this.tokens[this.position];
-  }
-
-  private advance(): Token {
-    return this.tokens[this.position++];
-  }
-
-  private consume(expectedType: TokenType, expectedValue?: string): Token {
-    const token = this.advance();
-    if (token.type !== expectedType || (expectedValue && token.value !== expectedValue)) {
-      throw new Error(`Expected token type ${TokenType[expectedType]}${expectedValue ? ` with value ${expectedValue}` : ''}, but got ${TokenType[token.type]} ${token.value || ''} at position ${this.position - 1}`);
+  private match(...types: {type: TokenType, value?: string}[]): Token | null {
+    for (const t of types) {
+      if (this.check(t.type, t.value)) {
+        return this.advance();
+      }
     }
-    return token;
+    return null;
   }
-
-  private parseModifier(): ModifierNode {
-    this.consume(TokenType.Punctuation, '.'); // Consume '.'
-    const name = this.consume(TokenType.Identifier).value!; // e.g., font, color
-    this.consume(TokenType.Punctuation, '('); // Consume '('
-
-    const args: Node[] = [];
-    if (this.peek().type !== TokenType.Punctuation || this.peek().value !== ')') {
-        // Упрощенно: ожидаем один аргумент-идентификатор для стилей вроде .font(.title)
-        this.consume(TokenType.Punctuation, '.'); // Consume '.' for enum-like values
-        args.push({ type: "Identifier", name: this.consume(TokenType.Identifier).value! });
-    }
-    this.consume(TokenType.Punctuation, ')'); // Consume ')'
-    return { type: "Modifier", name, args };
+  
+  private consume(type: TokenType, value?: string, errorMessage?: string): Token {
+    if (this.check(type, value)) return this.advance();
+    const token = this.peek();
+    throw new Error(errorMessage || `Expected ${TokenType[type]}${value ? `('${value}')` : ''} but got ${TokenType[token.type]} ('${token.value || ''}') at line ${token.line}`);
   }
-
 
   private parseExpression(): Node {
-    // В реальном парсере здесь была бы логика для разбора сложных выражений.
-    // Для этого демо, мы просто разбираем идентификаторы или литералы.
-    const token = this.peek();
+    const token = this.advance();
     if (token.type === TokenType.Identifier) {
-      return { type: "Identifier", name: this.advance().value! };
-    } else if (token.type === TokenType.NumberLiteral) {
-      return { type: "Literal", value: parseInt(this.advance().value!) };
+      let object: Node = { type: "Identifier", name: token.value! };
+      while(this.match({type: TokenType.Punctuation, value: '.'})) {
+        const property = this.consume(TokenType.Identifier, undefined, "Expected property name after '.'.").value!;
+        object = { type: "MemberAccess", object, property };
+      }
+      return object;
     }
-    // For simplicity, we assume an expression ends with ')' here for interpolation
-    if (token.type === TokenType.Punctuation && token.value === ')') {
-        return { type: "Identifier", name: "unknown" } // Placeholder
-    }
-    throw new Error(`Unexpected token in expression: ${TokenType[token.type]} ${token.value || ''}`);
+    throw new Error(`Unexpected token in expression: ${token.value} at line ${token.line}`);
   }
-
-  private parseStringContent(): (string | Node)[] {
+  
+  private parseTextContent(): (string | Node)[] {
     const parts: (string | Node)[] = [];
-    if (this.peek().type === TokenType.StringLiteral) {
-      parts.push(this.advance().value!);
-    }
-    // Handle interpolation start if it exists
-    if (this.peek().type === TokenType.InterpolationStart) {
-        this.advance(); // Consume InterpolationStart
-        const expression = this.parseExpression();
-        parts.push({ type: "StringInterpolation", expression: expression});
-        this.consume(TokenType.Punctuation, ')'); // consume ')' that marks end of interpolation
-    }
-    // check for more string parts after interpolation
-    if (this.peek().type === TokenType.StringLiteral) {
+    while(!this.check(TokenType.Punctuation, ')')) {
+      if (this.check(TokenType.StringLiteral)) {
         parts.push(this.advance().value!);
+      } else if (this.match({type: TokenType.InterpolationStart})) {
+        const expression = this.parseExpression();
+        this.consume(TokenType.Punctuation, ')', "Expected ')' after interpolation expression.");
+        parts.push({ type: "StringInterpolation", expression });
+      } else {
+        throw new Error(`Unexpected token in Text content: ${this.peek().value} at line ${this.peek().line}`);
+      }
     }
     return parts;
   }
-
-
-  private parseComponentBody(): Node[] {
-    const children: Node[] = [];
-    this.consume(TokenType.Punctuation, '{'); // Consume '{'
-    while (this.peek().type !== TokenType.Punctuation || this.peek().value !== '}') {
-      const token = this.peek();
-
-      // Очень упрощенный парсинг для Text и VStack
-      if (token.type === TokenType.Keyword && token.value === 'VStack') {
-        children.push(this.parseVStack());
-      } else if (token.type === TokenType.Keyword && token.value === 'Text') {
-        children.push(this.parseText());
-      } else if (token.type === TokenType.Keyword && token.value === 'Button') {
-        // Для Button просто пропустим его для демонстрации
-        this.advance(); // consume Button
-        this.consume(TokenType.Punctuation, '(');
-        this.consume(TokenType.StringLiteral); // button text
-        this.consume(TokenType.Punctuation, ')');
-        this.consume(TokenType.Punctuation, '{'); // action block
-        while(this.peek().type !== TokenType.Punctuation || this.peek().value !== '}') {
-            this.advance(); // consume everything inside the button block for simplicity
-        }
-        this.consume(TokenType.Punctuation, '}');
-        while(this.peek().type === TokenType.Punctuation && this.peek().value === '.') {
-            this.parseModifier(); // Consume modifiers
-        }
-
+  
+  private parseModifier(): ModifierNode {
+    this.consume(TokenType.Punctuation, '.');
+    const name = this.consume(TokenType.Identifier).value!;
+    this.consume(TokenType.Punctuation, '(');
+    const args: Node[] = [];
+    if (!this.check(TokenType.Punctuation, ')')) {
+      if (this.check(TokenType.Punctuation, '.')) {
+         this.consume(TokenType.Punctuation, '.');
+         args.push({ type: "Identifier", name: this.consume(TokenType.Identifier).value! });
+      } else if (this.check(TokenType.NumberLiteral)) {
+         args.push({ type: "Literal", value: parseInt(this.advance().value!) });
       } else {
-        throw new Error(`Unexpected token in component body: ${TokenType[token.type]} ${token.value || ''}`);
+        const argName = this.consume(TokenType.Identifier).value; // for padding(top: 5)
+        this.consume(TokenType.Punctuation, ':');
+        const argValue = this.consume(TokenType.NumberLiteral).value;
+        args.push({type: "Literal", value: {[argName!]: parseInt(argValue!)}});
       }
     }
-    this.consume(TokenType.Punctuation, '}'); // Consume '}'
-    return children;
-  }
-
-  private parseText(): TextNode {
-    this.consume(TokenType.Keyword, 'Text');
-    this.consume(TokenType.Punctuation, '(');
-    const value = this.parseStringContent(); // Обрабатываем строку с интерполяцией
     this.consume(TokenType.Punctuation, ')');
-
+    return { type: "Modifier", name, args };
+  }
+  
+  private parseBlock(): Node[] {
+    const nodes: Node[] = [];
+    this.consume(TokenType.Punctuation, '{', "Expected '{' to start a block.");
+    while(!this.check(TokenType.Punctuation, '}')) {
+        nodes.push(this.parseStatement());
+    }
+    this.consume(TokenType.Punctuation, '}', "Expected '}' to end a block.");
+    return nodes;
+  }
+  
+  private parseStatement(): Node {
+    let node: Node;
+    if (this.match({type: TokenType.Keyword, value: 'Text'})) {
+      this.consume(TokenType.Punctuation, '(');
+      const value = this.parseTextContent();
+      this.consume(TokenType.Punctuation, ')');
+      node = { type: "Text", value, modifiers: [] } as TextNode;
+    } else if (this.match({type: TokenType.Keyword, value: 'VStack'})) {
+       const props = {}; // simplified
+       const children = this.parseBlock();
+       node = { type: "VStack", props, children, modifiers: [] };
+    } else if (this.match({type: TokenType.Keyword, value: 'Button'})) {
+       this.consume(TokenType.Punctuation, '(');
+       const text = this.consume(TokenType.StringLiteral).value!;
+       this.consume(TokenType.Punctuation, ')');
+       const action = this.parseBlock();
+       node = { type: "Button", text, action, modifiers: [] };
+    } else if (this.match({type: TokenType.Keyword, value: 'if'})) {
+       this.consume(TokenType.Keyword, 'let');
+       const varName = this.consume(TokenType.Identifier).value!;
+       this.consume(TokenType.Operator, '=');
+       const condition = this.parseExpression();
+       const thenBranch = this.parseBlock();
+       let elseBranch = null;
+       if (this.match({type: TokenType.Keyword, value: 'else'})) {
+           elseBranch = this.parseBlock();
+       }
+       node = { type: "If", condition, thenBranch, elseBranch };
+    } else {
+       const identifier = this.consume(TokenType.Identifier, undefined, "Expected component name.").value!;
+       const params = this.parseComponentCallParams();
+       node = { type: "Identifier", name: identifier, params }; // Treat as component call
+    }
+    
+    // Parse modifiers for any statement
     const modifiers: ModifierNode[] = [];
-    while (this.peek().type === TokenType.Punctuation && this.peek().value === '.') {
+    while(this.check(TokenType.Punctuation, '.')) {
       modifiers.push(this.parseModifier());
     }
-    return { type: "Text", value, modifiers };
+    (node as any).modifiers = modifiers;
+    return node;
   }
-
-  private parseVStack(): VStackNode {
-    this.consume(TokenType.Keyword, 'VStack');
-    const props: { [key: string]: any } = {};
-    if (this.peek().type === TokenType.Punctuation && this.peek().value === '(') {
+  
+  private parseComponentCallParams(): Node[] {
+      const args: Node[] = [];
       this.consume(TokenType.Punctuation, '(');
-      while (this.peek().type !== TokenType.Punctuation || this.peek().value !== ')') {
-        const propName = this.consume(TokenType.Identifier).value!; // e.g., alignment
-        this.consume(TokenType.Punctuation, ':');
-        this.consume(TokenType.Punctuation, '.'); // For enum-like values like .leading
-        const propValue = this.consume(TokenType.Identifier).value!;
-        props[propName] = propValue;
-        if (this.peek().type === TokenType.Punctuation && this.peek().value === ',') {
-          this.consume(TokenType.Punctuation, ',');
-        }
+      while(!this.check(TokenType.Punctuation, ')')) {
+          this.consume(TokenType.Identifier); // param name
+          this.consume(TokenType.Punctuation, ':');
+          args.push(this.parseExpression());
+          if(this.check(TokenType.Punctuation, ',')) this.advance();
       }
       this.consume(TokenType.Punctuation, ')');
-    }
-
-    const children = this.parseComponentBody(); // Рекурсивно парсим дочерние элементы
-
-    while (this.peek().type === TokenType.Punctuation && this.peek().value === '.') {
-        this.parseModifier(); // Просто пропускаем модификаторы VStack для этого демо
-    }
-
-    return { type: "VStack", props, children };
+      return args;
   }
-
-  private parseWindow(): WindowNode {
-    this.consume(TokenType.Keyword, 'Window');
-    this.consume(TokenType.Punctuation, '(');
-    const titleToken = this.consume(TokenType.StringLiteral);
-    this.consume(TokenType.Punctuation, ')');
-    this.consume(TokenType.Punctuation, '{');
-    const body = this.parseVStack(); // Для этого демо, ожидаем VStack как корневой элемент окна
-    this.consume(TokenType.Punctuation, '}');
-    return { type: "Window", title: titleToken.value!, body };
+  
+  private parseTopLevel(): Node {
+    if (this.match({type: TokenType.Keyword, value: 'struct'})) return this.parseStruct();
+    if (this.match({type: TokenType.Keyword, value: 'component'})) return this.parseComponent();
+    if (this.match({type: TokenType.Keyword, value: '@main'})) return this.parseMainFunc();
+    const token = this.peek();
+    throw new Error(`Unexpected top-level token: ${token.value} at line ${token.line}`);
+  }
+  
+  private parseStruct(): StructDefinitionNode {
+      const name = this.consume(TokenType.Identifier).value!;
+      const fields: { name: string, typeName: string, isOptional: boolean }[] = [];
+      this.consume(TokenType.Punctuation, '{');
+      while(!this.check(TokenType.Punctuation, '}')) {
+          const fieldName = this.consume(TokenType.Identifier).value!;
+          this.consume(TokenType.Punctuation, ':');
+          const typeName = this.consume(TokenType.Identifier).value!;
+          const isOptional = !!this.match({type: TokenType.Punctuation, value: '?'});
+          fields.push({ name: fieldName, typeName, isOptional });
+          this.match({type: TokenType.Punctuation, value: ';'});
+      }
+      this.consume(TokenType.Punctuation, '}');
+      return { type: "StructDefinition", name, fields };
+  }
+  
+  private parseComponent(): ComponentDefinitionNode {
+      const name = this.consume(TokenType.Identifier).value!;
+      const params: { name: string, typeName: string }[] = [];
+      this.consume(TokenType.Punctuation, '(');
+      while(!this.check(TokenType.Punctuation, ')')) {
+          const paramName = this.consume(TokenType.Identifier).value!;
+          this.consume(TokenType.Punctuation, ':');
+          const typeName = this.consume(TokenType.Identifier).value!;
+          params.push({ name: paramName, typeName });
+          if(this.check(TokenType.Punctuation, ',')) this.advance();
+      }
+      this.consume(TokenType.Punctuation, ')');
+      const body = this.parseStatement();
+      return { type: "ComponentDefinition", name, params, body };
+  }
+  
+  private parseMainFunc(): WindowNode {
+      this.consume(TokenType.Keyword, 'func');
+      this.consume(TokenType.Identifier, 'AppDelegate');
+      this.consume(TokenType.Punctuation, '{');
+      this.consume(TokenType.Keyword, 'Window');
+      this.consume(TokenType.Punctuation, '(');
+      const title = this.consume(TokenType.StringLiteral).value!;
+      this.consume(TokenType.Punctuation, ')');
+      const body = this.parseStatement();
+      this.consume(TokenType.Punctuation, '}');
+      return { type: "Window", title, body };
   }
 
   public parse(): ProgramNode {
     const program: ProgramNode = { type: "Program", body: [] };
-
-    if (this.peek().type === TokenType.Keyword && this.peek().value === '@main') {
-      this.consume(TokenType.Keyword, '@main');
-      this.consume(TokenType.Keyword, 'func');
-      this.consume(TokenType.Identifier, 'AppDelegate');
-      this.consume(TokenType.Punctuation, '{');
-      program.body.push(this.parseWindow());
-      this.consume(TokenType.Punctuation, '}');
-    } else {
-        throw new Error("Expected '@main func AppDelegate' as program entry point.");
+    while (!this.isAtEnd()) {
+      program.body.push(this.parseTopLevel());
     }
-
-    this.consume(TokenType.EndOfFile);
     return program;
   }
 }
 
-// --- 4. Генератор TypeScript-кода (очень-очень упрощенно) ---
+// --- 5. Code Generator (Pseudo-TS) ---
 class TypeScriptCodeGenerator {
-  private ast: ProgramNode;
-
-  constructor(ast: ProgramNode) {
-    this.ast = ast;
-  }
-
-  private generateComponent(node: Node): string {
-    if (node.type === "VStack") {
-      const vstackNode = node as VStackNode;
-      const props = JSON.stringify(vstackNode.props);
-      const children = vstackNode.children.map(c => this.generateComponent(c)).join(',\n        ');
-      return `
-      {
-        type: "VStack",
-        props: ${props},
-        children: [
-          ${children}
-        ]
-      }`;
-    } else if (node.type === "Text") {
-      const textNode = node as TextNode;
-      let textValue = '';
-      textNode.value.forEach(part => {
-        if (typeof part === 'string') {
-          textValue += part;
-        } else if (part.type === 'StringInterpolation') {
-          const expr = part.expression as IdentifierNode;
-          textValue += `\${this.user.${expr.name}}`; // Очень упрощено
+  constructor(private ast: ProgramNode) {}
+  
+  generate(): string {
+    const componentDefs = this.ast.body.filter(n => n.type === 'ComponentDefinition');
+    const structDefs = this.ast.body.filter(n => n.type === 'StructDefinition');
+    
+    let tsCode = '';
+    
+    for (const node of structDefs) {
+        const struct = node as StructDefinitionNode;
+        tsCode += `interface ${struct.name} {\n`;
+        for (const field of struct.fields) {
+            tsCode += `  ${field.name}${field.isOptional ? '?' : ''}: ${field.typeName === 'Int' ? 'number' : 'string'};\n`;
         }
-      });
-      
-      return `{ type: "Text", props: { value: \`${textValue}\` } }`;
-    } else if (node.type === "Button") {
-        return `{ type: "Button", props: { text: "Edit User", style: "primary" } }`;
+        tsCode += `}\n\n`;
     }
-    // Добавьте другие типы узлов по мере необходимости
-    return `/* Unknown Node Type: ${node.type} */`;
+    
+    // For demo purposes, we don't generate full classes, just the description part
+    tsCode += `// NOTE: This is a pseudo-TS representation of the UI structure.\n`;
+    tsCode += `const uiDescription = `;
+    
+    const windowNode = this.ast.body.find(n => n.type === 'Window') as WindowNode;
+    if (windowNode) {
+        tsCode += this.generateNode(windowNode.body) + ';';
+    } else {
+        tsCode += '{};';
+    }
+    
+    return tsCode;
   }
-
-  public generate(): string {
-    const programNode = this.ast.body[0] as WindowNode; // Ожидаем Window как корневой узел
-    const bodyContent = this.generateComponent(programNode.body);
-
-    return `
-// NOTE: This is a pseudo-TS representation, not executable code.
-// It demonstrates the structure derived from the SYNTHESIS source.
-
-const appRootDescription = ${bodyContent.trim()};
-
-// console.log(JSON.stringify(appRootDescription, null, 2));
-`;
+  
+  private generateNode(node: Node): string {
+    switch (node.type) {
+        case 'VStack':
+            const vstack = node as VStackNode;
+            const children = vstack.children.map(c => this.generateNode(c)).join(',\n    ');
+            return `{
+  type: "VStack",
+  props: ${JSON.stringify(vstack.props)},
+  children: [
+    ${children}
+  ]
+}`;
+        case 'Text':
+            const text = node as TextNode;
+            const value = text.value.map(p => typeof p === 'string' ? `"${p}"` : `\${${this.generateNode((p as StringInterpolationNode).expression)}}`).join(' + ');
+            return `{ type: "Text", value: ${value} }`;
+        case 'Button':
+            const button = node as ButtonNode;
+            return `{ type: "Button", text: "${button.text}" }`;
+        case 'If':
+             const ifNode = node as IfNode;
+             const condition = this.generateNode(ifNode.condition);
+             const thenBranch = ifNode.thenBranch.map(n => this.generateNode(n)).join(', ');
+             const elseBranch = ifNode.elseBranch ? ifNode.elseBranch.map(n => this.generateNode(n)).join(', ') : 'null';
+             return `(${condition}) ? [${thenBranch}] : [${elseBranch}]`;
+        case 'Identifier':
+            return (node as IdentifierNode).name;
+        case 'MemberAccess':
+             const member = node as MemberAccessNode;
+             return `${this.generateNode(member.object)}.${member.property}`;
+        default:
+            return `/* Unknown node: ${node.type} */`;
+    }
   }
 }
 
-/**
- * Compiles a string of SYNTHESIS code.
- * This is a simplified demonstration and not a real compiler.
- * @param code The SYNTHESIS code to compile.
- * @returns A string containing the compilation output (tokens and pseudo-TS).
- */
 export function compileSynthesis(code: string): string {
-  let output = '--- Original SYNTHESIS Code ---\n';
-  output += code + '\n';
-  
+  let output = '';
   try {
-    // 1. Лексический анализ
     const lexer = new Lexer(code);
     const tokens = lexer.tokenize();
-    output += '\n--- Tokens ---\n';
-    tokens.forEach(token => {
-      output += `${TokenType[token.type]}: ${token.value || ''}\n`
-    });
+    output += '--- TOKENS ---\n' + tokens.map(t => `${TokenType[t.type]}:'${t.value || ''}'`).join('\n') + '\n\n';
 
-    // 2. Синтаксический анализ
     const parser = new Parser(tokens);
     const ast = parser.parse();
-    output += '\n--- Abstract Syntax Tree (AST) ---\n';
-    output += JSON.stringify(ast, null, 2) + '\n';
-
-    // 3. Генерация TypeScript-кода (очень упрощено)
-    const tsGenerator = new TypeScriptCodeGenerator(ast);
-    const generatedTsCode = tsGenerator.generate();
-    output += '\n--- Generated TypeScript Description ---\n';
-    output += generatedTsCode;
+    output += '--- ABSTRACT SYNTAX TREE (AST) ---\n' + JSON.stringify(ast, null, 2) + '\n\n';
     
-    return output;
+    const generator = new TypeScriptCodeGenerator(ast);
+    const tsCode = generator.generate();
+    output += '--- GENERATED PSEUDO-CODE ---\n' + tsCode;
 
   } catch (e: any) {
-    let errorOutput = '\n--- Compilation Error ---\n';
-    errorOutput += e.message;
-    return output + errorOutput;
+    output += '\n--- COMPILATION ERROR ---\n' + e.message;
   }
+  return output;
 }

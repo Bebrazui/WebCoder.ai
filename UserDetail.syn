@@ -1,4 +1,7 @@
+// This file is now part of main.syn for simplicity of the demo compiler.
+// It is kept here for reference.
 
+/*
 struct User {
   id: Int;
   name: String;
@@ -34,3 +37,4 @@ component UserDetail(user: User, onEdit: (userId: Int) => Void) {
   .cornerRadius(12)
   .shadow(radius: 5)
 }
+*/

@@ -135,9 +135,22 @@ const runJava = async (config: any, tempDir: string) => {
 const runners = {
     synthesis: async (config: any, tempDir: string) => {
         const programPath = path.join(tempDir, config.program!);
+        let allCode = '';
+
         try {
-            const code = await fs.readFile(programPath, 'utf8');
-            const output = compileSynthesis(code);
+            const mainCode = await fs.readFile(programPath, 'utf8');
+            allCode += mainCode + '\n\n';
+
+            // Find and include the content of UserDetail.syn
+            try {
+                const userDetailPath = path.join(path.dirname(programPath), 'UserDetail.syn');
+                const userDetailCode = await fs.readFile(userDetailPath, 'utf8');
+                allCode += userDetailCode;
+            } catch (e) {
+                // UserDetail.syn might not exist, which is fine for some cases
+            }
+            
+            const output = compileSynthesis(allCode);
             return { stdout: output, stderr: '', code: 0 };
         } catch (e: any) {
             return { stdout: '', stderr: `Failed to read or compile SYNTHESIS file: ${e.message}`, code: 1 };

@@ -1,21 +1,45 @@
+// main.syn
+
+struct User {
+    id: Int;
+    name: String;
+    email: String?;
+}
+
+component UserDetail(user: User, onEdit: (userId: Int) => Void) {
+  VStack {
+    Text("User ID: \(user.id)")
+      .font(.headline)
+      .color(.gray)
+
+    Text("Name: \(user.name)")
+      .font(.title)
+
+    if let email = user.email {
+      Text("Email: \(email)")
+        .font(.subheadline)
+        .padding(top: 5)
+    } else {
+      Text("Email: Not provided")
+        .font(.subheadline)
+        .color(.red)
+    }
+
+    Button("Edit User") {
+      // onEdit(user.id)
+    }
+    .style(.primary)
+  }
+  .padding(20)
+  .background(.white)
+  .cornerRadius(12)
+  .shadow(radius: 5)
+}
+
 
 @main
 func AppDelegate {
-  Window("Hello SYNTHESIS!") {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("Hello World!")
-        .font(.title)
-        .color(.blue)
-      Text("User ID: \(user.id)") // Пример с интерполяцией
-        .font(.headline)
-        .color(.gray)
-      Button("Click Me") {
-        // Some action
-      }
+    Window("SYNTHESIS App") {
+        UserDetail(user: user, onEdit: handleEdit)
     }
-    .padding(20)
-    .background(.white)
-    .cornerRadius(12)
-    .shadow(radius: 5)
-  }
 }
