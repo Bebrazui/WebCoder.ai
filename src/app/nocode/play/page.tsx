@@ -95,11 +95,15 @@ function Tile({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: Tile
     const playerTexture = textures.PLAYER;
     const coinTexture = textures.COIN;
     const enemyTexture = textures.ENEMY;
+    
+    const tileStyle = {
+      backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none'
+    };
 
     return (
         <div
             className="aspect-square flex items-center justify-center relative bg-gray-800 bg-cover bg-center"
-            style={{ backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none' }}
+            style={tileStyle}
         >
             {isPlayerHere && (
                 playerTexture ? (
