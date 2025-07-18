@@ -168,7 +168,6 @@ export function createAnimationExample(): VFSFile {
     .frame(width: 400, height: 300)
     .background(color: "#111827") // Tailwind gray-900
     .cornerRadius(radius: 12)
-}
-`;
+}`;
     return createFile('Animation.syn', '/Animation.syn', content);
 }

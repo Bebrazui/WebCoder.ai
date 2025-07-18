@@ -130,11 +130,17 @@ class Lexer {
         }
         continue;
       }
-
-      if (char === '=' && this.peekNext() === '=') {
+      
+      if ((char === '=' && this.peekNext() === '=') ||
+          (char === '!' && this.peekNext() === '=') ||
+          (char === '<' && this.peekNext() === '=') ||
+          (char === '>' && this.peekNext() === '=') ||
+          (char === '&' && this.peekNext() === '&') ||
+          (char === '|' && this.peekNext() === '|')) {
+        const op = char + this.peekNext();
         this.advance();
         this.advance();
-        tokens.push({ type: TokenType.Operator, value: '==', line: startLine });
+        tokens.push({ type: TokenType.Operator, value: op, line: startLine });
         continue;
       }
 
@@ -145,7 +151,7 @@ class Lexer {
         ';': TokenType.Punctuation, ',': TokenType.Punctuation,
         '?': TokenType.Punctuation, '!': TokenType.Punctuation,
         '<': TokenType.Operator, '>': TokenType.Operator,
-        '=': TokenType.Operator, '+': TokenType.Operator, '-': TokenType.Operator
+        '=': TokenType.Operator, '+': TokenType.Operator, '-': TokenType.Operator, '*': TokenType.Operator, '/': TokenType.Operator,
       };
       if (char in punctuationAndOperators) {
         tokens.push({ type: punctuationAndOperators[char], value: char, line: startLine });
@@ -215,7 +221,19 @@ class Parser {
   }
   
    private parseExpression(): Node {
-        return this.parseBinaryExpression();
+        return this.parseAssignment();
+    }
+    
+    private parseAssignment(): Node {
+        const expr = this.parseBinaryExpression();
+        if (this.match({type: TokenType.Operator, value: '='})) {
+            const right = this.parseAssignment(); // Right-associative
+            if (expr.type === 'Identifier') {
+                return { type: 'Assignment', left: expr, right };
+            }
+            throw new Error(`Invalid assignment target at line ${this.peek().line}`);
+        }
+        return expr;
     }
 
     private parseBinaryExpression(parentPrecedence: number = 0): Node {
@@ -238,18 +256,13 @@ class Parser {
     private getOperatorPrecedence(token: Token): number {
         if (token.type !== TokenType.Operator) return 0;
         switch (token.value) {
-            case '+':
-            case '-':
-                return 1;
-            case '*':
-            case '/':
-                return 2;
-            case '==':
-            case '<':
-            case '>':
-                return 3;
-            default:
-                return 0;
+            case '||': return 1;
+            case '&&': return 2;
+            case '==': case '!=': return 3;
+            case '<': case '>': case '<=': case '>=': return 4;
+            case '+': case '-': return 5;
+            case '*': case '/': return 6;
+            default: return 0;
         }
     }
 
@@ -373,13 +386,13 @@ class Parser {
   }
   
   private parseText = (): TextNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const v = this.parseTextContent(); this.consume(TokenType.Punctuation, ')'); return { type: 'Text', value: v, modifiers:[] }; }
-  private parseImage = (): ImageNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const s = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return { type: 'Image', source: s, modifiers:[] }; }
+  private parseImage = (): ImageNode => { this.advance(); this.consume(TokenType.Punctuation, '('); this.consume(TokenType.Identifier, 'source'); this.consume(TokenType.Punctuation, ':'); const s = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return { type: 'Image', source: s, modifiers:[] }; }
   private parseVStack = (): VStackNode => { this.advance(); return { type: 'VStack', children: this.parseBlock(), modifiers: [] }; }
   private parseHStack = (): HStackNode => { this.advance(); return { type: 'HStack', children: this.parseBlock(), modifiers: [] }; }
-  private parseTextField = (): TextFieldNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const p = this.consume(TokenType.StringLiteral).value!; this.consume(TokenType.Punctuation, ','); const b = this.parseExpression() as IdentifierNode; this.consume(TokenType.Punctuation, ')'); return { type: "TextField", placeholder: p, binding: b, modifiers: [] }; }
+  private parseTextField = (): TextFieldNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const p = this.consume(TokenType.StringLiteral).value!; this.consume(TokenType.Punctuation, ','); this.consume(TokenType.Identifier, 'binding'); this.consume(TokenType.Punctuation, ':'); const b = this.parseExpression() as IdentifierNode; this.consume(TokenType.Punctuation, ')'); return { type: "TextField", placeholder: p, binding: b, modifiers: [] }; }
   private parseButton = (): ButtonNode => { this.advance(); this.consume(TokenType.Punctuation, '('); const t = this.parseTextContent(); this.consume(TokenType.Punctuation, ')'); const a = this.parseBlock(true); return { type: "Button", text: t, action: a, modifiers: [] }; }
   private parseTimer = (): TimerNode => { this.advance(); const a = this.parseBlock(true); return { type: "Timer", action: a }; }
-  private parseIf = (): IfNode => { this.advance(); const c = this.parseExpression(); const t = this.parseBlock(); let e = null; if (this.match({type: TokenType.Keyword, value: 'else'})) { e = this.parseBlock(); } return { type: "If", condition: c, thenBranch: t, elseBranch: e }; }
+  private parseIf = (): IfNode => { this.advance(); const c = this.parseExpression(); const t = this.parseBlock(); let e = null; if (this.match({type: TokenType.Keyword, value: 'else'})) { if (this.check(TokenType.Keyword, 'if')) { e = [this.parseIf()]; } else { e = this.parseBlock(); } } return { type: "If", condition: c, thenBranch: t, elseBranch: e }; }
   
   private parseTopLevel(): Node {
     if (this.check(TokenType.Keyword, 'component')) return this.parseComponent();
@@ -447,6 +460,7 @@ class JsonDescriptionGenerator {
   }
   
   private generateNode(node: Node): any {
+    if (!node) return null;
     const generatorMap: {[key: string]: (n: any) => any} = {
         'Program': (n) => ({ type: 'Program', body: n.body.map((b: Node) => this.generateNode(b)) }),
         'Window': (n) => ({ type: 'Window', title: n.title, body: this.generateNode(n.body) }),
@@ -454,10 +468,10 @@ class JsonDescriptionGenerator {
         'StateDefinition': (n) => ({ type: 'State', name: n.name, typeName: n.typeName, initialValue: this.generateNode(n.initialValue) }),
         'VStack': (n) => ({ type: 'VStack', children: n.children.map((c: Node) => this.generateNode(c)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
         'HStack': (n) => ({ type: 'HStack', children: n.children.map((c: Node) => this.generateNode(c)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
-        'Text': (n) => ({ type: 'Text', value: n.value.map((p: string | Node) => typeof p === 'string' ? {type: 'String', value: p} : this.generateNode(p)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
+        'Text': (n) => ({ type: 'Text', value: n.value.map((p: string | Node) => typeof p === 'string' ? {type: 'Literal', value: p} : this.generateNode(p)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
         'TextField': (n) => ({ type: 'TextField', placeholder: n.placeholder, binding: this.generateNode(n.binding), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
         'Image': (n) => ({ type: 'Image', source: this.generateNode(n.source), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
-        'Button': (n) => ({ type: 'Button', text: n.text.map((p: string | Node) => typeof p === 'string' ? {type: 'String', value: p} : this.generateNode(p)), action: n.action.map((a: Node) => this.generateNode(a)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
+        'Button': (n) => ({ type: 'Button', text: n.text.map((p: string | Node) => typeof p === 'string' ? {type: 'Literal', value: p} : this.generateNode(p)), action: n.action.map((a: Node) => this.generateNode(a)), modifiers: n.modifiers.map((m: Node) => this.generateNode(m)) }),
         'Timer': (n) => ({ type: 'Timer', action: n.action.map((a: Node) => this.generateNode(a)) }),
         'If': (n) => ({ type: 'If', condition: this.generateNode(n.condition), thenBranch: n.thenBranch.map((b: Node) => this.generateNode(b)), elseBranch: n.elseBranch ? n.elseBranch.map((b: Node) => this.generateNode(b)) : null }),
         'Assignment': (n) => ({ type: 'Assignment', left: this.generateNode(n.left), right: this.generateNode(n.right) }),
@@ -474,9 +488,9 @@ class JsonDescriptionGenerator {
       return generatorMap[node.type](node);
     }
     
-    // Fallback for custom component call
-    if ((node as any).name && (node as any).params) {
-      return { type: 'ComponentCall', name: (node as any).name, params: (node as any).params.map((p: any) => this.generateNode(p)) };
+    // Fallback for component call
+    if (node.type === 'Identifier') {
+        return { type: 'ComponentCall', name: (node as IdentifierNode).name };
     }
 
     throw new Error(`Unknown AST node type for generation: ${node.type}`);
