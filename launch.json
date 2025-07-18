@@ -7,8 +7,7 @@
       "type": "synthesis",
       "request": "launch",
       "program": "main.syn",
-      "platform": "ios",
-      "args": {}
+      "platform": "ios"
     },
     {
       "name": "Run Java App",

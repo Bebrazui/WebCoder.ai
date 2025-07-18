@@ -1,4 +1,4 @@
-
+// src/lib/run-code.ts
 import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
@@ -6,9 +6,10 @@ import fs from 'fs/promises';
 import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
-import { compileSynthesis } from './synthesis_compiler';
+import { compileSynthesis, compileSynthesisProject } from './synthesis_compiler';
 
 type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'synthesis';
+type BuildType = 'debug' | 'release';
 
 // --- Utility Functions ---
 
@@ -30,12 +31,11 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
         }
     };
 
-    // If projectFiles is [vfsRoot], we iterate its children into the tempDir
     if (projectFiles.length > 0 && projectFiles[0].type === 'directory') {
         for (const file of projectFiles[0].children) {
             await writeFile(file, tempDir);
         }
-    } else { // Fallback for flat array of files
+    } else {
         for (const file of projectFiles) {
             await writeFile(file, tempDir);
         }
@@ -46,180 +46,164 @@ async function createProjectInTempDir(projectFiles: VFSNode[]): Promise<string> 
 function executeCommand(command: string, args: string[], cwd: string, shell: boolean = false): Promise<{ stdout: string; stderr: string; code: number | null }> {
     return new Promise((resolve) => {
         console.log(`Executing: \`${command} ${args.join(' ')}\` in ${cwd}`);
-        const process = spawn(command, args, { cwd, shell });
+        const process = spawn(command, args, { cwd, shell, stdio: 'pipe' }); // Changed to pipe for capturing
         let stdout = '';
         let stderr = '';
 
-        process.stdout.on('data', (data) => { stdout += data.toString(); });
-        process.stderr.on('data', (data) => { stderr += data.toString(); });
+        process.stdout.on('data', (data) => { stdout += data.toString(); console.log(`[${command} stdout]: ${data}`); });
+        process.stderr.on('data', (data) => { stderr += data.toString(); console.error(`[${command} stderr]: ${data}`); });
         
         process.on('close', (code) => {
             console.log(`Command finished with code ${code}.`);
-            console.log(`Stdout: ${stdout}`);
-            console.error(`Stderr: ${stderr}`);
             resolve({ stdout, stderr, code });
         });
 
         process.on('error', (err: any) => {
-            // Specifically catch ENOENT
             if (err.code === 'ENOENT') {
-                 const errorMsg = `Failed to start process '${command}': command not found.`;
-                 console.error(errorMsg, err);
-                 resolve({ stdout: '', stderr: errorMsg, code: 127 }); // 127 is common for "command not found"
+                 const errorMsg = `Failed to start process '${command}': command not found. Make sure native tools are installed and in your PATH.`;
+                 resolve({ stdout: '', stderr: errorMsg, code: 127 });
             } else {
                 const errorMsg = `Failed to start process '${command}': ${err.message}`;
-                console.error(errorMsg);
                 resolve({ stdout: '', stderr: errorMsg, code: -1 });
             }
         });
     });
 }
 
-// --- Java Specific Helpers ---
 
-const findJavaFilesRecursive = async (dir: string): Promise<string[]> => {
-    let results: string[] = [];
+// --- NATIVE BUILD PROCESS FOR SYNTHESIS ---
+
+/**
+ * Запускает нативные инструменты сборки для выбранной платформы.
+ */
+async function runNativeBuildTools(
+  nativeProjectDir: string,
+  platform: 'ios' | 'android' | 'windows' | 'macos' | 'linux',
+  buildType: BuildType
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  let command: string;
+  let args: string[] = [];
+  let cwd: string = nativeProjectDir;
+
+  switch (platform) {
+    case 'ios':
+      command = 'xcodebuild';
+      args = ['-workspace', 'MySynApp.xcworkspace', '-scheme', 'MySynApp', '-configuration', buildType === 'debug' ? 'Debug' : 'Release', '-sdk', 'iphonesimulator'];
+      break;
+    case 'android':
+      command = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+      args = [`assemble${buildType === 'debug' ? 'Debug' : 'Release'}`];
+      break;
+    case 'windows':
+      command = 'msbuild';
+      args = ['MySynApp.sln', `/p:Configuration=${buildType === 'debug' ? 'Debug' : 'Release'}`];
+      break;
+    case 'macos':
+      command = 'xcodebuild';
+      args = ['-workspace', 'MySynApp.xcworkspace', '-scheme', 'MySynApp', '-configuration', buildType === 'debug' ? 'Debug' : 'Release'];
+      break;
+    case 'linux':
+      command = 'make';
+      args = [];
+      break;
+    default:
+      throw new Error(`Platform ${platform} is not supported for native build.`);
+  }
+
+  return executeCommand(command, args, cwd, true);
+}
+
+
+const runFullSynthesisBuild = async (config: any, tempDir: string) => {
+    const platform = config.platform || 'ios';
+    const buildType = config.buildType || 'debug';
+    let output = '';
+
+    const generatedCodeDir = path.join(tempDir, 'generated', platform);
+    const nativeProjectDir = path.join(generatedCodeDir, 'native_project');
+
     try {
-        await fs.access(dir);
-        const list = await fs.readdir(dir, { withFileTypes: true });
-        for (const file of list) {
-            const fullPath = path.join(dir, file.name);
-            if (file.isDirectory()) {
-                results = results.concat(await findJavaFilesRecursive(fullPath));
-            } else if (file.name.endsWith('.java')) {
-                results.push(fullPath);
-            }
+        // Step 1: Compile SYNTHESIS code
+        output += 'Step 1/3: Compiling SYNTHESIS code and generating native sources...\n';
+        await compileSynthesisProject(tempDir, generatedCodeDir, platform);
+        output += ` -> Sources generated in: ${generatedCodeDir}\n\n`;
+
+        // Step 2: Prepare native project structure (conceptual)
+        output += 'Step 2/3: Preparing native project structure...\n';
+        await fs.mkdir(nativeProjectDir, { recursive: true });
+        await fs.writeFile(path.join(nativeProjectDir, 'README.md'), `This is a generated ${platform} project.`);
+        output += ` -> Native project prepared in: ${nativeProjectDir}\n\n`;
+        
+        // Step 3: Run native build tools
+        output += `Step 3/3: Running native build for ${platform}...\n`;
+        const buildResult = await runNativeBuildTools(nativeProjectDir, platform, buildType);
+        
+        output += `\n--- Native Build Log ---\n`;
+        output += buildResult.stdout;
+        if(buildResult.stderr) output += `\n--- Native Build Errors ---\n${buildResult.stderr}`;
+
+        if (buildResult.code !== 0) {
+            return { stdout: output, stderr: `Native build failed with code ${buildResult.code}.`, code: buildResult.code };
         }
-    } catch (e) {
-        console.warn(`Could not read directory ${dir}, skipping. Error: ${e}`);
+        
+        output += '\n\nBuild finished successfully!';
+        return { stdout: output, stderr: '', code: 0 };
+
+    } catch (error: any) {
+        output += `\n\n--- FATAL BUILD ERROR ---\n${error.message}`;
+        return { stdout: output, stderr: error.message, code: 1 };
     }
-    return results;
-};
-
-
-const compileJava = async (config: any, tempDir: string) => {
-    const userSourcePath = config.sourcePaths?.[0] || '.';
-    const compilationCwd = path.join(tempDir, userSourcePath) || tempDir;
-    
-    const buildPath = path.join(tempDir, 'build');
-    await fs.mkdir(buildPath, { recursive: true });
-
-    const sourceFiles = await findJavaFilesRecursive(compilationCwd);
-    
-    if (sourceFiles.length === 0) {
-        return { stdout: 'No java files found to compile.', stderr: '', code: 0 };
-    }
-    
-    const jarFiles = (await findJavaFilesRecursive(tempDir)).filter(f => f.endsWith('.jar'));
-    const classpath = [buildPath, ...jarFiles].join(path.delimiter);
-
-    return executeCommand('javac', ['-d', buildPath, '-cp', classpath, ...sourceFiles], compilationCwd);
-};
-
-const runJava = async (config: any, tempDir: string) => {
-    const compileResult = await compileJava(config, tempDir);
-    if(compileResult.code !== 0) return compileResult;
-
-    const buildPath = path.join(tempDir, 'build');
-    const jarFiles = (await findJavaFilesRecursive(tempDir)).filter(f => f.endsWith('.jar'));
-    const classpath = [buildPath, ...jarFiles].join(path.delimiter);
-
-    const executionCwd = tempDir;
-    
-    return executeCommand('java', ['-cp', classpath, config.mainClass!, JSON.stringify(config.args)], executionCwd);
-};
+}
 
 
 // --- Language Runners ---
 
 const runners = {
-    synthesis: async (config: any, tempDir: string) => {
-        const programPath = path.join(tempDir, config.program!);
-        let allCode = '';
-
-        try {
-            const mainCode = await fs.readFile(programPath, 'utf8');
-            allCode += mainCode + '\n\n';
-
-            // Find and include other .syn files for context
-            const projectDir = path.dirname(programPath);
-            const files = await fs.readdir(projectDir);
-            for (const file of files) {
-                if (file.endsWith('.syn') && file !== path.basename(programPath)) {
-                    try {
-                        const code = await fs.readFile(path.join(projectDir, file), 'utf8');
-                        allCode += code + '\n\n';
-                    } catch (e) {
-                         // ignore if can't read
-                    }
-                }
-            }
-            
-            const output = compileSynthesis(allCode);
-            // The output is now a JSON string describing the UI
-            return { stdout: output, stderr: '', code: 0 };
-        } catch (e: any) {
-            return { stdout: '', stderr: `Failed to read or compile SYNTHESIS file: ${e.message}`, code: 1 };
-        }
-    },
+    synthesis: runFullSynthesisBuild,
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         const args = [scriptPath, JSON.stringify(config.args)];
-        
-        // Use the specific command from the config if available (e.g., 'python3'),
-        // otherwise default to a smart check.
-        const primaryCommand = config.command === 'python' ? 'python' : 'python3';
-        const fallbackCommand = primaryCommand === 'python' ? 'python3' : 'python';
-
+        const primaryCommand = 'python3';
+        const fallbackCommand = 'python';
         let result = await executeCommand(primaryCommand, args, tempDir);
-        
-        // If the specified command failed with "command not found", try the fallback.
-        if (result.code === 127) {
-            console.log(`\`${primaryCommand}\` not found, trying \`${fallbackCommand}\`...`);
-            result = await executeCommand(fallbackCommand, args, tempDir);
-        }
-        
+        if (result.code === 127) { result = await executeCommand(fallbackCommand, args, tempDir); }
         return result;
     },
-
-    java: runJava,
-
+    java: async (config: any, tempDir: string) => {
+        const userSourcePath = config.sourcePaths?.[0] || '.';
+        const compilationCwd = path.join(tempDir, userSourcePath) || tempDir;
+        const buildPath = path.join(tempDir, 'build');
+        await fs.mkdir(buildPath, { recursive: true });
+        const sourceFiles = (await fs.readdir(compilationCwd)).filter(f => f.endsWith('.java')).map(f => path.join(compilationCwd, f));
+        if (sourceFiles.length === 0) return { stdout: 'No java files found.', stderr: '', code: 0 };
+        const compileResult = await executeCommand('javac', ['-d', buildPath, ...sourceFiles], compilationCwd);
+        if (compileResult.code !== 0) return compileResult;
+        return executeCommand('java', ['-cp', buildPath, config.mainClass!, JSON.stringify(config.args)], tempDir);
+    },
     go: async (config: any, tempDir: string) => {
         const programPath = path.join(tempDir, config.program!);
-        const programDir = path.dirname(programPath);
-        return executeCommand('go', ['run', programPath, JSON.stringify(config.args)], programDir);
+        return executeCommand('go', ['run', programPath, JSON.stringify(config.args)], path.dirname(programPath));
     },
-    
     rust: async (config: any, tempDir: string) => {
         const projectPath = path.join(tempDir, config.cargo.projectPath);
         const buildResult = await executeCommand('cargo', config.cargo.args, projectPath);
         if (buildResult.code !== 0) return buildResult;
-
-        const executableName = config.cargo.projectPath;
-        const executablePath = path.join(projectPath, 'target', 'release', executableName);
-
+        const executablePath = path.join(projectPath, 'target', 'release', config.cargo.projectPath);
         return executeCommand(executablePath, [JSON.stringify(config.args)], projectPath);
     },
-    
     csharp: async (config: any, tempDir: string) => {
         const projectPath = path.join(tempDir, config.projectPath);
         const buildDir = path.join(projectPath, '..', 'build');
         await fs.mkdir(buildDir, { recursive: true });
-
         const publishResult = await executeCommand('dotnet', ['publish', '-c', 'Release', '-o', buildDir], projectPath);
         if (publishResult.code !== 0) return publishResult;
-        
-        const executableName = path.basename(projectPath);
-        const executablePath = path.join(buildDir, executableName);
-
+        const executablePath = path.join(buildDir, path.basename(projectPath));
         return executeCommand(executablePath, [JSON.stringify(config.args)], tempDir);
     },
-    
     php: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         return executeCommand('php', [scriptPath, JSON.stringify(config.args)], tempDir);
     },
-
     ruby: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         return executeCommand('ruby', [scriptPath, JSON.stringify(config.args)], tempDir);
@@ -231,38 +215,17 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
     try {
         tempDir = await createProjectInTempDir(projectFiles);
         const runner = runners[language];
-
         if (!runner) {
             return NextResponse.json({ success: false, error: `Unsupported launch type: ${language}` }, { status: 400 });
         }
-
         const result = await runner(config, tempDir);
-
-        // Treat code 127 (command not found) as a special case for a clearer error message
-        if (result.code === 127) {
-            return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: result.stderr || `The command for '${language}' was not found in the system's PATH.`, hasError: true } }, { status: 200 });
-        }
-
         if (result.code !== 0) {
             const errorMessage = result.stderr || result.stdout || `Process for ${language} exited with non-zero code.`;
-            // For Synthesis, we wrap the error in the expected JSON structure for the runner page
-            if (language === 'synthesis') {
-                const errorJson = JSON.stringify({ type: 'Error', message: errorMessage });
-                return NextResponse.json({ success: true, data: { stdout: errorJson, stderr: '', hasError: false }});
-            }
             return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: errorMessage, hasError: true } }, { status: 200 });
         }
-        
-        // Success case
         return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: result.stderr, hasError: false } });
-
     } catch (error: any) {
         console.error(`Error in runLanguage for ${language}:`, error);
-        // For Synthesis, we wrap the error in the expected JSON structure for the runner page
-        if (language === 'synthesis') {
-            const errorJson = JSON.stringify({ type: 'Error', message: `An internal server error occurred: ${error.message}` });
-            return NextResponse.json({ success: true, data: { stdout: errorJson, stderr: '', hasError: false }});
-        }
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });
     } finally {
         if (tempDir) {

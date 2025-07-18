@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit, AppWindow } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -21,6 +21,7 @@ interface LaunchConfig {
     type: string;
     request: 'launch';
     args?: any;
+    platform?: 'ios' | 'android' | 'windows' | 'macos' | 'linux';
     [key: string]: any; // Allow other properties
 }
 
@@ -69,12 +70,16 @@ export function RunView({ onSelectFile }: RunViewProps) {
   const { vfsRoot, createFileInVfs, compileJavaProject, findFileByPath } = useVfs();
   const { editorSettings, isElectron } = useAppState();
   
-  const [isActionLoading, setIsActionLoading] = useState(false); // For both run and compile
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [result, setResult] = useState<RunResult | null>(null);
   
   const [launchFile, setLaunchFile] = useState<VFSFile | null>(null);
   const [launchConfigs, setLaunchConfigs] = useState<LaunchConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
+  
+  // State for platform selection
+  const [selectedPlatform, setSelectedPlatform] = useState<'ios' | 'android' | 'windows' | 'macos' | 'linux'>('ios');
+  
   const [jsonInput, setJsonInput] = useState('');
   
   const [isCheerpJOpen, setIsCheerpJOpen] = useState(false);
@@ -115,10 +120,15 @@ export function RunView({ onSelectFile }: RunViewProps) {
   }, [launchConfigs, selectedConfigName]);
 
   const isJavaConfig = selectedConfig?.type === 'java';
+  const isSynthesisConfig = selectedConfig?.type === 'synthesis';
+
 
   useEffect(() => {
-    if (selectedConfig && selectedConfig.args) {
-        setJsonInput(JSON.stringify(selectedConfig.args, null, 2));
+    if (selectedConfig) {
+        setJsonInput(selectedConfig.args ? JSON.stringify(selectedConfig.args, null, 2) : '{}');
+        if (selectedConfig.platform) {
+            setSelectedPlatform(selectedConfig.platform);
+        }
     } else {
         setJsonInput('{}');
     }
@@ -139,34 +149,17 @@ export function RunView({ onSelectFile }: RunViewProps) {
           return null;
       }
       
-      return { ...selectedConfig, args: argsToUse };
-  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
+      const configWithPlatform = { ...selectedConfig, args: argsToUse };
+      if (isSynthesisConfig) {
+          configWithPlatform.platform = selectedPlatform;
+      }
+      return configWithPlatform;
+  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast, isSynthesisConfig, selectedPlatform]);
 
   const handleRun = useCallback(async (overrideConfig?: LaunchConfig) => {
       let fullConfig = overrideConfig || getFullConfig();
       if (!fullConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
-          return;
-      }
-      
-      if (fullConfig.type === 'java-gui') {
-          setIsActionLoading(true);
-          setResult(null);
-          try {
-             const response = await fetch('/api/prepare-jar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ projectFiles: [vfsRoot], config: fullConfig })
-             });
-             const data = await response.json();
-             if (!data.success) throw new Error(data.error);
-             setCheerpjJarUrl(data.jarUrl);
-             setIsCheerpJOpen(true);
-          } catch (err: any) {
-              setResult({ stdout: '', stderr: err.message || "Failed to prepare JAR for GUI runner.", hasError: true });
-          } finally {
-              setIsActionLoading(false);
-          }
           return;
       }
 
@@ -185,27 +178,12 @@ export function RunView({ onSelectFile }: RunViewProps) {
             throw new Error(responseData.error || 'An unknown server error occurred.');
         }
 
-        if (fullConfig.type === 'synthesis') {
-            const uiJsonString = responseData.success ? responseData.data.stdout : JSON.stringify({ type: 'Error', message: responseData.error });
-            if (isElectron) {
-                localStorage.setItem('synthesis_ui_data', uiJsonString);
-                (window as any).electronAPI.openSynthesisWindow();
-            } else {
-                window.open(`/synthesis-runner?data=${encodeURIComponent(uiJsonString)}`, '_blank');
-            }
-            if (responseData.success) {
-                setResult({ stdout: 'SYNTHESIS app launched in new window.', stderr: '', hasError: false });
-            } else {
-                setResult({ stdout: '', stderr: responseData.error, hasError: true });
-            }
+        if (!responseData.success) {
+            setResult({ stdout: responseData.data?.stdout || '', stderr: responseData.error || responseData.data?.stderr, hasError: true });
         } else {
-            if (!responseData.success) {
-                setResult({ stdout: '', stderr: responseData.error, hasError: true });
-            } else {
-                setResult(responseData.data);
-                if (!responseData.data.hasError) {
-                  toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
-                }
+            setResult(responseData.data);
+            if (!responseData.data.hasError) {
+              toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
             }
         }
       } catch (err: any) {
@@ -214,7 +192,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
       } finally {
         setIsActionLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot, isElectron]);
+  }, [getFullConfig, toast, vfsRoot]);
 
   const handleCompile = async () => {
     setIsActionLoading(true);
@@ -294,7 +272,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
                                         <div className="flex items-center gap-2">
-                                            {config.type === 'synthesis' ? <Gamepad2 className="h-4 w-4" /> 
+                                            {config.type === 'synthesis' ? <AppWindow className="h-4 w-4" /> 
                                              : <PlayCircle className="h-4 w-4" />}
                                             <span>{config.name}</span>
                                         </div>
@@ -304,19 +282,27 @@ export function RunView({ onSelectFile }: RunViewProps) {
                         </Select>
                     </div>
 
-                    {selectedConfig && (
-                         <Alert variant="default">
-                            <Settings2 className="h-4 w-4" />
-                            <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
-                            <AlertDescription>
-                                {selectedConfig.program || selectedConfig.projectPath || selectedConfig.mainClass || 'Ready to launch in browser.'}
-                            </AlertDescription>
-                        </Alert>
+                    {isSynthesisConfig && (
+                         <div className="space-y-2">
+                            <Label htmlFor="platform-select">Target Platform</Label>
+                            <Select value={selectedPlatform} onValueChange={(v) => setSelectedPlatform(v as any)}>
+                                <SelectTrigger id="platform-select">
+                                    <SelectValue placeholder="Select a platform..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="ios">iOS</SelectItem>
+                                    <SelectItem value="android">Android</SelectItem>
+                                    <SelectItem value="macos">macOS</SelectItem>
+                                    <SelectItem value="windows">Windows</SelectItem>
+                                    <SelectItem value="linux">Linux</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     )}
                 </div>
             )}
             
-            {editorSettings.manualJsonInput && selectedConfig?.type !== 'synthesis' && selectedConfig?.type !== 'java-gui' && (
+            {editorSettings.manualJsonInput && selectedConfig && !isSynthesisConfig && (
                 <div className="space-y-2">
                     <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                     <Textarea
@@ -337,7 +323,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </Button>
                  <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || (isJavaConfig && !isProjectCompiled)} className="w-full">
                     {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                    Run
+                    {isSynthesisConfig ? 'Build' : 'Run'}
                 </Button>
             </div>
 
@@ -356,8 +342,8 @@ export function RunView({ onSelectFile }: RunViewProps) {
                     <h3 className="font-medium">Output</h3>
                     {result.stdout && (
                         <div>
-                            <Label>stdout</Label>
-                            <pre className="rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[50px]">
+                            <Label>{isSynthesisConfig ? 'Build Log' : 'stdout'}</Label>
+                            <pre className="rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[50px] max-h-96 overflow-auto">
                                 <code>{result.stdout || "No standard output."}</code>
                             </pre>
                         </div>
@@ -365,7 +351,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                      {result.stderr && (
                         <div>
                             <Label className="text-destructive">stderr</Label>
-                            <pre className="rounded-md border p-4 bg-destructive/10 text-destructive font-mono text-sm whitespace-pre-wrap min-h-[50px]">
+                            <pre className="rounded-md border p-4 bg-destructive/10 text-destructive font-mono text-sm whitespace-pre-wrap min-h-[50px] max-h-96 overflow-auto">
                                 <code>{result.stderr || "No standard error output."}</code>
                             </pre>
                         </div>
