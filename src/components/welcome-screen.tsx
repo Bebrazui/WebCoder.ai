@@ -4,11 +4,10 @@
 import React, { useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
-import { FolderSearch, Github, FileArchive, Code2, Gamepad2, FilePlus } from 'lucide-react';
+import { FolderSearch, Github, FileArchive, Gamepad2, FilePlus } from 'lucide-react';
 import { CloneRepositoryDialog } from './clone-repository-dialog';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useVfs } from '@/hooks/use-vfs';
 
 interface WelcomeScreenProps {
   onOpenFolder: () => void;

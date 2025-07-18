@@ -7,8 +7,6 @@ import {
   ChevronRight,
   Folder,
   FolderOpen,
-  Upload,
-  FileArchive,
   FilePlus,
   FolderPlus,
   Edit,
@@ -19,10 +17,8 @@ import {
   Download,
   Github,
   Play,
-  Terminal,
   Copy,
-  Atom,
-  Gamepad2
+  Atom
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -41,7 +37,6 @@ import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
 import { useToast } from "@/hooks/use-toast";
-import Link from "next/link";
 
 
 export interface LaunchConfig {
@@ -110,26 +105,12 @@ export function FileExplorer({
   findFileByPath,
   createFileInVfs,
 }: FileExplorerProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
   const [dragVersion, setDragVersion] = useState(0);
 
   const clearDragState = () => {
       setDragVersion(v => v + 1);
-  };
-  
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onUploadFile(e.target.files[0], vfsRoot);
-    }
-  };
-  
-  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onUploadZip(e.target.files[0]);
-    }
   };
 
   const handleNewFileAtRoot = () => {
@@ -178,17 +159,6 @@ export function FileExplorer({
                     </CollapsibleTrigger>
                 </div>
               </TooltipProvider>
-            </div>
-            <div className="space-y-2">
-              <Button size="sm" variant="secondary" className="w-full" onClick={onOpenFolder}>
-                <FolderSearch className="mr-2 h-4 w-4" /> Open Folder
-              </Button>
-              <Button size="sm" variant="secondary" className="w-full" onClick={() => setIsCloneDialogOpen(true)}>
-                <Github className="mr-2 h-4 w-4" /> Clone Repo
-              </Button>
-              <Button size="sm" variant="secondary" className="w-full" asChild>
-                  <Link href="/nocode"><Gamepad2 className="mr-2 h-4 w-4" /> No-Code Editor</Link>
-              </Button>
             </div>
         </div>
         

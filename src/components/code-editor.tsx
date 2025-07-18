@@ -7,7 +7,7 @@ import type * as monaco from "monaco-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLanguage, type VFSFile } from "@/lib/vfs";
 import { Button } from "@/components/ui/button";
-import { WandSparkles, FileCode2, LoaderCircle, Play } from "lucide-react";
+import { WandSparkles, FileCode2, LoaderCircle, Play, Atom } from "lucide-react";
 import { AiTransformDialog } from "./ai-transform-dialog";
 import { OutlineData } from "./outline-view";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -34,7 +34,7 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
     monacoInstance.languages.setMonarchTokensProvider(langId, {
         keywords: [
             'struct', 'component', 'func', 'if', 'else', 'let', 'return',
-            '@main'
+            '@main', '@State'
         ],
         typeKeywords: [
             'Int', 'String', 'Void', 'Bool'
@@ -73,7 +73,6 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
                 // delimiter: after number because of .\d floats
                 [/[;,.]/, 'delimiter'],
                 // strings
-                [/"([^"\\]|\\.)*$/, 'string.invalid'], // non-teminated string
                 [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
             ],
             comment: [
@@ -83,7 +82,7 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
                 [/[\/*]/, 'comment']
             ],
             string: [
-                [/[^\\"]+/, 'string'],
+                [/[^"\\]|\\\(|\\\(/, 'string'], // handle escaped parens for interpolation
                 [/@escapes/, 'string.escape'],
                 [/\\./, 'string.escape.invalid'],
                 [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
@@ -123,7 +122,7 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   const debouncedValue = useDebounce(value, 500);
   const { toast } = useToast();
   const { editorSettings } = useAppState();
-  const { vfsRoot } = useVfs();
+  const { vfsRoot, findFileByPath } = useVfs();
   const [languageServiceReady, setLanguageServiceReady] = useState(false);
 
   useEffect(() => {
@@ -150,11 +149,23 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     });
   }, []);
 
-  const handleRunScript = async (config: LaunchConfig) => {
+  const handleRunScript = useCallback(async (config: LaunchConfig | null) => {
+    const launchFile = findFileByPath('launch.json');
+    if (!config) {
+        if (window.confirm(`No launch configuration found for this file. Would you like to open 'launch.json' to add one?`)) {
+           // This requires a way to signal the parent to open the file.
+           // For now, we just log it. A better solution would use a callback.
+           console.log("User wants to open launch.json");
+           if (launchFile) {
+                // onSelectFile(launchFile) // This needs to be passed in
+           }
+        }
+        return;
+    }
+
     toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view or terminal for output.`});
     const apiEndpoint = `/api/run-${config.type}`;
     try {
-        // The RunView has more complex logic for handling args, but for this context menu, we use the default.
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -170,7 +181,8 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     } catch(e: any) {
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
-  };
+  }, [toast, vfsRoot, findFileByPath]);
+
 
   const updateOutline = useCallback(async () => {
     if (!editorRef.current || !monacoRef.current || !onOutlineChange || !languageServiceReady) return;
@@ -262,36 +274,6 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
         run: () => handleFormat(),
     });
 
-    // Run Group
-    editor.addAction({
-      id: 'run-script-context',
-      label: 'Run Script...',
-      keybindings: [],
-      contextMenuGroupId: '9_cutcopypaste', // a group that comes after editing
-      contextMenuOrder: 3,
-      run: (ed: monaco.editor.ICodeEditor) => {
-        const model = ed.getModel();
-        if (!model) return;
-
-        const filePath = model.uri.path.startsWith('/') ? model.uri.path.substring(1) : model.uri.path;
-        
-        const runnableConfig = launchConfigs.find(config => {
-            const fileNode = { name: filePath.split('/').pop() || '', path: filePath };
-            return config.program === filePath ||
-                (config.type === 'java' && fileNode.name === `${config.mainClass}.java`) ||
-                (config.type === 'rust' && fileNode.name === 'main.rs' && config.cargo?.projectPath === 'rust_apps') ||
-                (config.type === 'csharp' && fileNode.name === 'Program.cs' && config.projectPath && fileNode.path.includes(config.projectPath));
-        });
-
-        if (runnableConfig) {
-          handleRunScript(runnableConfig);
-        } else {
-          toast({ variant: 'destructive', title: "Not Runnable", description: "No launch configuration found for this file." });
-        }
-      },
-    });
-
-
     editor.onMouseUp(() => {
       const selection = editor.getSelection();
       if (selection && !selection.isEmpty()) {
@@ -324,12 +306,14 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
 
   // Apply editor settings when they change
   useEffect(() => {
-    editorRef.current?.updateOptions({
-      fontFamily: editorSettings.fontFamily,
-      fontSize: editorSettings.fontSize,
-      wordWrap: editorSettings.wordWrap ? "on" : "off",
-      cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
-    });
+    if (editorRef.current) {
+        editorRef.current.updateOptions({
+            fontFamily: editorSettings.fontFamily,
+            fontSize: editorSettings.fontSize,
+            wordWrap: editorSettings.wordWrap ? "on" : "off",
+            cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
+        });
+    }
   }, [editorSettings]);
 
   const handleTransform = (newCode: string) => {

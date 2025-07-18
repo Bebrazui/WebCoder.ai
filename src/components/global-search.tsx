@@ -46,7 +46,7 @@ const searchInVfs = (root: VFSDirectory, query: string): SearchResult[] => {
     return results;
 };
 
-export function GlobalSearch({ vfsRoot, onFileSelect }: GlobalSearchProps) {
+export function GlobalSearch({ vfsRoot, onSelectFile }: GlobalSearchProps) {
     const [query, setQuery] = useState("");
     const debouncedQuery = useDebounce(query, 300);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -83,7 +83,7 @@ export function GlobalSearch({ vfsRoot, onFileSelect }: GlobalSearchProps) {
                                 <AccordionItem value={file.path} key={file.path}>
                                     <AccordionTrigger 
                                         className="text-sm hover:no-underline hover:bg-sidebar-accent px-2 py-1.5 rounded-md"
-                                        onClick={() => onFileSelect(file)}
+                                        onClick={() => onSelectFile(file)}
                                     >
                                         <div className="flex items-center gap-2 w-full">
                                             <FileText className="h-4 w-4 shrink-0" />

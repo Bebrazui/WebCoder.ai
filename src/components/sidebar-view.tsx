@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileExplorer, type FileExplorerProps, LaunchConfig } from "./file-explorer";
+import { FileExplorer, type FileExplorerProps } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
 import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench, HeartPulse, Globe } from "lucide-react";
@@ -12,7 +12,6 @@ import type { GitStatus } from "@/hooks/use-vfs";
 import { OutlineView, OutlineData } from "./outline-view";
 import { RunView } from "./run-view";
 import { PluginsView } from "./plugins-view";
-import type * as monaco from 'monaco-editor';
 import { ToolsView } from "./plugins/tools-view";
 import { ProjectHealthView } from "./plugins/project-health-view";
 import { BrowserView } from "./plugins/browser-view";
