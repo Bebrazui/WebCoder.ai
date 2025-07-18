@@ -90,6 +90,57 @@ const useGameLogic = (initialLevelData: LevelData | null) => {
     return { playerPos, coins, gameState, movePlayer };
 }
 
+const Tile = ({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) => {
+    const wallTexture = textures.WALL;
+    const playerTexture = textures.PLAYER;
+    const coinTexture = textures.COIN;
+    const enemyTexture = textures.ENEMY;
+
+    return (
+        <div
+            className="aspect-square flex items-center justify-center relative bg-gray-800 bg-cover bg-center"
+            style={{ backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none' }}
+        >
+            {isPlayerHere && (
+                playerTexture ? (
+                    <Image
+                        src={playerTexture}
+                        layout="fill"
+                        objectFit="contain"
+                        alt="player"
+                    />
+                ) : (
+                    <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
+                )
+            )}
+            {isCoinHere && (
+                coinTexture ? (
+                    <Image
+                        src={coinTexture}
+                        layout="fill"
+                        objectFit="contain"
+                        alt="coin"
+                    />
+                ) : (
+                    <TILE_COMPONENTS[TILE_TYPES.COIN] />
+                )
+            )}
+            {tileType === TILE_TYPES.ENEMY && (
+                enemyTexture ? (
+                    <Image
+                        src={enemyTexture}
+                        layout="fill"
+                        objectFit="contain"
+                        alt="enemy"
+                    />
+                ) : (
+                    <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
+                )
+            )}
+        </div>
+    );
+}
+
 export default function PlayPage() {
   const [levelData, setLevelData] = useState<LevelData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,58 +202,6 @@ export default function PlayPage() {
         <LoaderCircle className="mx-auto h-24 w-24 mb-6 text-purple-400 animate-spin" />
         <h1 className="text-3xl font-bold font-headline">Loading Level...</h1>
       </div>
-    );
-  }
-  
-  const Tile = ({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) => {
-    const tileTypeKey = Object.keys(TILE_TYPES).find(key => TILE_TYPES[key as TileTypeKey] === tileType) as TileTypeKey | undefined;
-    const wallTexture = textures.WALL;
-    const playerTexture = textures.PLAYER;
-    const coinTexture = textures.COIN;
-    const enemyTexture = textures.ENEMY;
-
-    return (
-        <div 
-          className="aspect-square flex items-center justify-center relative bg-gray-800 bg-cover bg-center"
-          style={{ backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none' }}
-        >
-          {isPlayerHere && (
-              playerTexture ? (
-                <Image
-                  src={playerTexture}
-                  layout="fill"
-                  objectFit="contain"
-                  alt="player"
-                />
-              ) : (
-                <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
-              )
-          )}
-          {isCoinHere && (
-              coinTexture ? (
-                <Image
-                  src={coinTexture}
-                  layout="fill"
-                  objectFit="contain"
-                  alt="coin"
-                />
-              ) : (
-                <TILE_COMPONENTS[TILE_TYPES.COIN] />
-              )
-          )}
-           {tileType === TILE_TYPES.ENEMY && (
-              enemyTexture ? (
-                <Image
-                  src={enemyTexture}
-                  layout="fill"
-                  objectFit="contain"
-                  alt="enemy"
-                />
-              ) : (
-                <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
-              )
-          )}
-        </div>
     );
   }
 
