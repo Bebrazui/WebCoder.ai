@@ -141,16 +141,22 @@ const runners = {
             const mainCode = await fs.readFile(programPath, 'utf8');
             allCode += mainCode + '\n\n';
 
-            // Find and include the content of UserDetail.syn
-            try {
-                const userDetailPath = path.join(path.dirname(programPath), 'UserDetail.syn');
-                const userDetailCode = await fs.readFile(userDetailPath, 'utf8');
-                allCode += userDetailCode;
-            } catch (e) {
-                // UserDetail.syn might not exist, which is fine for some cases
+            // Find and include other .syn files for context
+            const projectDir = path.dirname(programPath);
+            const files = await fs.readdir(projectDir);
+            for (const file of files) {
+                if (file.endsWith('.syn') && file !== path.basename(programPath)) {
+                    try {
+                        const code = await fs.readFile(path.join(projectDir, file), 'utf8');
+                        allCode += code + '\n\n';
+                    } catch (e) {
+                         // ignore if can't read
+                    }
+                }
             }
             
             const output = compileSynthesis(allCode);
+            // The output is now a JSON string describing the UI
             return { stdout: output, stderr: '', code: 0 };
         } catch (e: any) {
             return { stdout: '', stderr: `Failed to read or compile SYNTHESIS file: ${e.message}`, code: 1 };

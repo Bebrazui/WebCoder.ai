@@ -67,7 +67,7 @@ const findBuildFolder = (node: VFSNode): boolean => {
 export function RunView({ onSelectFile }: RunViewProps) {
   const { toast } = useToast();
   const { vfsRoot, createFileInVfs, compileJavaProject, findFileByPath } = useVfs();
-  const { editorSettings } = useAppState();
+  const { editorSettings, isElectron } = useAppState();
   
   const [isActionLoading, setIsActionLoading] = useState(false); // For both run and compile
   const [result, setResult] = useState<RunResult | null>(null);
@@ -97,9 +97,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
         }
     }
     
-    // Add an option to auto-detect runnable files if no specific config exists
     configs.push({ name: "Auto-detect and Run...", type: "auto", request: "launch" });
-
     setLaunchConfigs(configs);
 
     if (configs.length > 0 && (!selectedConfigName || !configs.some(c => c.name === selectedConfigName))) {
@@ -142,8 +140,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
           return null;
       }
       
-      const fullConfig = { ...selectedConfig, args: argsToUse };
-      return fullConfig;
+      return { ...selectedConfig, args: argsToUse };
   }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast]);
 
   const handleRun = useCallback(async (overrideConfig?: LaunchConfig) => {
@@ -186,14 +183,10 @@ export function RunView({ onSelectFile }: RunViewProps) {
              const response = await fetch('/api/prepare-jar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    projectFiles: [vfsRoot],
-                    config: fullConfig
-                })
+                body: JSON.stringify({ projectFiles: [vfsRoot], config: fullConfig })
              });
              const data = await response.json();
              if (!data.success) throw new Error(data.error);
-
              setCheerpjJarUrl(data.jarUrl);
              setIsCheerpJOpen(true);
           } catch (err: any) {
@@ -206,31 +199,40 @@ export function RunView({ onSelectFile }: RunViewProps) {
 
       setIsActionLoading(true);
       setResult(null);
-
       const apiEndpoint = `/api/run-${fullConfig.type}`;
 
       try {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                projectFiles: [vfsRoot],
-                config: fullConfig,
-            }),
+            body: JSON.stringify({ projectFiles: [vfsRoot], config: fullConfig }),
         });
-
         const responseData = await response.json();
-
         if (!response.ok) {
             throw new Error(responseData.error || 'An unknown server error occurred.');
         }
 
-        if (!responseData.success) { // Handle backend-reported "soft" errors
-            setResult({ stdout: '', stderr: responseData.error, hasError: true });
+        if (fullConfig.type === 'synthesis') {
+            const uiJsonString = responseData.success ? responseData.data.stdout : JSON.stringify({ type: 'Error', message: responseData.error });
+            if (isElectron) {
+                localStorage.setItem('synthesis_ui_data', uiJsonString);
+                window.electronAPI.openSynthesisWindow();
+            } else {
+                window.open(`/synthesis-runner?data=${encodeURIComponent(uiJsonString)}`, '_blank');
+            }
+            if (responseData.success) {
+                setResult({ stdout: 'SYNTHESIS app launched in new window.', stderr: '', hasError: false });
+            } else {
+                setResult({ stdout: '', stderr: responseData.error, hasError: true });
+            }
         } else {
-            setResult(responseData.data);
-            if (!responseData.data.hasError) {
-              toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+            if (!responseData.success) {
+                setResult({ stdout: '', stderr: responseData.error, hasError: true });
+            } else {
+                setResult(responseData.data);
+                if (!responseData.data.hasError) {
+                  toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+                }
             }
         }
       } catch (err: any) {
@@ -239,7 +241,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
       } finally {
         setIsActionLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot]);
+  }, [getFullConfig, toast, vfsRoot, isElectron]);
 
   const handleCompile = async () => {
     setIsActionLoading(true);
@@ -258,79 +260,11 @@ export function RunView({ onSelectFile }: RunViewProps) {
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Java App",
-      "type": "java",
+      "name": "Run SYNTHESIS App",
+      "type": "synthesis",
       "request": "launch",
-      "mainClass": "Main",
-      "sourcePaths": ["java_apps/src"],
-      "classPaths": [],
-      "args": {
-        "name": "Java User",
-        "age": 42
-      }
-    },
-    {
-      "name": "Run Python Script",
-      "type": "python",
-      "request": "launch",
-      "program": "python_scripts/my_script.py",
-      "args": {
-        "name": "From launch.json",
-        "value": 12345
-      }
-    },
-    {
-      "name": "Run Go App",
-      "type": "go",
-      "request": "launch",
-      "program": "go_apps/main.go",
-      "args": {
-        "name": "Go Developer",
-        "value": 987
-      }
-    },
-    {
-      "name": "Run Rust App",
-      "type": "rust",
-      "request": "launch",
-      "cargo": {
-        "args": ["build", "--release"],
-        "projectPath": "rust_apps"
-      },
-      "args": {
-        "name": "Rustacean",
-        "value": 1010
-      }
-    },
-    {
-      "name": "Run C# App",
-      "type": "csharp",
-      "request": "launch",
-      "projectPath": "csharp_apps/my_csharp_app",
-      "args": {
-        "name": "C# Coder",
-        "value": 777
-      }
-    },
-    {
-      "name": "Run PHP Script",
-      "type": "php",
-      "request": "launch",
-      "program": "php_scripts/my_php_script.php",
-      "args": {
-        "name": "PHP Enthusiast",
-        "value": 555
-      }
-    },
-    {
-      "name": "Run Ruby Script",
-      "type": "ruby",
-      "request": "launch",
-      "program": "ruby_scripts/my_ruby_script.rb",
-      "args": {
-        "name": "Rubyist",
-        "value": 333
-      }
+      "program": "main.syn",
+      "platform": "ios"
     }
   ]
 }
@@ -409,7 +343,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </div>
             )}
             
-            {editorSettings.manualJsonInput && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
+            {editorSettings.manualJsonInput && selectedConfig?.type !== 'synthesis' && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
                 <div className="space-y-2">
                     <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                     <Textarea

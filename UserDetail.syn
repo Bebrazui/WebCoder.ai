@@ -1,14 +1,13 @@
-// This file is now part of main.syn for simplicity of the demo compiler.
-// It is kept here for reference.
-
-/*
 struct User {
   id: Int;
   name: String;
   email: String?;
 }
 
-component UserDetail(user: User, onEdit: (userId: Int) => Void) {
+component UserDetail(user: User) {
+  @State let counter: Int = 0
+  @State let message: String = "Click the button"
+
   VStack(alignment: .leading, spacing: 10) {
     Text("User ID: \(user.id)")
       .font(.headline)
@@ -27,14 +26,20 @@ component UserDetail(user: User, onEdit: (userId: Int) => Void) {
         .color(.red)
     }
 
-    Button("Edit User") {
-      onEdit(user.id)
+    // Interactive Part
+    Text("Button clicks: \(counter)")
+      .font(.headline)
+
+    Button("Increment Counter") {
+      counter = counter + 1
+      message = "You clicked!"
     }
     .style(.primary)
+    
+    Text("\(message)")
   }
   .padding(20)
   .background(.white)
   .cornerRadius(12)
   .shadow(radius: 5)
 }
-*/
