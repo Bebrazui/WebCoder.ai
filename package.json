@@ -1,3 +1,4 @@
+
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -17,7 +18,8 @@
     "compile-rust": "cd rust_apps && cargo build --release && cd .. && cp rust_apps/target/release/rust_apps rust_apps/my_rust_app",
     "compile-csharp": "cd csharp_apps/my_csharp_app && dotnet publish -c Release -o ../build",
     "electron:dev": "electron .",
-    "electron:build": "next build && electron-builder"
+    "electron:package": "next build && electron-packager . --overwrite --platform=win32 --arch=x64 --out=dist/ --ignore=\"^/src\" --ignore=\"^/java_apps\" --ignore=\"^/python_scripts\" --ignore=\"^/go_apps\" --ignore=\"^/rust_apps\" --ignore=\"^/csharp_apps\" --ignore=\"^/php_scripts\" --ignore=\"^/ruby_scripts\" --ignore=\"^/node_modules/electron-\"",
+    "electron:create-installer": "node createInstaller.js"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.13.0",
@@ -86,55 +88,11 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "electron": "^31.2.1",
-    "electron-builder": "^25.0.0",
+    "electron-packager": "^17.1.2",
+    "electron-winstaller": "^5.1.1",
     "genkit-cli": "^1.13.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3"
-  },
-  "build": {
-    "appId": "com.webcoder.ai",
-    "productName": "WebCoder.ai",
-    "files": [
-      "electron.cjs",
-      "preload.js",
-      "menu.js",
-      "out/**/*",
-      "public/logo.png"
-    ],
-    "directories": {
-      "output": "dist",
-      "buildResources": "public"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "Bebrazui",
-      "repo": "Webcoder.ai"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "public/logo.png"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/logo.png"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "public/logo.png"
-    },
-    "fileAssociations": [
-      {
-        "ext": "*",
-        "name": "Any File",
-        "role": "Editor"
-      }
-    ],
-    "protocols": {
-      "name": "WebCoder.ai URL",
-      "schemes": [
-        "webcoder"
-      ]
-    }
   }
 }
