@@ -245,6 +245,11 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
 
         if (result.code !== 0) {
             const errorMessage = result.stderr || result.stdout || `Process for ${language} exited with non-zero code.`;
+            // For Synthesis, we wrap the error in the expected JSON structure for the runner page
+            if (language === 'synthesis') {
+                const errorJson = JSON.stringify({ type: 'Error', message: errorMessage });
+                return NextResponse.json({ success: true, data: { stdout: errorJson, stderr: '', hasError: false }});
+            }
             return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: errorMessage, hasError: true } }, { status: 200 });
         }
         
@@ -253,6 +258,11 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
 
     } catch (error: any) {
         console.error(`Error in runLanguage for ${language}:`, error);
+        // For Synthesis, we wrap the error in the expected JSON structure for the runner page
+        if (language === 'synthesis') {
+            const errorJson = JSON.stringify({ type: 'Error', message: `An internal server error occurred: ${error.message}` });
+            return NextResponse.json({ success: true, data: { stdout: errorJson, stderr: '', hasError: false }});
+        }
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });
     } finally {
         if (tempDir) {

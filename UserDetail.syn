@@ -4,39 +4,34 @@ struct User {
   email: String?;
 }
 
-component UserDetail(user: User) {
-  @State let counter: Int = 0
-  @State let message: String = "Click the button"
+component UserDetail(user: User, onEdit: (userId: Int) => Void) {
+  @State let isEditing: Bool = false
 
-  VStack(alignment: .leading, spacing: 10) {
-    Text("User ID: \(user.id)")
-      .font(.headline)
-      .color(.gray)
-
-    Text("Name: \(user.name)")
-      .font(.title)
-
-    if let email = user.email {
-      Text("Email: \(email)")
-        .font(.subheadline)
-        .padding(.top, 5)
+  VStack {
+    if isEditing {
+      Text("Currently editing...")
     } else {
-      Text("Email: Not provided")
-        .font(.subheadline)
-        .color(.red)
+      Text("User ID: \(user.id)")
+        .font(.headline)
+        .color(.gray)
+
+      Text("Name: \(user.name)")
+        .font(.title)
+
+      if let email = user.email {
+        Text("Email: \(email)")
+          .font(.subheadline)
+          .padding(.top, 5)
+      } else {
+        Text("Email: Not provided")
+          .font(.subheadline)
+          .color(.red)
+      }
     }
 
-    // Interactive Part
-    Text("Button clicks: \(counter)")
-      .font(.headline)
-
-    Button("Increment Counter") {
-      counter = counter + 1
-      message = "You clicked!"
+    Button("Toggle Edit") {
+      isEditing = !isEditing
     }
-    .style(.primary)
-    
-    Text("\(message)")
   }
   .padding(20)
   .background(.white)

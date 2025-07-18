@@ -1,13 +1,14 @@
+
 // src/lib/synthesis_compiler.ts
 
 // --- 1. Определение токенов ---
 enum TokenType {
-  Keyword,       // @main, @State, func, Window, VStack, Text, font, color, struct, component, if, else, let, in, Button, style, padding, background, cornerRadius, shadow, alignment, spacing
+  Keyword,       // @main, @State, func, Window, VStack, HStack, Text, TextField, font, color, struct, component, if, else, let, in, Button, style, padding, background, cornerRadius, shadow, alignment, spacing, frame, foregroundColor, backgroundColor
   Identifier,    // Имена переменных, функций, компонентов
   StringLiteral, // "Hello World!"
   NumberLiteral, // 10, 20
   Punctuation,   // (, ), {, }, ., :, ;, =, ,, ?, !, \, <, >, =>
-  Operator,      // =, ==, . (для доступа к свойствам)
+  Operator,      // =, ==, <, > (для сравнений)
   InterpolationStart, // \(
   EndOfFile
 }
@@ -59,9 +60,10 @@ class Lexer {
   public tokenize(): Token[] {
     const tokens: Token[] = [];
     const keywords = new Set([
-      "@main", "@State", "func", "Window", "VStack", "Text", "font", "color", "struct",
+      "@main", "@State", "func", "Window", "VStack", "HStack", "Text", "TextField", "font", "color", "struct",
       "component", "if", "else", "let", "in", "Button", "style", "padding",
-      "background", "cornerRadius", "shadow", "alignment", "spacing", "Int", "String", "Void"
+      "background", "cornerRadius", "shadow", "alignment", "spacing", "Int", "String", "Void", "Bool",
+      "frame", "foregroundColor", "backgroundColor"
     ]);
 
     while (this.position < this.code.length) {
@@ -132,11 +134,16 @@ class Lexer {
         '.': TokenType.Punctuation, ':': TokenType.Punctuation,
         ';': TokenType.Punctuation, ',': TokenType.Punctuation,
         '?': TokenType.Punctuation, '!': TokenType.Punctuation,
-        '<': TokenType.Punctuation, '>': TokenType.Punctuation,
+        '<': TokenType.Operator, '>': TokenType.Operator,
         '=': TokenType.Operator
       };
       if (char in punctuationMap) {
-        tokens.push({ type: punctuationMap[char], value: char, line: startLine });
+         if (char === '=' && this.peek() === '>') {
+            this.advance();
+            tokens.push({ type: TokenType.Punctuation, value: '=>', line: startLine });
+        } else {
+            tokens.push({ type: punctuationMap[char], value: char, line: startLine });
+        }
         this.advance();
       } else {
          throw new Error(`Unexpected character: ${char} at line ${startLine}`);
@@ -156,11 +163,15 @@ interface ComponentDefinitionNode extends Node { type: "ComponentDefinition"; na
 interface StateDefinitionNode extends Node { type: "StateDefinition"; name: string, typeName: string, initialValue: Node; }
 interface FuncDefinitionNode extends Node { type: "FuncDefinition"; name: string; body: Node[]; }
 interface AssignmentNode extends Node { type: "Assignment"; left: Node; right: Node; }
+interface BinaryExpressionNode extends Node { type: "BinaryExpression"; left: Node; operator: string; right: Node; }
 interface WindowNode extends Node { type: "Window"; title: string; body: Node; }
 interface VStackNode extends Node { type: "VStack"; props: { [key: string]: any }; children: Node[]; }
+interface HStackNode extends Node { type: "HStack"; props: { [key: string]: any }; children: Node[]; }
 interface TextNode extends Node { type: "Text"; value: (string | Node)[]; modifiers: Node[]; }
+interface TextFieldNode extends Node { type: "TextField"; placeholder: string; binding: IdentifierNode; modifiers: Node[]; }
 interface IfNode extends Node { type: "If"; condition: Node; thenBranch: Node[]; elseBranch: Node[] | null; }
 interface ButtonNode extends Node { type: "Button"; text: (string | Node)[]; action: Node[]; modifiers: Node[]; }
+interface ClosureNode extends Node { type: "Closure"; params: IdentifierNode[]; body: Node[]; }
 interface ModifierNode extends Node { type: "Modifier"; name: string; args: Node[]; }
 interface StringInterpolationNode extends Node { type: "StringInterpolation"; expression: Node; }
 interface LiteralNode extends Node { type: "Literal"; value: string | number; }
@@ -199,6 +210,19 @@ class Parser {
   }
 
   private parseExpression(): Node {
+    let left = this.parsePrimaryExpression();
+    
+    // Check for binary expressions (e.g., count < 0)
+    while (this.check(TokenType.Operator)) {
+        const operatorToken = this.advance();
+        const right = this.parsePrimaryExpression();
+        left = { type: "BinaryExpression", left, operator: operatorToken.value!, right };
+    }
+
+    return left;
+  }
+
+  private parsePrimaryExpression(): Node {
     let token = this.peek();
     let node: Node;
 
@@ -241,22 +265,44 @@ class Parser {
     this.consume(TokenType.Punctuation, '(');
     const args: Node[] = [];
     if (!this.check(TokenType.Punctuation, ')')) {
-      if (this.check(TokenType.Punctuation, '.')) {
-         this.consume(TokenType.Punctuation, '.');
-         args.push({ type: "Identifier", name: this.consume(TokenType.Identifier).value! });
-      } else if (this.check(TokenType.NumberLiteral)) {
-         args.push({ type: "Literal", value: parseInt(this.advance().value!) });
-      } else {
-        const argName = this.consume(TokenType.Identifier).value;
-        this.consume(TokenType.Punctuation, ':');
-        const argValue = this.consume(TokenType.NumberLiteral).value;
-        args.push({type: "Literal", value: {[argName!]: parseInt(argValue!)}});
-      }
+      do {
+        if (this.check(TokenType.Punctuation, '.')) {
+           this.consume(TokenType.Punctuation, '.');
+           args.push({ type: "Identifier", name: this.consume(TokenType.Identifier).value! });
+        } else if (this.check(TokenType.NumberLiteral)) {
+           args.push({ type: "Literal", value: parseInt(this.advance().value!) });
+        } else if (this.check(TokenType.StringLiteral)) {
+           args.push({ type: "Literal", value: this.advance().value! });
+        } else {
+          // Argument with label, e.g. width: 100
+          const argName = this.consume(TokenType.Identifier).value;
+          this.consume(TokenType.Punctuation, ':');
+          const argValue = this.parseExpression();
+          (argValue as any).label = argName;
+          args.push(argValue);
+        }
+      } while (this.match({type: TokenType.Punctuation, value: ','}));
     }
     this.consume(TokenType.Punctuation, ')');
     return { type: "Modifier", name, args };
   }
   
+  private parseClosure(): ClosureNode {
+      this.consume(TokenType.Punctuation, '{');
+      const params: IdentifierNode[] = [];
+      if(this.match({type: TokenType.Punctuation, value: '('})) {
+          while(!this.check(TokenType.Punctuation, ')')) {
+              params.push({ type: 'Identifier', name: this.consume(TokenType.Identifier).value! });
+              if(this.check(TokenType.Punctuation, ',')) this.advance();
+          }
+          this.consume(TokenType.Punctuation, ')');
+          this.consume(TokenType.Keyword, 'in');
+      }
+      const body = this.parseBlock(true);
+      this.consume(TokenType.Punctuation, '}');
+      return { type: 'Closure', params, body };
+  }
+
   private parseBlock(isFunc: boolean = false): Node[] {
     const nodes: Node[] = [];
     this.consume(TokenType.Punctuation, '{', "Expected '{' to start a block.");
@@ -286,9 +332,20 @@ class Parser {
       this.consume(TokenType.Punctuation, ')');
       node = { type: "Text", value, modifiers: [] } as TextNode;
     } else if (this.match({type: TokenType.Keyword, value: 'VStack'})) {
-       const props = {};
+       const props = {}; // Simplified
        const children = this.parseBlock();
        node = { type: "VStack", props, children, modifiers: [] };
+    } else if (this.match({type: TokenType.Keyword, value: 'HStack'})) {
+       const props = {}; // Simplified
+       const children = this.parseBlock();
+       node = { type: "HStack", props, children, modifiers: [] };
+    } else if (this.match({type: TokenType.Keyword, value: 'TextField'})) {
+       this.consume(TokenType.Punctuation, '(');
+       const placeholder = this.consume(TokenType.StringLiteral).value!;
+       this.consume(TokenType.Punctuation, ',');
+       const binding = this.parseExpression() as IdentifierNode;
+       this.consume(TokenType.Punctuation, ')');
+       node = { type: "TextField", placeholder, binding, modifiers: [] };
     } else if (this.match({type: TokenType.Keyword, value: 'Button'})) {
        this.consume(TokenType.Punctuation, '(');
        const text = this.parseTextContent();
@@ -296,9 +353,6 @@ class Parser {
        const action = this.parseBlock(true); // Action block contains assignments
        node = { type: "Button", text, action, modifiers: [] };
     } else if (this.match({type: TokenType.Keyword, value: 'if'})) {
-       this.consume(TokenType.Keyword, 'let');
-       this.consume(TokenType.Identifier).value!;
-       this.consume(TokenType.Operator, '=');
        const condition = this.parseExpression();
        const thenBranch = this.parseBlock();
        let elseBranch = null;
@@ -422,11 +476,7 @@ class JsonDescriptionGenerator {
   constructor(private ast: ProgramNode) {}
   
   generate(): any {
-    const mainComponent = this.ast.body.find(n => n.type === 'Window' || n.type === 'ComponentDefinition');
-    if (mainComponent) {
-        return this.generateNode(mainComponent);
-    }
-    return { type: 'Error', message: 'No main component or window found' };
+    return this.generateNode(this.ast);
   }
   
   private generateNode(node: Node): any {
@@ -465,7 +515,16 @@ class JsonDescriptionGenerator {
             return {
               type: "VStack",
               props: vstack.props,
+              modifiers: (vstack as any).modifiers.map((m:Node) => this.generateNode(m)),
               children: vstack.children.map(c => this.generateNode(c))
+            };
+         case 'HStack':
+            const hstack = node as HStackNode;
+            return {
+              type: "HStack",
+              props: hstack.props,
+              modifiers: (hstack as any).modifiers.map((m:Node) => this.generateNode(m)),
+              children: hstack.children.map(c => this.generateNode(c))
             };
         case 'Text':
             const text = node as TextNode;
@@ -473,6 +532,14 @@ class JsonDescriptionGenerator {
                 type: "Text", 
                 value: text.value.map(p => typeof p === 'string' ? {type: 'String', value: p} : this.generateNode(p)), 
                 modifiers: text.modifiers.map(m => this.generateNode(m)) 
+            };
+         case 'TextField':
+            const textField = node as TextFieldNode;
+            return { 
+                type: "TextField", 
+                placeholder: textField.placeholder,
+                binding: this.generateNode(textField.binding),
+                modifiers: textField.modifiers.map(m => this.generateNode(m)) 
             };
         case 'Button':
             const button = node as ButtonNode;
@@ -497,6 +564,14 @@ class JsonDescriptionGenerator {
                 left: this.generateNode(assign.left),
                 right: this.generateNode(assign.right)
             };
+        case 'BinaryExpression':
+            const binary = node as BinaryExpressionNode;
+            return {
+                type: 'BinaryExpression',
+                left: this.generateNode(binary.left),
+                operator: binary.operator,
+                right: this.generateNode(binary.right),
+            };
         case 'Identifier':
              return { type: 'Identifier', name: (node as IdentifierNode).name };
         case 'MemberAccess':
@@ -511,9 +586,18 @@ class JsonDescriptionGenerator {
             return {
                 type: 'Modifier',
                 name: mod.name,
-                args: mod.args.map(a => this.generateNode(a))
+                args: mod.args.map(a => {
+                    const generatedArg = this.generateNode(a);
+                    if ((a as any).label) {
+                        return { label: (a as any).label, value: generatedArg };
+                    }
+                    return generatedArg;
+                })
             };
         default:
+             if ((node as any).name && (node as any).params) {
+                return { type: 'ComponentCall', name: (node as any).name, params: (node as any).params.map((p: any) => this.generateNode(p)) };
+            }
             return { type: 'Unknown', nodeType: node.type };
     }
   }

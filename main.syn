@@ -1,8 +1,6 @@
 @main
 func AppDelegate {
-  Window("SYNTHESIS Interactive Demo") {
-    VStack {
-      UserDetail(user: myUser)
-    }
+  Window("My SYNTHESIS App") {
+    Counter()
   }
 }

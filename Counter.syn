@@ -1,0 +1,34 @@
+component Counter {
+    @State let count: Int = 0
+    @State let name: String = ""
+
+    VStack {
+        Text("Hello, \(name)!")
+            .font(.title)
+
+        TextField("Enter your name", name)
+            .padding(10)
+
+        HStack {
+            Button("-") {
+                count = count - 1
+            }
+            
+            if count < 0 {
+                Text("\(count)")
+                    .font(.title)
+                    .foregroundColor(.red)
+            } else {
+                Text("\(count)")
+                    .font(.title)
+                    .foregroundColor(.blue)
+            }
+
+            Button("+") {
+                count = count + 1
+            }
+        }
+    }
+    .padding(20)
+    .backgroundColor(.lightGray)
+}
