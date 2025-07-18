@@ -90,7 +90,7 @@ const useGameLogic = (initialLevelData: LevelData | null) => {
     return { playerPos, coins, gameState, movePlayer };
 }
 
-const Tile = ({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) => {
+function Tile({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) {
     const wallTexture = textures.WALL;
     const playerTexture = textures.PLAYER;
     const coinTexture = textures.COIN;
