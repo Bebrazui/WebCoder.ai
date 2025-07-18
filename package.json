@@ -53,6 +53,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
+    "electron-updater": "^6.2.1",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "genkit": "^1.13.0",
@@ -105,6 +106,11 @@
     "directories": {
       "output": "dist",
       "buildResources": "public"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ВАШ_ЛОГИН_GITHUB",
+      "repo": "ВАШЕ_НАЗВАНИЕ_РЕПОЗИТОРИЯ"
     },
     "win": {
       "target": "nsis",

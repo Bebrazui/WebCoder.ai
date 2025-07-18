@@ -1,119 +1,114 @@
 // electron.cjs
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
-const createMenuTemplate = require('./menu');
+const createMenuTemplate = require('./menu.js');
+const { autoUpdater } = require('electron-updater');
 
-const isDev = process.env.NODE_ENV === 'development';
 let mainWindow;
-// Keep a reference to the current child process
-let childProcess = null;
+let activeChildProcess;
+
+const isDev = !app.isPackaged;
+const appUrl = isDev ? 'http://localhost:9002' : `file://${path.join(__dirname, 'out', 'index.html')}`;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1280,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
       contextIsolation: true,
+      nodeIntegration: false,
     },
-    // The following options are for a frameless window with custom title bar
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#232F34', // Match your dark theme background
+    backgroundColor: '#00000000'
   });
 
-  const startUrl = isDev
-    ? 'http://localhost:9002' // Port from package.json
-    : `file://${path.join(__dirname, 'out/index.html')}`;
-
-  mainWindow.loadURL(startUrl);
-
+  mainWindow.loadURL(appUrl);
+  
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
-  // Set up the application menu
-  const menu = Menu.buildFromTemplate(createMenuTemplate(app, mainWindow));
-  Menu.setApplicationMenu(menu);
-
-  mainWindow.on('closed', () => (mainWindow = null));
-
-  // Listen for window control events from the renderer
-  ipcMain.on('window:minimize', () => mainWindow.minimize());
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-  });
-  ipcMain.on('window:close', () => mainWindow.close());
-
-  // Send maximization state to renderer
+  // --- Window State ---
   mainWindow.on('maximize', () => mainWindow.webContents.send('window:isMaximized', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:isMaximized', false));
+
+  // --- Menu ---
+  const menuTemplate = createMenuTemplate(app, mainWindow);
+  const menu = Menu.buildFromTemplate(menuTemplate);
+  Menu.setApplicationMenu(menu);
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (activeChildProcess) {
+      activeChildProcess.kill();
+    }
+  });
+
+  // --- Check for updates ---
+  mainWindow.once('ready-to-show', () => {
+    autoUpdater.checkForUpdatesAndNotify();
+  });
 }
 
-// --- IPC for Terminal Command Execution ---
+// --- IPC Handlers ---
+ipcMain.on('window:minimize', () => mainWindow.minimize());
+ipcMain.on('window:maximize', () => {
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+ipcMain.on('window:close', () => mainWindow.close());
+
 ipcMain.on('execute-command', (event, { command, args, cwd }) => {
-  // If another process is running, kill it first
-  if (childProcess) {
-    childProcess.kill();
-    childProcess = null;
+  if (activeChildProcess) {
+    event.reply('terminal-output', '\r\nAnother process is already running.\r\n');
+    return;
   }
   
-  // Use shell: true to handle complex commands like those with pipes or redirects,
-  // and to ensure system PATH is respected.
-  childProcess = spawn(command, args, { cwd, shell: true });
+  try {
+    const effectiveCwd = cwd || (app.isPackaged ? path.dirname(app.getPath('exe')) : process.cwd());
+    activeChildProcess = spawn(command, args, { cwd: effectiveCwd, shell: true });
 
-  childProcess.stdout.on('data', (data) => {
-    event.sender.send('terminal-output', data.toString());
-  });
+    activeChildProcess.stdout.on('data', (data) => {
+      event.reply('terminal-output', data.toString());
+    });
 
-  childProcess.stderr.on('data', (data) => {
-    // Send stderr data to the same output channel for simplicity, xterm can color it.
-    event.sender.send('terminal-output', data.toString());
-  });
+    activeChildProcess.stderr.on('data', (data) => {
+      event.reply('terminal-output', data.toString());
+    });
+    
+    activeChildProcess.on('close', (code) => {
+      event.reply('terminal-command-complete', code);
+      activeChildProcess = null;
+    });
 
-  childProcess.on('close', (code) => {
-    event.sender.send('terminal-command-complete', code);
-    childProcess = null; // Clear the process reference
-  });
+    activeChildProcess.on('error', (err) => {
+      event.reply('terminal-output', `\r\nError: ${err.message}\r\n`);
+      event.reply('terminal-command-complete', 1);
+      activeChildProcess = null;
+    });
 
-  childProcess.on('error', (err) => {
-    event.sender.send('terminal-output', `\r\nFailed to start command: ${err.message}\r\n`);
-    event.sender.send('terminal-command-complete', 1);
-    childProcess = null; // Clear the process reference
-  });
+  } catch (err) {
+      event.reply('terminal-output', `\r\nSpawn Error: ${err.message}\r\n`);
+      event.reply('terminal-command-complete', 1);
+      activeChildProcess = null;
+  }
 });
 
-ipcMain.on('terminal-input', (event, data) => {
-    if (childProcess) {
-        childProcess.stdin.write(data);
+ipcMain.on('terminal-kill', () => {
+    if (activeChildProcess) {
+        activeChildProcess.kill();
+        activeChildProcess = null;
     }
 });
 
-// Handle Ctrl+C from terminal
-ipcMain.on('terminal-kill', () => {
-  if (childProcess) {
-    childProcess.kill('SIGINT'); // Send SIGINT for graceful shutdown
-    childProcess = null;
-  }
-});
-
-
-app.on('ready', () => {
-  createWindow();
-
-  // Handle opening files with the app on macOS
-  app.on('open-file', (event, path) => {
-    event.preventDefault();
-    mainWindow.webContents.send('open-path', path);
-  });
-});
-
+// --- App Lifecycle ---
+app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -122,29 +117,67 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (mainWindow === null) {
+  if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
-// This will be triggered by file associations on Windows/Linux
-app.on('second-instance', (event, commandLine, workingDirectory) => {
-  // The last argument is the file/folder path
-  const openPath = commandLine.pop();
-  if (openPath && mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-    mainWindow.webContents.send('open-path', openPath);
+// --- File/Folder Opening Logic ---
+let openPathQueue = [];
+if (process.platform === 'win32' && process.argv.length >= 2) {
+  const openPath = process.argv[1];
+  if (openPath && openPath !== '.') {
+    openPathQueue.push(openPath);
   }
+}
+
+app.on('will-finish-launching', () => {
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    if (mainWindow) {
+      mainWindow.webContents.send('open-path', path);
+    } else {
+      openPathQueue.push(path);
+    }
+  });
+  app.on('open-url', (event, url) => {
+     event.preventDefault();
+     const path = url.replace('webcoder://', '');
+     if (mainWindow) {
+        mainWindow.webContents.send('open-path', path);
+     } else {
+        openPathQueue.push(path);
+     }
+  });
 });
 
-// On Windows, the path is in process.argv
-if (process.platform === 'win32' && process.argv.length >= 2) {
-    const openPath = process.argv[1];
-    // A simple check to see if it's a path and not a flag
-    if (openPath && !openPath.startsWith('--')) {
-        app.on('ready', () => {
-            mainWindow.webContents.send('open-path', openPath);
-        });
+// --- Auto-Updater Events ---
+autoUpdater.on('update-available', () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Найдено обновление',
+    message: 'Доступна новая версия. Хотите загрузить и установить её сейчас?',
+    buttons: ['Да', 'Позже']
+  }).then(result => {
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate();
     }
-}
+  });
+});
+
+autoUpdater.on('update-downloaded', () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Обновление готово',
+    message: 'Новая версия загружена. Перезапустить приложение, чтобы применить обновления?',
+    buttons: ['Перезапустить', 'Позже']
+  }).then(result => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+});
+
+autoUpdater.on('error', (error) => {
+  dialog.showErrorBox('Ошибка обновления', error == null ? "Неизвестная ошибка" : (error.stack || error).toString());
+});
