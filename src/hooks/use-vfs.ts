@@ -16,7 +16,7 @@ import { dataURIToArrayBuffer } from "@/lib/utils";
 const VFS_KEY = "webcoder-vfs-root";
 const GIT_FS_NAME = "webcoder-git-fs";
 const GIT_DIR = '/';
-const CORS_PROXY = 'https://cors.isomorphic-git.org';
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com';
 
 const defaultRoot: VFSDirectory = createDirectory("Project", "/");
 defaultRoot.children.push(createFile(
