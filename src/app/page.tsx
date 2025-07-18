@@ -33,7 +33,6 @@ export default function Home() {
         <WelcomeScreen
           onOpenFolder={vfs.openFolderWithApi}
           onCloneRepository={vfs.cloneRepository}
-          onCreateNoCodeProject={vfs.createNoCodeHProject}
           onAddZipToVfs={vfs.addZipToVfs}
           onCreateBlankProject={vfs.createBlankProject}
         />

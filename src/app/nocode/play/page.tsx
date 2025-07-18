@@ -1,255 +1,109 @@
-// src/app/nocode/play/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { User, CircleDollarSign, Ghost, Crown, XCircle, LoaderCircle, Gamepad2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import Image from 'next/image';
+import {
+  File,
+  FileText,
+  FileJson,
+  FileCode,
+  FileImage,
+  FileAudio,
+  FileVideo,
+  FileArchive,
+  Table,
+  Terminal,
+} from "lucide-react";
+import type { LucideProps } from "lucide-react";
 
-const TILE_TYPES = {
-  EMPTY: 0,
-  PLAYER: 1,
-  WALL: 2,
-  COIN: 3,
-  ENEMY: 4,
-} as const;
-
-type TileTypeKey = keyof typeof TILE_TYPES;
-type TileValue = (typeof TILE_TYPES)[TileTypeKey];
-
-const TILE_COMPONENTS: Record<TileValue, React.FC<{ className?: string }>> = {
-  [TILE_TYPES.EMPTY]: () => null,
-  [TILE_TYPES.PLAYER]: ({ className }) => <User className={cn("h-full w-full p-0.5 text-blue-500", className)} />,
-  [TILE_TYPES.WALL]: ({ className }) => null, // Walls are just background
-  [TILE_TYPES.COIN]: ({ className }) => <CircleDollarSign className={cn("h-full w-full p-1 text-yellow-500", className)} />,
-  [TILE_TYPES.ENEMY]: ({ className }) => <Ghost className={cn("h-full w-full p-0.5 text-red-500", className)} />,
-};
-
-
-interface LevelData {
-    grid: TileValue[];
-    size: number;
-    textures: Record<string, string>;
+interface FileIconProps extends LucideProps {
+  filename: string;
 }
 
-const useGameLogic = (initialLevelData: LevelData | null) => {
-    const [levelData, setLevelData] = useState(initialLevelData);
-    const [playerPos, setPlayerPos] = useState(-1);
-    const [coins, setCoins] = useState<number[]>([]);
-    const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
+export function FileIcon({ filename, ...props }: FileIconProps) {
+  const extension = filename.split(".").pop()?.toLowerCase();
 
-    useEffect(() => {
-        if (!initialLevelData) return;
-        
-        setLevelData(initialLevelData); // Sync state when initial data changes
+  switch (extension) {
+    // Code
+    case "js":
+    case "jsx":
+      return <FileCode {...props} color="#f7df1e" />; // Yellow for JS
+    case "ts":
+    case "tsx":
+      return <FileCode {...props} color="#3178c6" />; // Blue for TS
+    case "json":
+      return <FileJson {...props} color="#facc15" />; // Amber for JSON
+    case "html":
+      return <FileCode {...props} color="#e34f26" />; // Orange for HTML
+    case "css":
+      return <FileCode {...props} color="#264de4" />; // Blue for CSS
+    case "md":
+    case "mdx":
+      return <FileText {...props} color="#0d6efd" />; // Blue for Markdown
+    case "py":
+      return <FileCode {...props} color="#3776ab" />; // Python Blue
+    case "java":
+    case "class":
+      return <FileCode {...props} color="#f89820" />; // Oracle Orange
+    case "cs":
+      return <FileCode {...props} color="#68217a" />; // C# Purple
+    case "go":
+      return <FileCode {...props} color="#00add8" />; // Go Cyan
+    case "php":
+      return <FileCode {...props} color="#777bb4" />; // PHP Purple
+    case "rs":
+      return <FileCode {...props} color="#dea584" />; // Rust Orange
+    case "rb":
+      return <FileCode {...props} color="#cc342d" />; // Ruby Red
+    case "yaml":
+    case "yml":
+      return <FileText {...props} color="#cb171e" />;
+    case "sh":
+    case "bat":
+      return <Terminal {...props} color="#4eae4a" />;
 
-        const pPos = initialLevelData.grid.indexOf(TILE_TYPES.PLAYER);
-        setPlayerPos(pPos);
-        
-        const coinIndices = initialLevelData.grid.reduce((acc: number[], tile, index) => {
-            if (tile === TILE_TYPES.COIN) acc.push(index);
-            return acc;
-        }, []);
-        setCoins(coinIndices);
-        setGameState('playing');
-    }, [initialLevelData]);
+    // Images
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "svg":
+    case "ico":
+      return <FileImage {...props} color="#a855f7" />; // Purple for Images
 
-    const movePlayer = useCallback((dx: number, dy: number) => {
-        if (gameState !== 'playing' || !levelData) return;
+    // Audio
+    case "mp3":
+    case "wav":
+    case "ogg":
+    case "aac":
+    case "flac":
+    case "m4a":
+      return <FileAudio {...props} color="#22c55e" />; // Green for Audio
 
-        const { size, grid } = levelData;
-        const x = playerPos % size;
-        const y = Math.floor(playerPos / size);
+    // Video
+    case "mp4":
+    case "webm":
+    case "mkv":
+    case "mov":
+      return <FileVideo {...props} color="#ef4444" />; // Red for Video
 
-        const newX = x + dx;
-        const newY = y + dy;
+    // Data
+    case "csv":
+    case "xls":
+    case "xlsx":
+      return <Table {...props} color="#10b981" />; // Emerald for data tables
 
-        if (newX < 0 || newX >= size || newY < 0 || newY >= size) return;
+    // Archives
+    case "zip":
+    case "tar":
+    case "gz":
+    case "rar":
+    case "7z":
+      return <FileArchive {...props} color="#f97316" />; // Orange for Archives
 
-        const newPos = newY * size + newX;
-        const targetTile = grid[newPos];
-
-        if (targetTile === TILE_TYPES.WALL) return;
-
-        setPlayerPos(newPos);
-
-        if (targetTile === TILE_TYPES.COIN) {
-            const newCoins = coins.filter(c => c !== newPos);
-            setCoins(newCoins);
-            if (newCoins.length === 0) {
-                setGameState('won');
-            }
-        } else if (targetTile === TILE_TYPES.ENEMY) {
-            setGameState('lost');
-        }
-    }, [playerPos, coins, gameState, levelData]);
-    
-    return { playerPos, coins, gameState, movePlayer };
-}
-
-function Tile({ tileType, isPlayerHere, isCoinHere, textures }: { tileType: TileValue, isPlayerHere: boolean, isCoinHere: boolean, textures: Record<string, string>}) {
-    const wallTexture = textures.WALL;
-    const playerTexture = textures.PLAYER;
-    const coinTexture = textures.COIN;
-    const enemyTexture = textures.ENEMY;
-    
-    const tileStyle = {
-      backgroundImage: tileType === TILE_TYPES.WALL && wallTexture ? `url(${wallTexture})` : 'none'
-    };
-
-    return (
-        <div
-            className="aspect-square flex items-center justify-center relative bg-gray-800 bg-cover bg-center"
-            style={tileStyle}
-        >
-            {isPlayerHere && (
-                playerTexture ? (
-                    <Image
-                        src={playerTexture}
-                        layout="fill"
-                        objectFit="contain"
-                        alt="player"
-                    />
-                ) : (
-                    <TILE_COMPONENTS[TILE_TYPES.PLAYER] />
-                )
-            )}
-            {isCoinHere && (
-                coinTexture ? (
-                    <Image
-                        src={coinTexture}
-                        layout="fill"
-                        objectFit="contain"
-                        alt="coin"
-                    />
-                ) : (
-                    <TILE_COMPONENTS[TILE_TYPES.COIN] />
-                )
-            )}
-            {tileType === TILE_TYPES.ENEMY && (
-                enemyTexture ? (
-                    <Image
-                        src={enemyTexture}
-                        layout="fill"
-                        objectFit="contain"
-                        alt="enemy"
-                    />
-                ) : (
-                    <TILE_COMPONENTS[TILE_TYPES.ENEMY] />
-                )
-            )}
-        </div>
-    );
-}
-
-export default function PlayPage() {
-  const [levelData, setLevelData] = useState<LevelData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadLevel = useCallback(() => {
-      try {
-          const data = localStorage.getItem('nocodeh-level-data');
-          if (!data) {
-              throw new Error("No level data found in storage. Please create a level in the editor first.");
-          }
-          setLevelData(JSON.parse(data));
-      } catch (e: any) {
-          setError(`Failed to load level data: ${e.message}`);
-      }
-  }, []);
-
-  useEffect(() => {
-    loadLevel();
-  }, [loadLevel]);
-
-  const { playerPos, coins, gameState, movePlayer } = useGameLogic(levelData);
-
-  const resetGame = () => {
-    loadLevel(); // This re-loads from storage, effectively resetting the game
+    // Generic Text / Fallback
+    case "txt":
+      return <FileText {...props} />;
+    default:
+      return <File {...props} />;
   }
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if (gameState !== 'playing') return;
-        switch (e.key) {
-            case 'w': case 'ArrowUp': movePlayer(0, -1); break;
-            case 's': case 'ArrowDown': movePlayer(0, 1); break;
-            case 'a': case 'ArrowLeft': movePlayer(-1, 0); break;
-            case 'd': case 'ArrowRight': movePlayer(1, 0); break;
-        }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, gameState]);
-  
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8 text-center">
-        <Alert variant="destructive" className="max-w-md bg-red-900/50 border-red-500 text-white">
-            <Gamepad2 className="h-4 w-4" />
-            <AlertTitle>Error Loading Game</AlertTitle>
-            <AlertDescription>
-                {error}
-            </AlertDescription>
-        </Alert>
-        <Button asChild className="mt-4"><Link href="/nocode">Back to Editor</Link></Button>
-      </div>
-    );
-  }
-
-  if (!levelData) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8 text-center">
-        <LoaderCircle className="mx-auto h-24 w-24 mb-6 text-purple-400 animate-spin" />
-        <h1 className="text-3xl font-bold font-headline">Loading Level...</h1>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 font-body">
-        <h1 className="text-4xl font-bold font-headline mb-4 text-purple-400">No-Code Game</h1>
-        <div 
-          className="grid relative border-4 border-purple-600 rounded-lg overflow-hidden shadow-2xl"
-          style={{ gridTemplateColumns: `repeat(${levelData.size}, 1fr)`, width: 'min(80vw, 80vh)', maxWidth: '800px'}}
-        >
-            {levelData.grid.map((tile, index) => (
-                <Tile 
-                    key={index} 
-                    tileType={tile} 
-                    isPlayerHere={index === playerPos}
-                    isCoinHere={coins.includes(index)}
-                    textures={levelData.textures}
-                />
-            ))}
-
-            {gameState !== 'playing' && (
-                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center z-10 p-4 backdrop-blur-sm">
-                    {gameState === 'won' ? (
-                        <>
-                        <Crown className="h-24 w-24 text-yellow-400 mb-4" />
-                        <h2 className="text-5xl font-bold">You Win!</h2>
-                        </>
-                    ) : (
-                        <>
-                        <XCircle className="h-24 w-24 text-red-500 mb-4" />
-                        <h2 className="text-5xl font-bold">Game Over</h2>
-                        </>
-                    )}
-                    <div className="flex gap-4 mt-6">
-                        <Button size="lg" onClick={resetGame}>Play Again</Button>
-                        <Button size="lg" variant="secondary" asChild><Link href="/nocode">Back to Editor</Link></Button>
-                    </div>
-                </div>
-            )}
-        </div>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>Use Arrow Keys or WASD to move.</p>
-            <p>Collect all the coins!</p>
-        </div>
-    </div>
-  );
 }

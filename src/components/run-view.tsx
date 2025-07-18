@@ -48,11 +48,6 @@ const findJavaFiles = (node: VFSNode): boolean => {
     return false;
 };
 
-const findNoCodeHProject = (rootNode: VFSNode): boolean => {
-    if (rootNode.type !== 'directory') return false;
-    return rootNode.children.some(c => c.name === '.nocodeh');
-};
-
 
 const findBuildFolder = (node: VFSNode): boolean => {
     if (node.type === 'directory' && node.name === 'build') {
@@ -67,12 +62,6 @@ const findBuildFolder = (node: VFSNode): boolean => {
     }
     return false;
 }
-
-const noCodeHConfig: LaunchConfig = {
-    name: "Run NoCodeH Game",
-    type: "nocodeh",
-    request: "launch",
-};
 
 
 export function RunView({ onSelectFile }: RunViewProps) {
@@ -106,11 +95,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
             console.error("Error parsing launch.json:", e);
             toast({ variant: 'destructive', title: 'Invalid launch.json', description: 'Could not parse launch.json file.' });
         }
-    }
-    
-    // Auto-detect NoCodeH project
-    if (findNoCodeHProject(vfsRoot) && !configs.some(c => c.type === 'nocodeh')) {
-        configs.unshift(noCodeHConfig);
     }
     
     // Add an option to auto-detect runnable files if no specific config exists
@@ -195,12 +179,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
         };
       }
       
-      if (fullConfig.type === 'nocodeh') {
-          window.open('/nocode/play', '_blank');
-          toast({ title: "Game Launched!", description: "Your NoCodeH game has been opened in a new tab."});
-          return;
-      }
-
       if (fullConfig.type === 'java-gui') {
           setIsActionLoading(true);
           setResult(null);
@@ -409,8 +387,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
                                         <div className="flex items-center gap-2">
-                                            {config.type === 'nocodeh' ? <Gamepad2 className="h-4 w-4" /> 
-                                             : config.type === 'auto' ? <BrainCircuit className="h-4 w-4" /> 
+                                            {config.type === 'auto' ? <BrainCircuit className="h-4 w-4" /> 
                                              : <PlayCircle className="h-4 w-4" />}
                                             <span>{config.name}</span>
                                         </div>
@@ -432,7 +409,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </div>
             )}
             
-            {editorSettings.manualJsonInput && selectedConfig?.type !== 'nocodeh' && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
+            {editorSettings.manualJsonInput && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
                 <div className="space-y-2">
                     <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                     <Textarea

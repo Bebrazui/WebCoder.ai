@@ -824,17 +824,6 @@ export function useVfs() {
     }
   }, [vfsRoot, toast, saveVfs]);
   
-  const createNoCodeHProject = useCallback(() => {
-    const newRoot = createDirectory("NoCodeH Game", "/");
-    newRoot.children.push(createFile('.nocodeh', '/.nocodeh', 'This file marks the directory as a NoCodeH project.'));
-    newRoot.children.push(createFile('README.md', '/README.md', '# NoCodeH Game Project\n\nThis project was created with the WebCoder.ai No-Code Game Editor.\n\nOpen `/nocode` in your browser to start editing.'));
-
-    setVfsRoot(newRoot);
-    saveVfs(newRoot);
-    toast({ title: "NoCodeH Project Created", description: "Your new game project is ready." });
-    window.location.href = '/nocode';
-  }, [saveVfs, toast]);
-
   const createBlankProject = useCallback(() => {
     const newRoot = createDirectory("Blank Project", "/");
     newRoot.children.push(createFile(
@@ -880,7 +869,6 @@ Start adding your files here!`
     findFileByPath,
     findNodeByPath,
     compileJavaProject,
-    createNoCodeHProject,
     createBlankProject,
     exitProject,
   };

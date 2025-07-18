@@ -65,7 +65,6 @@ export function Ide({ vfs }: IdeProps) {
     findFileByPath,
     findNodeByPath,
     compileJavaProject,
-    createNoCodeHProject,
     createBlankProject,
     exitProject,
   } = vfs;
@@ -195,7 +194,7 @@ export function Ide({ vfs }: IdeProps) {
 
     return () => {
         hotkeys.unbind('ctrl+s, command+s');
-        hotkeys.unbind('ctrl+shift+s, command+shift+s');
+        hotkeys.unbind('ctrl+shift+s, command+s');
         hotkeys.unbind('ctrl+k, command+k');
         hotkeys.unbind('ctrl+`, command+`');
         document.removeEventListener('copy', handleCopy);

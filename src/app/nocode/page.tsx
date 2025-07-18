@@ -1,231 +1,109 @@
-// src/app/nocode/page.tsx
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { User, BrickWall, CircleDollarSign, Ghost, Eraser, Play, HelpCircle, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
-import Image from 'next/image';
+import {
+  File,
+  FileText,
+  FileJson,
+  FileCode,
+  FileImage,
+  FileAudio,
+  FileVideo,
+  FileArchive,
+  Table,
+  Terminal,
+} from "lucide-react";
+import type { LucideProps } from "lucide-react";
 
-const TILE_TYPES = {
-  EMPTY: 0,
-  PLAYER: 1,
-  WALL: 2,
-  COIN: 3,
-  ENEMY: 4,
-} as const;
+interface FileIconProps extends LucideProps {
+  filename: string;
+}
 
-type TileType = keyof typeof TILE_TYPES;
-type TileValue = (typeof TILE_TYPES)[TileType];
+export function FileIcon({ filename, ...props }: FileIconProps) {
+  const extension = filename.split(".").pop()?.toLowerCase();
 
-const TILE_COMPONENTS: Record<TileValue, React.FC<{ className?: string }>> = {
-  [TILE_TYPES.EMPTY]: () => null,
-  [TILE_TYPES.PLAYER]: ({ className }) => <User className={cn("h-full w-full p-0.5 text-blue-500", className)} />,
-  [TILE_TYPES.WALL]: ({ className }) => <BrickWall className={cn("h-full w-full text-gray-600", className)} />,
-  [TILE_TYPES.COIN]: ({ className }) => <CircleDollarSign className={cn("h-full w-full p-1 text-yellow-500", className)} />,
-  [TILE_TYPES.ENEMY]: ({ className }) => <Ghost className={cn("h-full w-full p-0.5 text-red-500", className)} />,
-};
+  switch (extension) {
+    // Code
+    case "js":
+    case "jsx":
+      return <FileCode {...props} color="#f7df1e" />; // Yellow for JS
+    case "ts":
+    case "tsx":
+      return <FileCode {...props} color="#3178c6" />; // Blue for TS
+    case "json":
+      return <FileJson {...props} color="#facc15" />; // Amber for JSON
+    case "html":
+      return <FileCode {...props} color="#e34f26" />; // Orange for HTML
+    case "css":
+      return <FileCode {...props} color="#264de4" />; // Blue for CSS
+    case "md":
+    case "mdx":
+      return <FileText {...props} color="#0d6efd" />; // Blue for Markdown
+    case "py":
+      return <FileCode {...props} color="#3776ab" />; // Python Blue
+    case "java":
+    case "class":
+      return <FileCode {...props} color="#f89820" />; // Oracle Orange
+    case "cs":
+      return <FileCode {...props} color="#68217a" />; // C# Purple
+    case "go":
+      return <FileCode {...props} color="#00add8" />; // Go Cyan
+    case "php":
+      return <FileCode {...props} color="#777bb4" />; // PHP Purple
+    case "rs":
+      return <FileCode {...props} color="#dea584" />; // Rust Orange
+    case "rb":
+      return <FileCode {...props} color="#cc342d" />; // Ruby Red
+    case "yaml":
+    case "yml":
+      return <FileText {...props} color="#cb171e" />;
+    case "sh":
+    case "bat":
+      return <Terminal {...props} color="#4eae4a" />;
 
-const PALETTE_ITEMS: { name: Exclude<TileType, 'EMPTY'> | 'ERASER'; icon: React.ReactNode; value: TileValue | 'ERASER' }[] = [
-  { name: 'PLAYER', icon: <User />, value: TILE_TYPES.PLAYER },
-  { name: 'WALL', icon: <BrickWall />, value: TILE_TYPES.WALL },
-  { name: 'COIN', icon: <CircleDollarSign />, value: TILE_TYPES.COIN },
-  { name: 'ENEMY', icon: <Ghost />, value: TILE_TYPES.ENEMY },
-  { name: 'ERASER', icon: <Eraser />, value: 'ERASER' },
-];
+    // Images
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "svg":
+    case "ico":
+      return <FileImage {...props} color="#a855f7" />; // Purple for Images
 
-const GRID_SIZE = 16;
-const defaultGrid = Array(GRID_SIZE * GRID_SIZE).fill(TILE_TYPES.EMPTY);
+    // Audio
+    case "mp3":
+    case "wav":
+    case "ogg":
+    case "aac":
+    case "flac":
+    case "m4a":
+      return <FileAudio {...props} color="#22c55e" />; // Green for Audio
 
-export default function NoCodeHPage() {
-  const [grid, setGrid] = useState<TileValue[]>(defaultGrid);
-  const [activeBrush, setActiveBrush] = useState<TileValue | 'ERASER'>(TILE_TYPES.WALL);
-  const [isPainting, setIsPainting] = useState(false);
-  const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [textureToUpload, setTextureToUpload] = useState<string | null>(null);
-  const [customTextures, setCustomTextures] = useState<Record<string, string>>({});
+    // Video
+    case "mp4":
+    case "webm":
+    case "mkv":
+    case "mov":
+      return <FileVideo {...props} color="#ef4444" />; // Red for Video
 
-  useEffect(() => {
-      const loadedTextures: Record<string, string> = {};
-      PALETTE_ITEMS.forEach(item => {
-          if (item.name !== 'ERASER') {
-              const storedTexture = localStorage.getItem(`nocodeh-texture-${item.name}`);
-              if (storedTexture) {
-                  loadedTextures[item.name] = storedTexture;
-              }
-          }
-      });
-      setCustomTextures(loadedTextures);
-  }, []);
+    // Data
+    case "csv":
+    case "xls":
+    case "xlsx":
+      return <Table {...props} color="#10b981" />; // Emerald for data tables
 
-  const handleTileClick = useCallback((index: number) => {
-    const newGrid = [...grid];
-    const valueToSet = activeBrush === 'ERASER' ? TILE_TYPES.EMPTY : activeBrush;
-    
-    if (valueToSet === TILE_TYPES.PLAYER) {
-      const playerIndex = newGrid.findIndex(tile => tile === TILE_TYPES.PLAYER);
-      if (playerIndex !== -1) {
-        newGrid[playerIndex] = TILE_TYPES.EMPTY;
-      }
-    }
+    // Archives
+    case "zip":
+    case "tar":
+    case "gz":
+    case "rar":
+    case "7z":
+      return <FileArchive {...props} color="#f97316" />; // Orange for Archives
 
-    newGrid[index] = valueToSet;
-    setGrid(newGrid);
-  }, [activeBrush, grid]);
-
-  const handleTileInteraction = useCallback((index: number, isClick: boolean) => {
-    if (isClick || isPainting) {
-      handleTileClick(index);
-    }
-  }, [isPainting, handleTileClick]);
-
-  const handleLaunchGame = () => {
-    const levelData = {
-      grid,
-      size: GRID_SIZE,
-      textures: customTextures,
-    };
-    localStorage.setItem('nocodeh-level-data', JSON.stringify(levelData));
-    window.open('/nocode/play', '_blank');
-    toast({
-        title: "Game Launched!",
-        description: "Your game has been opened in a new tab.",
-    })
-  };
-
-  const handleClearGrid = () => {
-      setGrid(defaultGrid);
-      toast({
-          title: "Grid Cleared",
-          description: "The level has been reset."
-      })
+    // Generic Text / Fallback
+    case "txt":
+      return <FileText {...props} />;
+    default:
+      return <File {...props} />;
   }
-  
-  const handleUploadTextureClick = (itemName: string) => {
-    setTextureToUpload(itemName);
-    fileInputRef.current?.click();
-  };
-  
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && textureToUpload) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUri = e.target?.result as string;
-            localStorage.setItem(`nocodeh-texture-${textureToUpload}`, dataUri);
-            setCustomTextures(prev => ({...prev, [textureToUpload]: dataUri }));
-            toast({
-                title: "Texture Uploaded",
-                description: `Custom texture for ${textureToUpload} has been saved.`
-            });
-            setTextureToUpload(null);
-        };
-        reader.readAsDataURL(file);
-    }
-    if(event.target) {
-      event.target.value = '';
-    }
-  };
-
-  const Tile = useCallback(({ value, index, texture }: { value: TileValue; index: number, texture?: string }) => {
-    const TileIcon = TILE_COMPONENTS[value];
-    return (
-      <div
-        onMouseDown={() => { setIsPainting(true); handleTileInteraction(index, true); }}
-        onMouseEnter={() => handleTileInteraction(index, false)}
-        className="aspect-square border border-muted-foreground/20 flex items-center justify-center cursor-pointer hover:bg-accent transition-colors relative bg-cover bg-center"
-        style={{ backgroundImage: texture ? `url(${texture})` : 'none' }}
-      >
-        {!texture && <TileIcon />}
-      </div>
-    );
-  }, [handleTileInteraction]);
-
-  return (
-    <div className="flex flex-col lg:flex-row h-screen bg-background text-foreground p-4 gap-6" onMouseUp={() => setIsPainting(false)} onMouseLeave={() => setIsPainting(false)}>
-      <Card className="w-full lg:w-96 flex-shrink-0">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold font-headline">No-Code Game Editor</CardTitle>
-          <CardDescription>Design your game level visually.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Alert>
-            <HelpCircle className="h-4 w-4" />
-            <AlertTitle>How to Use</AlertTitle>
-            <AlertDescription>
-              Select an item, upload a custom texture (optional), and click or drag on the grid.
-            </AlertDescription>
-          </Alert>
-          <div>
-            <h3 className="font-semibold mb-3 text-lg">Palette</h3>
-            <div className="space-y-2">
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-              {PALETTE_ITEMS.map(item => (
-                <div
-                  key={item.name}
-                  onClick={() => setActiveBrush(item.value)}
-                  className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all",
-                      activeBrush === item.value ? 'bg-primary/10 border-primary shadow-sm' : 'hover:bg-muted/50'
-                  )}
-                >
-                    <div className="flex items-center gap-3">
-                        <div className={cn("h-10 w-10 flex items-center justify-center rounded-md bg-muted text-muted-foreground relative overflow-hidden",  activeBrush === item.value && "bg-primary text-primary-foreground")}>
-                            {customTextures[item.name] ? (
-                                <Image src={customTextures[item.name]} alt={`${item.name} texture`} layout="fill" objectFit="cover" />
-                            ) : (
-                               item.icon
-                            )}
-                        </div>
-                        <span className="font-medium">{item.name}</span>
-                    </div>
-                    {item.name !== 'ERASER' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleUploadTextureClick(item.name)}}>
-                            <Upload className="h-4 w-4"/>
-                        </Button>
-                    )}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-3 pt-4 border-t">
-              <Button size="lg" className="w-full" onClick={handleLaunchGame}>
-                <Play className="mr-2" />
-                Launch Game
-              </Button>
-               <Button size="lg" variant="destructive" className="w-full" onClick={handleClearGrid}>
-                <Trash2 className="mr-2" />
-                Clear Grid
-              </Button>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <main className="flex-grow flex items-center justify-center bg-muted/30 rounded-lg p-4 shadow-inner">
-          <div 
-            className="grid bg-background shadow-lg"
-            style={{ 
-              gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-              width: '100%',
-              maxWidth: 'calc(100vh - 8rem)',
-              aspectRatio: '1 / 1',
-              border: '2px solid hsl(var(--border))',
-              borderRadius: '0.5rem',
-              overflow: 'hidden'
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-          >
-              {grid.map((tile, index) => {
-                const tileTypeKey = Object.keys(TILE_TYPES).find(key => TILE_TYPES[key as TileType] === tile) as TileType | undefined;
-                const texture = tileTypeKey ? customTextures[tileTypeKey] : undefined;
-                return <Tile key={index} value={tile} index={index} texture={texture} />
-              })}
-          </div>
-      </main>
-    </div>
-  );
 }
