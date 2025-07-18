@@ -1,4 +1,3 @@
-
 // src/components/code-editor.tsx
 "use client";
 
@@ -282,6 +281,13 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
           minimap: { enabled: true },
           automaticLayout: true,
           scrollBeyondLastLine: false,
+          wordBasedSuggestions: true,
+          quickSuggestions: {
+            other: true,
+            comments: true,
+            strings: true,
+          },
+          snippetSuggestions: 'top',
           // Initial settings are applied here
           fontFamily: editorSettings.fontFamily,
           fontSize: editorSettings.fontSize,
