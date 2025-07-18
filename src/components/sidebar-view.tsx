@@ -13,20 +13,18 @@ import { OutlineView, OutlineData } from "./outline-view";
 import { RunView } from "./run-view";
 import { PluginsView } from "./plugins-view";
 import type * as monaco from 'monaco-editor';
-import { useVfs } from "@/hooks/use-vfs";
 import { ToolsView } from "./plugins/tools-view";
 import { ProjectHealthView } from "./plugins/project-health-view";
 import { BrowserView } from "./plugins/browser-view";
 
 
-export interface SidebarProps extends Omit<FileExplorerProps, 'className' | 'launchConfigs'> {
+export interface SidebarProps extends Omit<FileExplorerProps, 'className'> {
     gitStatus: GitStatus[];
     isGitStatusLoading: boolean;
     onCommit: (message: string, token: string) => Promise<void>;
     outlineData: OutlineData[];
     onSymbolSelect: (range: any) => void;
     onCompileJava: () => Promise<boolean>;
-    launchConfigs: LaunchConfig[];
 }
 
 type View = "explorer" | "source-control" | "outline" | "run" | "plugins" | "utilities" | "health" | "browser";

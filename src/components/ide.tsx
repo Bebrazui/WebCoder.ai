@@ -431,6 +431,8 @@ export function Ide({ vfs }: IdeProps) {
                   onSymbolSelect={handleSymbolSelect}
                   onCompileJava={compileJavaProject}
                   launchConfigs={launchConfigs}
+                  findFileByPath={findFileByPath}
+                  createFileInVfs={createFileInVfs}
                 />
               </ResizablePanel>
               <ResizableHandle withHandle />

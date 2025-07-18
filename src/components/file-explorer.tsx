@@ -38,7 +38,6 @@ import { GlobalSearch } from "./global-search";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
-import { useVfs } from "@/hooks/use-vfs";
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -71,9 +70,16 @@ export interface FileExplorerProps {
   onDownloadZip: () => void;
   onCloneRepository: (url: string) => Promise<boolean>;
   launchConfigs: LaunchConfig[];
+  findFileByPath: (path: string) => VFSFile | null;
+  createFileInVfs: (name: string, parent: VFSDirectory, content?: string) => void;
 }
 
-const ExplorerContext = createContext<{ clearDragState: () => void } | null>(null);
+const ExplorerContext = createContext<{ 
+  clearDragState: () => void;
+  findFileByPath: (path: string) => VFSFile | null;
+  createFileInVfs: (name: string, parent: VFSDirectory, content?: string) => void;
+  vfsRoot: VFSDirectory;
+} | null>(null);
 
 const useExplorerContext = () => {
     const context = useContext(ExplorerContext);
@@ -98,6 +104,8 @@ export function FileExplorer({
   onDownloadZip,
   onCloneRepository,
   launchConfigs,
+  findFileByPath,
+  createFileInVfs,
 }: FileExplorerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +144,7 @@ export function FileExplorer({
   };
 
   return (
-    <ExplorerContext.Provider value={{ clearDragState }}>
+    <ExplorerContext.Provider value={{ clearDragState, findFileByPath, createFileInVfs, vfsRoot }}>
       <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-background text-foreground">
         <div className="p-2 border-b border-border">
             <div className="flex justify-between items-center mb-2">
@@ -271,9 +279,8 @@ const ExplorerNode = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { vfsRoot, findFileByPath, createFileInVfs } = useVfs();
+  const { vfsRoot, findFileByPath, createFileInVfs, clearDragState } = useExplorerContext();
   const { toast } = useToast();
-  const { clearDragState } = useExplorerContext();
 
   React.useEffect(() => {
     setIsDragOver(false);
