@@ -140,12 +140,12 @@ export function MarketplaceView() {
           
           return (
              <Card key={plugin.id}>
-                <CardHeader className="flex flex-row items-start gap-4 space-y-0">
+                <CardHeader className="grid grid-cols-[auto,1fr,auto] items-start gap-4 space-y-0">
                     <div className="p-3 rounded-lg bg-muted">
                       <Icon className="h-6 w-6 text-muted-foreground" />
                     </div>
-                    <div className="flex-grow">
-                        <CardTitle>{plugin.name}</CardTitle>
+                    <div className="flex-grow min-w-0">
+                        <CardTitle className="break-words">{plugin.name}</CardTitle>
                         <CardDescription>by {plugin.author}</CardDescription>
                     </div>
                     <div>
