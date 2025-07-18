@@ -1,15 +1,16 @@
 // src/components/synthesis-renderer.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback, CSSProperties } from 'react';
+import React, { useState, useEffect, useCallback, CSSProperties, useRef } from 'react';
+import Image from 'next/image';
 
-// A simple state manager for the renderer
 const useStateManager = (initialStates: any[]) => {
     const [state, setState] = useState(() => {
         const initialState: { [key: string]: any } = {};
         if (initialStates) {
             initialStates.forEach(s => {
-                initialState[s.name] = s.initialValue.value;
+                const value = s.initialValue.value;
+                initialState[s.name] = typeof value === 'string' && value.startsWith('data:') ? value : s.initialValue.value;
             });
         }
         return initialState;
@@ -28,20 +29,22 @@ const resolveValue = (valueNode: any, stateManager: any): any => {
     if (!valueNode) return null;
     switch (valueNode.type) {
         case 'Interpolation':
-            const expr = valueNode.expression;
-            if (expr.type === 'Identifier') {
-                return stateManager.getValue(expr.name);
-            }
-            return `{${expr.name}}`;
+            return stateManager.getValue(valueNode.expression.name);
         case 'Identifier':
             return stateManager.getValue(valueNode.name);
+        case 'MemberAccess':
+             const obj = resolveValue(valueNode.object, stateManager);
+             return obj?.[valueNode.property] ?? null;
         case 'Literal':
-        case 'String':
              return valueNode.value;
         case 'BinaryExpression':
             const left = resolveValue(valueNode.left, stateManager);
             const right = resolveValue(valueNode.right, stateManager);
             switch (valueNode.operator) {
+                case '+': return left + right;
+                case '-': return left - right;
+                case '*': return left * right;
+                case '/': return left / right;
                 case '<': return left < right;
                 case '>': return left > right;
                 case '==': return left == right;
@@ -57,41 +60,88 @@ const applyModifiers = (modifiers: any[], stateManager: any): CSSProperties => {
     if (!modifiers) return style;
 
     modifiers.forEach(mod => {
+        const args = mod.args;
         switch (mod.name) {
             case 'padding':
-                style.padding = `${resolveValue(mod.args[0], stateManager)}px`;
+                style.padding = `${resolveValue(args.all, stateManager)}px`;
+                break;
+            case 'frame':
+                if (args.width) style.width = `${resolveValue(args.width, stateManager)}px`;
+                if (args.height) style.height = `${resolveValue(args.height, stateManager)}px`;
                 break;
             case 'backgroundColor':
-                style.backgroundColor = resolveValue(mod.args[0], stateManager);
+                style.backgroundColor = resolveValue(args.color, stateManager);
                 break;
             case 'foregroundColor':
-                style.color = resolveValue(mod.args[0], stateManager);
+                style.color = resolveValue(args.color, stateManager);
                 break;
-             case 'font':
-                const fontStyle = resolveValue(mod.args[0], stateManager);
-                if (fontStyle === 'title') {
-                    style.fontSize = '24px';
-                    style.fontWeight = 'bold';
-                } else if (fontStyle === 'headline') {
-                    style.fontSize = '18px';
-                    style.fontWeight = '600';
-                }
+            case 'font':
+                const fontStyle = resolveValue(args.style, stateManager);
+                if (fontStyle === 'title') { style.fontSize = '2rem'; style.fontWeight = 'bold'; }
+                else if (fontStyle === 'headline') { style.fontSize = '1.5rem'; style.fontWeight = '600'; }
                 break;
-             case 'color':
-                 style.color = resolveValue(mod.args[0], stateManager);
-                 break;
             case 'cornerRadius':
-                style.borderRadius = `${resolveValue(mod.args[0], stateManager)}px`;
+                style.borderRadius = `${resolveValue(args.radius, stateManager)}px`;
                 break;
+            case 'position':
+                 style.position = 'absolute';
+                 style.left = `${resolveValue(args.x, stateManager)}px`;
+                 style.top = `${resolveValue(args.y, stateManager)}px`;
+                 break;
+            case 'onTap':
+            case 'onAppear':
+                break; // Handled separately
         }
     });
 
     return style;
 };
 
-
 const NodeRenderer = ({ node, stateManager, components }: { node: any, stateManager: any, components: any }) => {
+    const elementRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    const executeAction = useCallback((actions: any[]) => {
+        const updates: { [key: string]: any } = {};
+        actions.forEach(action => {
+            if (action.type === 'Assignment') {
+                const varName = action.left.name;
+                const newValue = resolveValue(action.right, stateManager);
+                updates[varName] = newValue;
+            } else if (action.type === 'CallExpression' && action.callee.type === 'MemberAccess' && action.callee.object.name === 'Timer') {
+                // Timer is handled globally, so we do nothing here.
+            }
+        });
+        stateManager.updateState(updates);
+    }, [stateManager]);
+
+    const onAppearModifier = node.modifiers?.find((m: any) => m.name === 'onAppear');
+    const onTapModifier = node.modifiers?.find((m: any) => m.name === 'onTap');
+
+    useEffect(() => {
+        if (onAppearModifier && elementRef.current && !isVisible) {
+            const observer = new IntersectionObserver(([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true);
+                    executeAction(onAppearModifier.action);
+                    observer.disconnect();
+                }
+            });
+            observer.observe(elementRef.current);
+            return () => observer.disconnect();
+        }
+    }, [onAppearModifier, executeAction, isVisible]);
+    
     if (!node) return null;
+    
+    if (node.type === "ComponentCall") {
+        const componentDef = components[node.name];
+        if (componentDef) {
+            return <NodeRenderer node={componentDef.body} stateManager={stateManager} components={components} />;
+        }
+    }
+
+    const style = applyModifiers(node.modifiers, stateManager);
 
     const renderText = (parts: any[]) => {
         return parts.map((part, index) => {
@@ -99,95 +149,46 @@ const NodeRenderer = ({ node, stateManager, components }: { node: any, stateMana
             return <React.Fragment key={index}>{val}</React.Fragment>
         }).reduce((prev, curr) => <>{prev}{curr}</>, <></>);
     }
-
-    const executeAction = (actions: any[]) => {
-        const updates: { [key: string]: any } = {};
-        actions.forEach(action => {
-            if (action.type === 'Assignment') {
-                const varName = action.left.name;
-                const rightSide = action.right;
-                let newValue;
-                if (rightSide.type === 'BinaryExpression') {
-                    const leftVal = resolveValue(rightSide.left, stateManager);
-                    const rightVal = resolveValue(rightSide.right, stateManager);
-                    if (rightSide.operator === '+') newValue = leftVal + rightVal;
-                    else if (rightSide.operator === '-') newValue = leftVal - rightVal;
-                } else {
-                    newValue = resolveValue(action.right, stateManager);
-                }
-                updates[varName] = newValue;
-            }
-        });
-        stateManager.updateState(updates);
-    };
     
-    // Find a custom component
-    if (node.type === "ComponentCall") {
-        const componentDef = components[node.name];
-        if (componentDef) {
-            // This is a simplification. A real implementation would map props correctly.
-            return <NodeRenderer node={componentDef.body} stateManager={stateManager} components={components} />;
+    const handleTap = () => {
+        if (onTapModifier) {
+            executeAction(onTapModifier.action);
         }
     }
 
-    const style = applyModifiers(node.modifiers, stateManager);
+    const commonProps = {
+        style,
+        onClick: handleTap,
+        ref: elementRef,
+    };
 
     switch (node.type) {
         case 'VStack':
-            return (
-                <div style={style} className="flex flex-col items-start gap-2 p-4 border rounded-lg bg-white shadow-sm">
-                    {node.children.map((child: any, index: number) => (
-                        <NodeRenderer key={index} node={child} stateManager={stateManager} components={components} />
-                    ))}
-                </div>
-            );
-         case 'HStack':
-            return (
-                <div style={style} className="flex flex-row items-center gap-4">
-                    {node.children.map((child: any, index: number) => (
-                        <NodeRenderer key={index} node={child} stateManager={stateManager} components={components} />
-                    ))}
-                </div>
-            );
+            return <div {...commonProps} className="flex flex-col items-start">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
+        case 'HStack':
+            return <div {...commonProps} className="flex items-center">{node.children.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</div>;
         case 'Text':
-            return <p style={style} className="text-gray-800">{renderText(node.value)}</p>;
+            return <p {...commonProps}>{renderText(node.value)}</p>;
+        case 'Image':
+             const src = resolveValue(node.source, stateManager);
+             return <div {...commonProps}><img src={src} alt="synthesis-image" style={{width: '100%', height: '100%'}} /></div>;
         case 'TextField':
-            return (
-                <input
-                    type="text"
-                    placeholder={node.placeholder}
-                    value={stateManager.getValue(node.binding.name) || ''}
-                    onChange={(e) => stateManager.updateState({ [node.binding.name]: e.target.value })}
-                    style={style}
-                    className="px-3 py-2 border rounded-md"
-                />
-            );
+            return <input {...commonProps} type="text" placeholder={node.placeholder} value={stateManager.getValue(node.binding.name) || ''} onChange={(e) => stateManager.updateState({ [node.binding.name]: e.target.value })} />;
         case 'Button':
-            return (
-                <button
-                    onClick={() => executeAction(node.action)}
-                    style={style}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                >
-                    {renderText(node.text)}
-                </button>
-            );
+            return <button {...commonProps} onClick={() => executeAction(node.action)}>{renderText(node.text)}</button>;
         case 'If':
-             const conditionValue = resolveValue(node.condition, stateManager);
-             if (conditionValue) {
-                 return <>{node.thenBranch.map((child: any, index: number) => <NodeRenderer key={index} node={child} stateManager={stateManager} components={components} />)}</>;
-             } else if(node.elseBranch) {
-                 return <>{node.elseBranch.map((child: any, index: number) => <NodeRenderer key={index} node={child} stateManager={stateManager} components={components} />)}</>;
-             }
-             return null;
+             return resolveValue(node.condition, stateManager) ? <>{node.thenBranch.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</> : <>{node.elseBranch?.map((c: any, i: number) => <NodeRenderer key={i} node={c} stateManager={stateManager} components={components} />)}</>;
+        case 'Timer':
+            return null; // Timer is not a rendered component
         default:
-            return <div className="text-red-500">Unknown node type: {node.type}</div>;
+            return <div className="text-red-500">Unknown node: {node.type}</div>;
     }
 };
 
 export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
     const [mainComponent, setMainComponent] = useState<any>(null);
     const [customComponents, setCustomComponents] = useState<any>({});
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (uiJson && uiJson.body) {
@@ -202,55 +203,73 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
                 }
             });
             
-            // If no window, find first component
             if (!main && Object.keys(components).length > 0) {
-                const firstCompName = Object.keys(components)[0];
-                main = components[firstCompName];
+                 main = { type: "Window", title: "SYNTHESIS App", body: { type: "ComponentCall", name: Object.keys(components)[0] }};
             }
             
             setCustomComponents(components);
             setMainComponent(main);
         }
     }, [uiJson]);
-
-    let states: any[] = [];
-    if (mainComponent) {
-        if (mainComponent.type === 'Window') {
-            const firstChild = mainComponent.body;
-            if (firstChild && firstChild.type === 'ComponentCall') {
-                const componentDef = customComponents[firstChild.name];
-                if (componentDef) {
-                    states = componentDef.states || [];
-                }
-            }
-        } else if (mainComponent.type === 'ComponentDefinition') {
-            states = mainComponent.states || [];
-        }
-    }
-    
-    const stateManager = useStateManager(states);
     
     if (!mainComponent) {
-        return <div className="p-4">No main window or component found in the compiled description.</div>;
+        return <div className="p-4">No main window or component found.</div>;
     }
     
-    let renderBody = mainComponent.body;
-    // If main is a component, its body is the thing to render
-    if (mainComponent.type === 'ComponentDefinition') {
-        renderBody = mainComponent.body;
+    let componentDefToRender: any = null;
+    if (mainComponent.body.type === 'ComponentCall') {
+        componentDefToRender = customComponents[mainComponent.body.name];
+    } else {
+        componentDefToRender = { body: mainComponent.body, states: [] };
     }
-    // If main is a window, its body is a component call, so we need to find that component's body
-    else if (mainComponent.type === 'Window' && mainComponent.body.type === 'ComponentCall') {
-         const componentDef = customComponents[mainComponent.body.name];
-         if (componentDef) {
-             renderBody = componentDef.body;
-         }
+    
+    if (!componentDefToRender) {
+        return <div className="p-4">Could not find component to render.</div>
     }
 
+    const stateManager = useStateManager(componentDefToRender.states || []);
+
+    const findTimers = (node: any): any[] => {
+        let timers: any[] = [];
+        if (!node) return timers;
+        if (node.type === 'Timer') timers.push(node);
+        if (node.children) {
+            for (const child of node.children) {
+                timers = timers.concat(findTimers(child));
+            }
+        }
+        return timers;
+    };
+    
+    const timers = findTimers(componentDefToRender.body);
+
+    useEffect(() => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (timers.length > 0) {
+            const timerNode = timers[0]; // Assuming one timer for now
+            const interval = 16; // 60fps
+            
+            timerRef.current = setInterval(() => {
+                const updates: { [key: string]: any } = {};
+                 timerNode.action.forEach((action: any) => {
+                    if (action.type === 'Assignment') {
+                        const varName = action.left.name;
+                        const newValue = resolveValue(action.right, stateManager);
+                        updates[varName] = newValue;
+                    }
+                });
+                stateManager.updateState(updates);
+            }, interval);
+        }
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [timers, stateManager]);
+
+
     return (
-        <div className="font-sans">
-            <h1 className="text-2xl font-bold mb-4">{mainComponent.title || mainComponent.name || 'SYNTHESIS App'}</h1>
-            <NodeRenderer node={renderBody} stateManager={stateManager} components={customComponents} />
+        <div className="font-sans w-full h-full text-white relative">
+            <NodeRenderer node={componentDefToRender.body} stateManager={stateManager} components={customComponents} />
         </div>
     );
 }

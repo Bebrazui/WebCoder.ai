@@ -129,3 +129,46 @@ export function getLanguage(path: string): string {
             return 'plaintext';
     }
 }
+
+// Новая функция для создания примера Animation.syn
+export function createAnimationExample(): VFSFile {
+    const content = `component AnimationDemo() {
+    @State let x: Int = 150
+    @State let y: Int = 100
+    @State let dx: Int = 2
+    @State let dy: Int = 2
+    @State let speed: Int = 2
+
+    // Основной UI
+    VStack {
+        Image(source: "https://firebase.google.com/static/images/brand-guidelines/logo-standard.png")
+            .frame(width: 50, height: 50)
+            .position(x: x, y: y)
+            .onTap {
+                // Увеличиваем скорость при каждом клике
+                speed = speed + 1
+                dx = dx * speed / (speed - 1)
+                dy = dy * speed / (speed - 1)
+            }
+        
+        Timer {
+            // Логика отскока от стен
+            if (x > 350 || x < 0) {
+                dx = dx * -1
+            }
+            if (y > 250 || y < 0) {
+                dy = dy * -1
+            }
+            
+            // Движение
+            x = x + dx
+            y = y + dy
+        }
+    }
+    .frame(width: 400, height: 300)
+    .background(color: "#111827") // Tailwind gray-900
+    .cornerRadius(radius: 12)
+}
+`;
+    return createFile('Animation.syn', '/Animation.syn', content);
+}

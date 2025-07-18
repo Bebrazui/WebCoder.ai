@@ -1,6 +1,0 @@
-@main
-func AppDelegate {
-  Window("My SYNTHESIS App") {
-    Counter()
-  }
-}

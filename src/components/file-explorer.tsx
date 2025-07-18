@@ -21,7 +21,8 @@ import {
   Play,
   Terminal,
   Copy,
-  Atom
+  Atom,
+  Gamepad2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -40,6 +41,7 @@ import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 
 export interface LaunchConfig {
@@ -177,23 +179,16 @@ export function FileExplorer({
                 </div>
               </TooltipProvider>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="secondary" onClick={onOpenFolder}>
-                <FolderSearch className="mr-2 h-4 w-4" /> Folder
+            <div className="space-y-2">
+              <Button size="sm" variant="secondary" className="w-full" onClick={onOpenFolder}>
+                <FolderSearch className="mr-2 h-4 w-4" /> Open Folder
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => setIsCloneDialogOpen(true)}>
-                <Github className="mr-2 h-4 w-4" /> Clone
+              <Button size="sm" variant="secondary" className="w-full" onClick={() => setIsCloneDialogOpen(true)}>
+                <Github className="mr-2 h-4 w-4" /> Clone Repo
               </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="mr-2 h-4 w-4" /> File
+              <Button size="sm" variant="secondary" className="w-full" asChild>
+                  <Link href="/nocode"><Gamepad2 className="mr-2 h-4 w-4" /> No-Code Editor</Link>
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => zipInputRef.current?.click()}>
-                <FileArchive className="mr-2 h-4 w-4" /> ZIP
-              </Button>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-              <input type="file" ref={zipInputRef} onChange={handleZipChange} className="hidden" accept=".zip" />
             </div>
         </div>
         

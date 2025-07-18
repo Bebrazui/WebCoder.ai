@@ -97,7 +97,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
         }
     }
     
-    configs.push({ name: "Auto-detect and Run...", type: "auto", request: "launch" });
     setLaunchConfigs(configs);
 
     if (configs.length > 0 && (!selectedConfigName || !configs.some(c => c.name === selectedConfigName))) {
@@ -149,32 +148,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
       }
-
-      if (fullConfig.type === 'auto') {
-        const filePath = prompt("Enter the path to the script to run (e.g., python_scripts/my_script.py):");
-        if (!filePath) return;
-        
-        const fileExtension = filePath.split('.').pop();
-        let langType = '';
-        switch(fileExtension) {
-            case 'py': langType = 'python'; break;
-            case 'js': langType = 'javascript'; break;
-            case 'go': langType = 'go'; break;
-            case 'rb': langType = 'ruby'; break;
-            case 'php': langType = 'php'; break;
-            default:
-                toast({ variant: 'destructive', title: 'Unsupported File', description: `Auto-run for .${fileExtension} files is not supported.` });
-                return;
-        }
-
-        fullConfig = {
-            name: `Auto-run ${filePath}`,
-            type: langType,
-            request: 'launch',
-            program: filePath,
-            args: {}
-        };
-      }
       
       if (fullConfig.type === 'java-gui') {
           setIsActionLoading(true);
@@ -216,7 +189,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
             const uiJsonString = responseData.success ? responseData.data.stdout : JSON.stringify({ type: 'Error', message: responseData.error });
             if (isElectron) {
                 localStorage.setItem('synthesis_ui_data', uiJsonString);
-                window.electronAPI.openSynthesisWindow();
+                (window as any).electronAPI.openSynthesisWindow();
             } else {
                 window.open(`/synthesis-runner?data=${encodeURIComponent(uiJsonString)}`, '_blank');
             }
@@ -297,12 +270,12 @@ export function RunView({ onSelectFile }: RunViewProps) {
 
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-4">
-            {launchConfigs.length <= 1 ? ( // Only has "Auto-detect"
+            {launchConfigs.length === 0 ? ( 
                 <Alert variant="default" className="flex flex-col items-center text-center gap-4">
                     <FileWarning className="h-8 w-8" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       You can run simple scripts using "Auto-detect", or create a `launch.json` file for more complex configurations.
+                       You can run scripts via the context menu in the Explorer, or create a `launch.json` file for more complex configurations.
                     </AlertDescription>
                     <Button onClick={handleAddLaunchJson} size="sm">
                         <FilePlus className="mr-2 h-4 w-4" />
@@ -321,7 +294,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
                                         <div className="flex items-center gap-2">
-                                            {config.type === 'auto' ? <BrainCircuit className="h-4 w-4" /> 
+                                            {config.type === 'synthesis' ? <Gamepad2 className="h-4 w-4" /> 
                                              : <PlayCircle className="h-4 w-4" />}
                                             <span>{config.name}</span>
                                         </div>
@@ -331,7 +304,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                         </Select>
                     </div>
 
-                    {selectedConfig && selectedConfig.type !== 'auto' && (
+                    {selectedConfig && (
                          <Alert variant="default">
                             <Settings2 className="h-4 w-4" />
                             <AlertTitle className="capitalize">{selectedConfig.type}</AlertTitle>
@@ -343,7 +316,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </div>
             )}
             
-            {editorSettings.manualJsonInput && selectedConfig?.type !== 'synthesis' && selectedConfig?.type !== 'java-gui' && selectedConfig?.type !== 'auto' &&(
+            {editorSettings.manualJsonInput && selectedConfig?.type !== 'synthesis' && selectedConfig?.type !== 'java-gui' && (
                 <div className="space-y-2">
                     <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
                     <Textarea

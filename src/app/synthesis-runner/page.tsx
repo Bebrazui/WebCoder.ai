@@ -60,14 +60,14 @@ export default function SynthesisRunnerPage() {
     
     if (!uiJson) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                Loading UI...
+            <div className="flex items-center justify-center min-h-screen bg-gray-900">
+                <p className="text-white">Loading UI...</p>
             </div>
         );
     }
 
     return (
-        <div className="bg-gray-100 min-h-screen p-4">
+        <div className="bg-gray-900 min-h-screen overflow-hidden">
             <SynthesisRenderer uiJson={uiJson} />
         </div>
     );

@@ -49,8 +49,8 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <Card className="flex flex-col">
                 <CardHeader>
-                    <CardTitle>Open an Existing Project</CardTitle>
-                    <CardDescription>Import from your computer or a repository.</CardDescription>
+                    <CardTitle>Start a Project</CardTitle>
+                    <CardDescription>Open a local folder or create something new.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
                      <Button variant="outline" size="lg" onClick={onOpenFolder}>
@@ -69,14 +69,16 @@ export function WelcomeScreen({ onOpenFolder, onCloneRepository, onAddZipToVfs, 
             <Card className="flex flex-col">
                  <CardHeader>
                     <CardTitle>Create New</CardTitle>
-                    <CardDescription>Start a new project from a template.</CardDescription>
+                    <CardDescription>Start from a blank slate or a template.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-center gap-4">
                     <Button onClick={onCreateBlankProject} variant="outline" size="lg">
                         <FilePlus className="mr-2"/> Blank Project
                     </Button>
-                    <Button variant="outline" size="lg" onClick={() => handleCreateProject('React')}>
-                        <Code2 className="mr-2"/> New React Project
+                    <Button variant="outline" size="lg" asChild>
+                        <Link href="/nocode">
+                          <Gamepad2 className="mr-2"/> New No-Code Game
+                        </Link>
                     </Button>
                 </CardContent>
             </Card>
