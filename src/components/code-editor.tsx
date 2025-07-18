@@ -20,6 +20,84 @@ import { useAppState } from "@/hooks/use-app-state";
 import { LaunchConfig } from "./file-explorer";
 import { useVfs } from "@/hooks/use-vfs";
 
+// Custom language definition for SYNTHESIS
+const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
+    const langId = 'synthesis';
+
+    // Check if the language is already registered
+    if (monacoInstance.languages.getLanguages().some(lang => lang.id === langId)) {
+        return;
+    }
+
+    monacoInstance.languages.register({ id: langId });
+
+    monacoInstance.languages.setMonarchTokensProvider(langId, {
+        keywords: [
+            'struct', 'component', 'func', 'if', 'else', 'let', 'return',
+            '@main'
+        ],
+        typeKeywords: [
+            'Int', 'String', 'Void', 'Bool'
+        ],
+        operators: [
+            '=', '>', '<', '!', '?', ':', '==', '<=', '>=', '!=', '&&', '||', '+', '-', '*', '/'
+        ],
+        // C-style strings
+        symbols: /[=><!?:&|+\-*/^%]+/,
+        // C-style strings
+        escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
+        tokenizer: {
+            root: [
+                // identifiers and keywords
+                [/[a-zA-Z_@][\w$]*/, {
+                    cases: {
+                        '@keywords': 'keyword',
+                        '@typeKeywords': 'type',
+                        '@default': 'identifier'
+                    }
+                }],
+                // whitespace
+                { include: '@whitespace' },
+                // delimiters and operators
+                [/[{}()\[\]]/, '@brackets'],
+                [/[<>](?!@symbols)/, '@brackets'],
+                [/@symbols/, {
+                    cases: {
+                        '@operators': 'operator',
+                        '@default': ''
+                    }
+                }],
+                // numbers
+                [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
+                [/\d+/, 'number'],
+                // delimiter: after number because of .\d floats
+                [/[;,.]/, 'delimiter'],
+                // strings
+                [/"([^"\\]|\\.)*$/, 'string.invalid'], // non-teminated string
+                [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
+            ],
+            comment: [
+                [/[^\/*]+/, 'comment'],
+                [/\/\*/, 'comment', '@push'], // nested comment
+                ["\\*/", 'comment', '@pop'],
+                [/[\/*]/, 'comment']
+            ],
+            string: [
+                [/[^\\"]+/, 'string'],
+                [/@escapes/, 'string.escape'],
+                [/\\./, 'string.escape.invalid'],
+                [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
+            ],
+            whitespace: [
+                [/[ \t\r\n]+/, 'white'],
+                [/\/\*/, 'comment', '@comment'],
+                [/\/\/.*$/, 'comment'],
+            ],
+        },
+    });
+};
+
+
 interface CodeEditorProps {
   path: string;
   value: string;
@@ -51,6 +129,9 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
   useEffect(() => {
     // This ensures monaco is loaded and configured before we use it
     loader.init().then(monacoInstance => {
+        // Register our custom language
+        registerSynthesisLanguage(monacoInstance);
+
         const setupCompilerOptions = (defaults: monaco.languages.typescript.LanguageServiceDefaults) => {
             defaults.setCompilerOptions({
                 jsx: monacoInstance.languages.typescript.JsxEmit.React,

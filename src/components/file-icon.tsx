@@ -1,4 +1,4 @@
-
+// src/components/file-icon.tsx
 "use client";
 
 import {
@@ -12,6 +12,7 @@ import {
   FileArchive,
   Table,
   Terminal,
+  Atom, // Icon for SYNTHESIS
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 
@@ -23,6 +24,10 @@ export function FileIcon({ filename, ...props }: FileIconProps) {
   const extension = filename.split(".").pop()?.toLowerCase();
 
   switch (extension) {
+    // Custom Languages
+    case "syn":
+      return <Atom {...props} color="#a855f7" />; // Purple for SYNTHESIS
+
     // Code
     case "js":
     case "jsx":

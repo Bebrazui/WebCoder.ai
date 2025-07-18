@@ -30,7 +30,8 @@ const TEXT_EXTENSIONS = new Set([
     'txt', 'md', 'mdx', 'json', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx',
     'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'php', 'rb', 'rs', 'swift', 'kt',
     'yml', 'yaml', 'sh', 'bat', 'toml', 'gitignore', 'npmrc', 'log', 'sql', 'csv', 'env',
-    'conf', 'ini', 'cfg', 'properties', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc', 'mod', 'sum', 'csproj'
+    'conf', 'ini', 'cfg', 'properties', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc', 'mod', 'sum', 'csproj',
+    'syn' // Add SYNTHESIS file extension
 ]);
 
 /**
@@ -74,6 +75,8 @@ export function createFile(
 export function getLanguage(path: string): string {
     const extension = path.split('.').pop()?.toLowerCase();
     switch (extension) {
+        case 'syn':
+            return 'synthesis';
         case 'js':
         case 'jsx':
             return 'javascript';

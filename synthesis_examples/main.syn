@@ -1,0 +1,11 @@
+// main.syn - "Hello World" for SYNTHESIS
+@main
+func AppDelegate {
+  Window("Hello SYNTHESIS!") {
+    VStack {
+      Text("Hello World!")
+        .font(.title)
+        .color(.blue)
+    }
+  }
+}

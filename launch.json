@@ -3,6 +3,14 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Run SYNTHESIS App",
+      "type": "synthesis",
+      "request": "launch",
+      "program": "main.syn",
+      "platform": "ios",
+      "args": {}
+    },
+    {
       "name": "Run Java App",
       "type": "java",
       "request": "launch",
