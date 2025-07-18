@@ -7,8 +7,6 @@
   "main": "electron.cjs",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -21,8 +19,6 @@
     "electron:build": "next build && electron-builder"
   },
   "dependencies": {
-    "@genkit-ai/googleai": "^1.13.0",
-    "@genkit-ai/next": "^1.13.0",
     "@hookform/resolvers": "^4.1.3",
     "@isomorphic-git/lightning-fs": "^4.6.0",
     "@monaco-editor/react": "^4.6.0",
@@ -57,7 +53,6 @@
     "electron-updater": "^6.2.1",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
-    "genkit": "^1.13.0",
     "hotkeys-js": "^3.13.7",
     "isomorphic-git": "^1.25.10",
     "jszip": "^3.10.1",
@@ -88,7 +83,6 @@
     "@types/react-dom": "^18.3.0",
     "electron": "^31.7.7",
     "electron-builder": "^25.1.8",
-    "genkit-cli": "^1.13.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3"

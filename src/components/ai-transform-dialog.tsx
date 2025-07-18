@@ -14,8 +14,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { WandSparkles, LoaderCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { TransformCodeInput, TransformCodeOutput } from "@/ai/flows/transform-code";
-
 
 interface AiTransformDialogProps {
   open: boolean;
@@ -45,29 +43,22 @@ export function AiTransformDialog({
     }
 
     setIsLoading(true);
+    // Имитация задержки сети/AI
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     try {
-      const input: TransformCodeInput = {
-        code: selectedCode,
-        instruction,
-      };
+      // Заглушка вместо вызова AI
+      const transformedCode = `// AI-трансформация (заглушка):\n// Инструкция: "${instruction}"\n\n${selectedCode}`;
       
-      const response = await fetch('/api/transform-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "The AI could not transform the code.");
-      }
-
-      const transformedData = result.data as TransformCodeOutput;
-
-      onTransform(transformedData.transformedCode);
+      onTransform(transformedCode);
       onOpenChange(false);
       setInstruction("");
+
+      toast({
+        title: "Transformation Complete (Mock)",
+        description: "AI functionality is currently disabled. This is a placeholder response.",
+      });
+
     } catch (error: any) {
       console.error("AI transformation failed:", error);
       toast({
@@ -86,7 +77,7 @@ export function AiTransformDialog({
         <DialogHeader>
           <DialogTitle>AI Code Transformer</DialogTitle>
           <DialogDescription>
-            Describe how you want to transform the selected code.
+            Describe how you want to transform the selected code. (Currently disabled)
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
