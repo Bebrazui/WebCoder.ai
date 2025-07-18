@@ -1,8 +1,8 @@
-
 {
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
+  "description": "A cross-platform IDE built with Next.js and Electron.",
   "author": "WebCoder.ai Developer",
   "main": "electron.cjs",
   "scripts": {
@@ -18,8 +18,7 @@
     "compile-rust": "cd rust_apps && cargo build --release && cd .. && cp rust_apps/target/release/rust_apps rust_apps/my_rust_app",
     "compile-csharp": "cd csharp_apps/my_csharp_app && dotnet publish -c Release -o ../build",
     "electron:dev": "electron .",
-    "electron:package": "next build && electron-packager . --overwrite --platform=win32 --arch=x64 --out=dist/ --ignore=\"^/src\" --ignore=\"^/java_apps\" --ignore=\"^/python_scripts\" --ignore=\"^/go_apps\" --ignore=\"^/rust_apps\" --ignore=\"^/csharp_apps\" --ignore=\"^/php_scripts\" --ignore=\"^/ruby_scripts\" --ignore=\"^/node_modules/electron-\"",
-    "electron:create-installer": "node createInstaller.js"
+    "electron:build": "next build && electron-builder"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.13.0",
@@ -87,12 +86,46 @@
     "@types/prettier": "^3.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "electron": "^31.2.1",
-    "electron-packager": "^17.1.2",
-    "electron-winstaller": "^5.1.1",
+    "electron": "^31.7.7",
+    "electron-builder": "^25.1.8",
     "genkit-cli": "^1.13.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3"
+  },
+  "build": {
+    "appId": "com.webcoder.ai",
+    "productName": "WebCoder.ai",
+    "files": [
+      "out/**/*",
+      "electron.cjs",
+      "preload.js",
+      "menu.js"
+    ],
+    "directories": {
+      "buildResources": "public",
+      "output": "dist"
+    },
+    "win": {
+      "icon": "public/logo.png",
+      "target": "nsis"
+    },
+    "mac": {
+      "icon": "public/logo.png",
+      "target": "dmg"
+    },
+    "linux": {
+      "icon": "public/logo.png",
+      "target": "AppImage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ВАШ_ЛОГИН_GITHUB",
+      "repo": "ВАШЕ_НАЗВАНИЕ_РЕПОЗИТОРИЯ"
+    }
   }
 }
