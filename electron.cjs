@@ -1,139 +1,155 @@
 // electron.cjs
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const createMenuTemplate = require('./menu.js');
 const { spawn } = require('child_process');
 
-// Disable auto-download of updates
-autoUpdater.autoDownload = false;
-
 let mainWindow;
-let activeProcess = null;
+let activeProcess = null; // To keep track of the running child process
+
+// This is required to be set explicitly for sandboxed renderers
+app.allowRendererProcessReuse = true;
+
+// Disable hardware acceleration to prevent potential rendering issues
+// app.disableHardwareAcceleration();
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    // The following lines are for frameless windows, useful for custom title bars
-    // frame: false, 
-    // titleBarStyle: 'hidden',
-  });
+    mainWindow = new BrowserWindow({
+        width: 1280,
+        height: 800,
+        minWidth: 900,
+        minHeight: 600,
+        frame: false, // Use custom title bar
+        titleBarStyle: 'hidden',
+        trafficLightPosition: { x: 15, y: 15 },
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            devTools: process.env.NODE_ENV !== 'production'
+        },
+        backgroundColor: '#1e293b' // Match dark theme background
+    });
 
-  const menuTemplate = createMenuTemplate(app, mainWindow);
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  Menu.setApplicationMenu(menu);
-  
-  const startUrl = process.env.ELECTRON_START_URL || new URL('http://localhost:9002').toString();
-  
-  mainWindow.loadURL(startUrl).catch(err => {
-    console.error('Failed to load URL:', startUrl, err);
-    // Optional: Load a local file as a fallback
-    // mainWindow.loadFile(path.join(__dirname, 'out/index.html'));
-  });
+    const appUrl = 'http://localhost:9002';
 
-  // Open DevTools automatically if in development
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
+    if (process.env.NODE_ENV === 'development') {
+        mainWindow.loadURL(appUrl);
+        mainWindow.webContents.openDevTools();
+    } else {
+        mainWindow.loadFile(path.join(__dirname, 'out', 'index.html'));
+    }
+    
+    // --- Window State Management ---
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window:isMaximized', true);
+    });
 
-  // Window state listeners
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send('window:isMaximized', true);
-  });
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send('window:isMaximized', false);
-  });
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window:isMaximized', false);
+    });
+
+    return mainWindow;
 }
 
-// --- IPC Handlers ---
+app.whenReady().then(() => {
+    autoUpdater.autoDownload = false; // Отключаем авто-обновление
+    createWindow();
 
-ipcMain.on('window:minimize', () => mainWindow.minimize());
-ipcMain.on('window:maximize', () => {
-  if (mainWindow.isMaximized()) {
-    mainWindow.unmaximize();
-  } else {
-    mainWindow.maximize();
-  }
+    const menu = Menu.buildFromTemplate(createMenuTemplate(app, mainWindow));
+    Menu.setApplicationMenu(menu);
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow();
+        }
+    });
 });
-ipcMain.on('window:close', () => mainWindow.close());
 
-// Terminal command execution
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// --- IPC Handlers for Window Controls ---
+ipcMain.on('window:minimize', () => {
+    mainWindow?.minimize();
+});
+
+ipcMain.on('window:maximize', () => {
+    if (mainWindow?.isMaximized()) {
+        mainWindow.unmaximize();
+    } else {
+        mainWindow?.maximize();
+    }
+});
+
+ipcMain.on('window:close', () => {
+    mainWindow?.close();
+});
+
+
+// --- IPC Handlers for Terminal ---
 ipcMain.on('execute-command', (event, { command, args, cwd }) => {
     if (activeProcess) {
-        event.sender.send('terminal-output', '\r\nA process is already running.\r\n');
+        mainWindow.webContents.send('terminal-output', '\r\nAnother process is already running.\r\n');
         return;
     }
 
-    activeProcess = spawn(command, args, { cwd: cwd, shell: true });
+    try {
+        const effectiveCwd = cwd || process.cwd();
+        // Use shell: true on Windows to correctly handle system commands like 'npm'
+        activeProcess = spawn(command, args, { cwd: effectiveCwd, shell: process.platform === 'win32' });
 
-    activeProcess.stdout.on('data', (data) => {
-        event.sender.send('terminal-output', data.toString());
-    });
-    activeProcess.stderr.on('data', (data) => {
-        event.sender.send('terminal-output', data.toString());
-    });
-    activeProcess.on('close', (code) => {
-        event.sender.send('terminal-command-complete', code);
+        activeProcess.stdout.on('data', (data) => {
+            mainWindow.webContents.send('terminal-output', data.toString());
+        });
+
+        activeProcess.stderr.on('data', (data) => {
+            mainWindow.webContents.send('terminal-output', data.toString());
+        });
+
+        activeProcess.on('close', (code) => {
+            mainWindow.webContents.send('terminal-command-complete', code);
+            activeProcess = null;
+        });
+
+        activeProcess.on('error', (err) => {
+            mainWindow.webContents.send('terminal-output', `\r\nError: ${err.message}\r\n`);
+            mainWindow.webContents.send('terminal-command-complete', 1);
+            activeProcess = null;
+        });
+
+    } catch (err) {
+        mainWindow.webContents.send('terminal-output', `\r\nSpawn Error: ${err.message}\r\n`);
+        mainWindow.webContents.send('terminal-command-complete', 1);
         activeProcess = null;
-    });
-    activeProcess.on('error', (err) => {
-        event.sender.send('terminal-output', `\r\nError: ${err.message}\r\n`);
-        event.sender.send('terminal-command-complete', 1);
-        activeProcess = null;
-    });
+    }
 });
 
 ipcMain.on('terminal-input', (event, data) => {
-    if (activeProcess && activeProcess.stdin.writable) {
+    if (activeProcess) {
         activeProcess.stdin.write(data);
     }
 });
 
 ipcMain.on('terminal-kill', () => {
     if (activeProcess) {
-        activeProcess.kill();
+        // Use platform-specific kill signals
+        if (process.platform === 'win32') {
+            spawn('taskkill', ['/pid', activeProcess.pid, '/f', '/t']);
+        } else {
+            activeProcess.kill('SIGKILL');
+        }
         activeProcess = null;
     }
 });
 
 
-// --- App Lifecycle ---
-
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-  
-  // This is a minimal check. For a real app, you'd want more robust update logic.
-  // autoUpdater.checkForUpdatesAndNotify();
-});
-
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-// Handle file open events (e.g., from dragging a file onto the dock icon on macOS)
-app.on('open-file', (event, path) => {
-    event.preventDefault();
-    if (mainWindow) {
-        mainWindow.webContents.send('open-path', path);
-    }
-});
-app.on('open-url', (event, url) => {
-    event.preventDefault();
-     if (mainWindow) {
-        mainWindow.webContents.send('open-path', url);
-    }
-});
-
+// Deep linking for macOS and Windows
 if (process.defaultApp) {
     if (process.argv.length >= 2) {
         app.setAsDefaultProtocolClient('webcoder', process.execPath, [path.resolve(process.argv[1])]);
@@ -141,4 +157,27 @@ if (process.defaultApp) {
 } else {
     app.setAsDefaultProtocolClient('webcoder');
 }
-```
+
+let openUrl;
+
+app.on('open-url', (event, url) => {
+    event.preventDefault();
+    const pathArg = url.replace('webcoder://', '');
+    if (app.isReady()) {
+        mainWindow.webContents.send('open-path', pathArg);
+    } else {
+        openUrl = pathArg;
+    }
+});
+
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+
+        const url = commandLine.pop()?.replace('webcoder://', '');
+        if (url) {
+            mainWindow.webContents.send('open-path', url);
+        }
+    }
+});
