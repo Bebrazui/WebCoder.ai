@@ -1,8 +1,8 @@
-
 {
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
+  "author": "WebCoder.ai Developer",
   "main": "electron.cjs",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -64,7 +64,6 @@
     "lucide-react": "^0.475.0",
     "monaco-editor": "^0.49.0",
     "next": "15.3.3",
-    "patch-package": "^8.0.0",
     "prettier": "^3.3.3",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",

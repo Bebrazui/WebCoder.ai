@@ -8,7 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LoaderCircle } from "lucide-react";
 import { ClientOnly } from "@/components/client-only";
 
-export default function Home() {
+// This new component will be rendered only on the client,
+// ensuring useVfs() is not called on the server.
+function VfsLoader() {
   const vfs = useVfs();
 
   if (vfs.loading) {
@@ -27,7 +29,7 @@ export default function Home() {
     vfs.vfsRoot.children[0].name === 'welcome.md';
 
   return (
-    <ClientOnly>
+    <>
       {isDefaultProject ? (
         // Render ONLY the welcome screen if no project is loaded
         <main>
@@ -46,6 +48,15 @@ export default function Home() {
           <Ide vfs={vfs} />
         </main>
       )}
+    </>
+  );
+}
+
+
+export default function Home() {
+  return (
+    <ClientOnly>
+      <VfsLoader />
     </ClientOnly>
   );
 }
