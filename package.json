@@ -90,37 +90,24 @@
   "build": {
     "appId": "com.webcoder.ai",
     "productName": "WebCoder.ai",
+    "directories": {
+      "output": "dist",
+      "buildResources": "public"
+    },
     "files": [
       "out/**/*",
       "electron.cjs",
       "preload.js",
-      "menu.js"
+      "menu.js",
+      "package.json"
     ],
-    "directories": {
-      "buildResources": "public",
-      "output": "dist"
-    },
     "win": {
-      "icon": "public/logo.png",
       "target": "nsis",
-      "verifyUpdateCodeSignature": false
-    },
-    "mac": {
-      "icon": "public/logo.png",
-      "target": "dmg"
-    },
-    "linux": {
-      "icon": "public/logo.png",
-      "target": "AppImage"
+      "icon": "public/logo.png"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "ВАШ_ЛОГИН_GITHUB",
-      "repo": "ВАШЕ_НАЗВАНИЕ_РЕПОЗИТОРИЯ"
     }
   }
 }
