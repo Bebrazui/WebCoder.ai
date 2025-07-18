@@ -74,14 +74,14 @@ export function DocumentationSheet() {
 
   return (
     <Sheet open={isDocsOpen} onOpenChange={setIsDocsOpen}>
-      <SheetContent className="w-[600px] sm:w-[800px]">
+      <SheetContent className="w-full h-full max-w-none sm:max-w-none flex flex-col">
         <SheetHeader>
           <SheetTitle>Документация по WebCoder.ai</SheetTitle>
           <SheetDescription>
             Вся необходимая информация для работы с IDE.
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="h-[calc(100%-80px)] mt-4">
+        <ScrollArea className="flex-grow mt-4">
             <div className="prose dark:prose-invert prose-lg p-4 max-w-full">
                 <ReactMarkdown>{documentationContent}</ReactMarkdown>
             </div>

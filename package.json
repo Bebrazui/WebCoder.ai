@@ -109,8 +109,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "ВАШ_ЛОГИН_GITHUB",
-      "repo": "ВАШЕ_НАЗВАНИЕ_РЕПОЗИТОРИЯ"
+      "owner": "Bebrazui",
+      "repo": "Webcoder.ai"
     },
     "win": {
       "target": "nsis",
