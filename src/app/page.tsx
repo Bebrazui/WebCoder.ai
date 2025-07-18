@@ -6,6 +6,7 @@ import { WelcomeScreen } from "@/components/welcome-screen";
 import { useVfs } from "@/hooks/use-vfs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoaderCircle } from "lucide-react";
+import { ClientOnly } from "@/components/client-only";
 
 export default function Home() {
   const vfs = useVfs();
@@ -21,30 +22,30 @@ export default function Home() {
   }
 
   // Check if it's the default "empty" project which means nothing is loaded.
-  const isDefaultProject = 
+  const isDefaultProject =
     vfs.vfsRoot.children.length === 1 &&
     vfs.vfsRoot.children[0].name === 'welcome.md';
 
-  if (isDefaultProject) {
-    // Render ONLY the welcome screen if no project is loaded
-    return (
-      <main>
-        <h1 className="sr-only">WebCoder.ai - Project Hub</h1>
-        <WelcomeScreen
-          onOpenFolder={vfs.openFolderWithApi}
-          onCloneRepository={vfs.cloneRepository}
-          onAddZipToVfs={vfs.addZipToVfs}
-          onCreateBlankProject={vfs.createBlankProject}
-        />
-      </main>
-    );
-  }
-
-  // If a project is loaded, show the full IDE
   return (
-    <main className="overflow-hidden h-screen">
-      <h1 className="sr-only">WebCoder.ai - A web-based IDE with AI-powered code transformation</h1>
-      <Ide vfs={vfs} />
-    </main>
+    <ClientOnly>
+      {isDefaultProject ? (
+        // Render ONLY the welcome screen if no project is loaded
+        <main>
+          <h1 className="sr-only">WebCoder.ai - Project Hub</h1>
+          <WelcomeScreen
+            onOpenFolder={vfs.openFolderWithApi}
+            onCloneRepository={vfs.cloneRepository}
+            onAddZipToVfs={vfs.addZipToVfs}
+            onCreateBlankProject={vfs.createBlankProject}
+          />
+        </main>
+      ) : (
+        // If a project is loaded, show the full IDE
+        <main className="overflow-hidden h-screen">
+          <h1 className="sr-only">WebCoder.ai - A web-based IDE with AI-powered code transformation</h1>
+          <Ide vfs={vfs} />
+        </main>
+      )}
+    </ClientOnly>
   );
 }
