@@ -133,7 +133,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
              const encodedJson = encodeURIComponent(responseData.data.stdout);
              if (isElectron && window.electronAPI) {
                  localStorage.setItem('synthesis_ui_data', responseData.data.stdout);
-                 window.electronAPI.openSynthesisWindow();
+                 (window as any).electronAPI.openSynthesisWindow();
              } else {
                  window.open(`/synthesis-runner?data=${encodedJson}`, '_blank');
              }
@@ -196,10 +196,28 @@ export function RunView({ onSelectFile }: RunViewProps) {
     <>
     <div className="flex flex-col h-full bg-background text-foreground">
       <div className="p-2 border-b border-border flex items-center justify-between">
-        <h2 className="text-lg font-headline font-semibold flex items-center gap-2">
-            <PlayCircle className="h-5 w-5" />
-            <span>Run and Debug</span>
-        </h2>
+        <div className="flex items-center gap-2">
+            <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                {isActionLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                <span className="ml-2">Run</span>
+            </Button>
+            <Select value={selectedConfigName || ''} onValueChange={setSelectedConfigName}>
+                <SelectTrigger id="launch-config" className="h-9 w-auto border-0 bg-transparent focus:ring-0">
+                    <SelectValue placeholder="Select configuration..." />
+                </SelectTrigger>
+                <SelectContent>
+                    {launchConfigs.length > 0 ? launchConfigs.map(config => (
+                        <SelectItem key={config.name} value={config.name}>
+                            <div className="flex items-center gap-2">
+                                {config.type === 'synthesis' ? <Atom className="h-4 w-4" /> 
+                                 : <PlayCircle className="h-4 w-4" />}
+                                <span>{config.name}</span>
+                            </div>
+                        </SelectItem>
+                    )) : <div className="p-2 text-sm text-muted-foreground">No configurations found.</div>}
+                </SelectContent>
+            </Select>
+        </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEditLaunchConfig}>
             <Settings2 className="h-4 w-4" />
         </Button>
@@ -212,7 +230,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                     <FileWarning className="h-8 w-8" />
                     <AlertTitle>No `launch.json` Found</AlertTitle>
                     <AlertDescription>
-                       You can run scripts via the context menu in the Explorer, or create a `launch.json` file for more complex configurations.
+                       You can run simple scripts via the context menu in the Explorer, or create a `launch.json` file for more complex configurations.
                     </AlertDescription>
                     <Button onClick={handleAddLaunchJson} size="sm">
                         <FilePlus className="mr-2 h-4 w-4" />
@@ -221,38 +239,21 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </Alert>
             ) : (
                 <div className="space-y-4">
-                    <div className="space-y-2">
-                         <Label htmlFor="launch-config">Launch Configuration</Label>
-                         <Select value={selectedConfigName || ''} onValueChange={setSelectedConfigName}>
-                            <SelectTrigger id="launch-config">
-                                <SelectValue placeholder="Select a configuration..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {launchConfigs.map(config => (
-                                    <SelectItem key={config.name} value={config.name}>
-                                        <div className="flex items-center gap-2">
-                                            {config.type === 'synthesis' ? <Atom className="h-4 w-4" /> 
-                                             : <PlayCircle className="h-4 w-4" />}
-                                            <span>{config.name}</span>
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {/* The configuration selection is now in the header */}
                 </div>
             )}
             
-            <div className="grid grid-cols-2 gap-4">
-                 <Button onClick={handleCompile} disabled={!isJavaConfig || isActionLoading} className="w-full">
-                    {isActionLoading && isJavaConfig ? <LoaderCircle className="animate-spin" /> : <Hammer />}
-                    Compile Java
-                </Button>
-                 <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || (isJavaConfig && !isProjectCompiled)} className="w-full">
-                    {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                    Run
-                </Button>
-            </div>
+             {isJavaConfig && (
+                <div className="space-y-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">Java Actions</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                        <Button onClick={handleCompile} disabled={isActionLoading} variant="outline" className="w-full">
+                            {isActionLoading ? <LoaderCircle className="animate-spin" /> : <Hammer />}
+                            Compile Java Project
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {isProjectCompiled && isJavaConfig && (
                  <Alert variant="default" className="border-green-500/50 text-green-700 dark:text-green-400">
