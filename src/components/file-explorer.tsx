@@ -18,7 +18,8 @@ import {
   Github,
   Play,
   Copy,
-  Atom
+  Atom,
+  PlayCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -260,50 +261,10 @@ const ExplorerNode = ({
     if (path.startsWith('/')) path = path.substring(1);
     return path;
   };
-
-  const handleAddLaunchJson = useCallback(() => {
-      const content = `{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Run Java App",
-      "type": "java",
-      "request": "launch",
-      "mainClass": "Main",
-      "sourcePaths": ["java_apps/src"],
-      "classPaths": [],
-      "args": {
-        "name": "Java User",
-        "age": 42
-      }
-    },
-    {
-      "name": "Run Python Script",
-      "type": "python",
-      "request": "launch",
-      "program": "python_scripts/my_script.py",
-      "args": {
-        "name": "From launch.json",
-        "value": 12345
-      }
-    }
-  ]
-}
-`;
-      createFileInVfs('launch.json', vfsRoot, content);
-      toast({ title: '`launch.json` created', description: 'File was added to the root of your project. You can now run your script.' });
-  }, [createFileInVfs, vfsRoot, toast]);
   
   const handleRunScript = useCallback(async (config: LaunchConfig | null) => {
     if (!config) {
-        const launchFile = findFileByPath('launch.json');
-        if (window.confirm(`No launch configuration found for this file. Would you like to open 'launch.json' to add one?`)) {
-            if (launchFile) {
-                onSelectFile(launchFile);
-            } else {
-                handleAddLaunchJson();
-            }
-        }
+        toast({ variant: 'destructive', title: 'Execution Failed', description: "No valid configuration found to run." });
         return;
     }
 
@@ -340,7 +301,7 @@ const ExplorerNode = ({
     } catch(e: any) {
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
-  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile, isElectron]);
+  }, [toast, vfsRoot, isElectron]);
   
   const runnableConfig = useMemo(() => {
     if (node.type !== 'file') return null;
@@ -356,7 +317,8 @@ const ExplorerNode = ({
     });
   }, [node, launchConfigs]);
   
-  const handleRunSynthesis = useCallback(() => {
+  const handleRunSynthesis = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation(); // Prevent folder from opening/closing if clicked
     if (node.type !== 'file') return;
     const config: LaunchConfig = {
       name: `Run ${node.name}`,
@@ -536,19 +498,40 @@ const ExplorerNode = ({
                 draggable
                 onDragStart={handleDragStart}
                 onDragEnd={clearDragState}
-                className="flex items-center p-1 rounded-md cursor-pointer hover:bg-accent"
+                className="group flex items-center justify-between p-1 rounded-md cursor-pointer hover:bg-accent"
                 style={{ paddingLeft }}
                 onClick={() => onSelectFile(node)}
             >
-                <FileIcon filename={node.name} className="h-4 w-4 mr-2 shrink-0" />
-                <span className="truncate">{node.name}</span>
+                <div className="flex items-center truncate">
+                    <FileIcon filename={node.name} className="h-4 w-4 mr-2 shrink-0" />
+                    <span className="truncate">{node.name}</span>
+                </div>
+                {isSynthesisFile && (
+                  <TooltipProvider>
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            onClick={handleRunSynthesis}
+                          >
+                            <PlayCircle className="h-4 w-4 text-green-500" />
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Run SYNTHESIS App</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
             </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         {isSynthesisFile && (
             <>
-                <ContextMenuItem onClick={handleRunSynthesis}>
-                    <Atom className="mr-2 h-4 w-4" /> Run SYNTHESIS App
+                <ContextMenuItem onClick={() => handleRunSynthesis()}>
+                    <PlayCircle className="mr-2 h-4 w-4 text-green-500" /> Run SYNTHESIS App
                 </ContextMenuItem>
                 <ContextMenuSeparator />
             </>
