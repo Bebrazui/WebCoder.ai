@@ -173,7 +173,7 @@ class Parser {
     private parseLet(): Node { const startToken = this.consume(TokenType.Keyword, 'let'); let isAsync = false; if (this.match(TokenType.Keyword, 'async')) { isAsync = true; this.advance(); } const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); let varType = this.consume(TokenType.Identifier).value; let isArray = false; if (this.match(TokenType.Punctuation, '[')) { this.advance(); this.consume(TokenType.Punctuation, ']'); isArray = true; varType = `[${varType}]`; } this.consume(TokenType.Operator, '='); let isAwait = false; if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); } const value = this.parseExpression(); return { type: 'VariableDeclaration', name, value, isAsync, isAwait, line: startToken.line }; }
     private parseAssignment(): Node { const left = this.consume(TokenType.Identifier); this.consume(TokenType.Operator, '='); let isAwait = false; if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); } const right = this.parseExpression(); return { type: 'Assignment', left, right, isAwait, line: left.line }; }
     private parseIf(): Node { const startToken = this.consume(TokenType.Keyword, 'if'); const condition = this.parseExpression(); const thenBranch = this.parseAction(); let elseBranch = null; if (this.match(TokenType.Keyword, 'else')) { this.advance(); elseBranch = this.parseAction(); } return { type: 'IfStatement', condition, thenBranch, elseBranch, line: startToken.line }; }
-    private parseForEach(): Node { const startToken = this.consume(TokenType.Keyword, 'ForEach'); this.consume(TokenType.Punctuation, '('); const collection = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Punctuation, '{'); const iterator = this.consume(TokenType.Identifier).value; this.consume(TokenType.Keyword, 'in'); const body = []; while(!this.match(TokenType.Punctuation, '}')) { body.push(this.parseStatement()); } this.consume(TokenType.Punctuation, '}'); return { type: 'ForEach', collection, iterator, body, line: startToken.line }; }
+    private parseForEach(): Node { const startToken = this.consume(TokenType.Keyword, 'ForEach'); this.consume(TokenType.Punctuation, '('); this.consume(TokenType.Identifier, 'collection'); this.consume(TokenType.Operator, ':'); const collection = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Punctuation, '{'); const iterator = this.consume(TokenType.Identifier).value; this.consume(TokenType.Keyword, 'in'); const body = []; while(!this.match(TokenType.Punctuation, '}')) { body.push(this.parseStatement()); } this.consume(TokenType.Punctuation, '}'); return { type: 'ForEach', collection, iterator, body, line: startToken.line }; }
     
     private parseView(): Node {
         const calleeToken = this.consume(TokenType.Identifier);
@@ -276,39 +276,41 @@ class Parser {
         this.consume(TokenType.Punctuation, '(');
         const params: Node[] = [];
 
-        if (!this.match(TokenType.Punctuation, ')')) {
-            do {
-                if (this.match(TokenType.Operator, ',')) this.advance();
-                
-                let isBinding = false;
-                if (this.match(TokenType.Keyword, '@binding')) {
-                    this.advance();
-                    isBinding = true;
+        // Correctly handle empty parameter list
+        while (!this.match(TokenType.Punctuation, ')')) {
+            let isBinding = false;
+            if (this.match(TokenType.Keyword, '@binding')) {
+                this.advance();
+                isBinding = true;
+            }
+            const paramName = this.consume(TokenType.Identifier).value;
+            this.consume(TokenType.Operator, ':');
+            const typeName = this.consume(TokenType.Identifier).value;
+            let isArray = false;
+            if (this.match(TokenType.Punctuation, '[')) {
+                this.advance();
+                this.consume(TokenType.Punctuation, ']');
+                isArray = true;
+            }
+            let isCallback = false;
+            if (this.match(TokenType.Punctuation, '(')) {
+                this.advance();
+                while (!this.match(TokenType.Punctuation, ')')) { this.advance(); } // simplified parsing for callback signature
+                this.advance();
+                if(this.match(TokenType.Operator, '-') && this.peek(1).value === '>') {
+                    this.advance(); this.advance();
+                    this.consume(TokenType.Identifier, 'Void');
                 }
-                const paramName = this.consume(TokenType.Identifier).value;
-                this.consume(TokenType.Operator, ':');
-                const typeName = this.consume(TokenType.Identifier).value;
-                let isArray = false;
-                if (this.match(TokenType.Punctuation, '[')) {
-                    this.advance();
-                    this.consume(TokenType.Punctuation, ']');
-                    isArray = true;
-                }
-                let isCallback = false;
-                if (this.match(TokenType.Punctuation, '(')) {
-                    this.advance();
-                    while (!this.match(TokenType.Punctuation, ')')) { this.advance(); }
-                    this.advance();
-                    if(this.match(TokenType.Operator, '-') && this.peek(1).value === '>') {
-                        this.advance(); this.advance();
-                        this.consume(TokenType.Identifier, 'Void');
-                    }
-                    isCallback = true;
-                }
-                params.push({ type: 'Parameter', name: paramName, typeName, isBinding, isArray, isCallback, line: startToken.line });
-            } while (this.match(TokenType.Operator, ','));
+                isCallback = true;
+            }
+            params.push({ type: 'Parameter', name: paramName, typeName, isBinding, isArray, isCallback, line: startToken.line });
+            if (this.match(TokenType.Operator, ',')) {
+                this.advance();
+            } else {
+                break; // Exit if no comma
+            }
         }
-
+        
         this.consume(TokenType.Punctuation, ')');
         const states = []; let effects: Node[] = []; let body = [];
         this.consume(TokenType.Punctuation, '{');
