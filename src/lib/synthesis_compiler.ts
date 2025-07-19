@@ -56,8 +56,8 @@ class Lexer {
                 continue;
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
-            if ("(){}[].,:".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
-            if (";?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if ("(){}[].,:;".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if ("?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -194,11 +194,17 @@ class Parser {
     }
     
     private parseStatement(): Node {
+        const currentToken = this.peek();
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
-        // This handles component calls (e.g., HStack, Text) as statements
-        if (this.match(TokenType.Identifier) && /^[A-Z]/.test(this.peek().value!)) {
+        // ** THE FIX IS HERE **
+        // Check if it's an Identifier starting with an uppercase letter,
+        // which signifies a Component/View call.
+        if (this.match(TokenType.Identifier) && /^[A-Z]/.test(currentToken.value!)) {
+            if (currentToken.value === 'ForEach') {
+                return this.parseForEach();
+            }
             return this.parseView();
         }
         
