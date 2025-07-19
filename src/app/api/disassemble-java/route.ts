@@ -95,39 +95,14 @@ export async function POST(req: NextRequest) {
 
         const classPathForJavap = buildDir;
 
-        const runnerArgs = {
-            mode: 'disassemble',
-            classPath: classPathForJavap,
-            className: classNameForJavap,
-            workingDir: tempDir
-        };
-        
-        const runnerSrcPath = path.join(process.cwd(), 'java_apps', 'src');
-        const runnerBuildPath = path.join(process.cwd(), 'java_apps', 'build');
-        await fs.mkdir(runnerBuildPath, { recursive: true });
-        
-        const mainJavaPath = path.join(runnerSrcPath, 'Main.java');
-        const runnerCompileResult = await executeCommand('javac', ['-d', runnerBuildPath, mainJavaPath], runnerSrcPath);
-        if(runnerCompileResult.code !== 0) {
-            throw new Error(`Failed to compile the Java runner: ${runnerCompileResult.stderr}`);
-        }
-        
-        const runnerResult = await executeCommand(
-            'java', 
-            ['-cp', runnerBuildPath, 'Main', JSON.stringify(runnerArgs)], 
-            process.cwd()
-        );
+        // Use 'javap -c' to get the bytecode
+        const result = await executeCommand('javap', ['-c', '-classpath', classPathForJavap, classNameForJavap], tempDir);
 
-        if (runnerResult.code !== 0) {
-            throw new Error(`Disassembly failed: ${runnerResult.stderr || runnerResult.stdout}`);
+        if (result.code !== 0) {
+            throw new Error(`Disassembly failed: ${result.stderr || result.stdout}`);
         }
         
-        const output = JSON.parse(runnerResult.stdout);
-        if (output.status !== 'success') {
-             throw new Error(`Disassembly failed: ${output.message}`);
-        }
-        
-        return NextResponse.json({ success: true, disassembledCode: output.disassembledCode });
+        return NextResponse.json({ success: true, disassembledCode: result.stdout });
 
     } catch (error: any) {
         console.error("Disassembly error:", error);

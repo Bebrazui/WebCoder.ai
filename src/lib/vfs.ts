@@ -196,6 +196,7 @@ component MainComponent() {
             
             // Движение
             x = x + dx * speed
+            y = y + dy * speed
         }
     }
     .frame(width: 400, height: 400)
