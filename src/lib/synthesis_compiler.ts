@@ -46,10 +46,10 @@ class Lexer {
                 let value = ''; while (this.peek() !== undefined && (this.isAlphaNumeric(this.peek()!) || this.peek() === '@')) { value += this.advance(); }
                 if (this.keywords.has(value)) tokens.push({ type: TokenType.Keyword, value, line: startLine });
                 else if (this.booleanLiterals.has(value)) tokens.push({ type: TokenType.BooleanLiteral, value, line: startLine });
-                else tokens.push({ type: TokenType.Identifier, value, line: startLine });
+                else tokens.push({ type: TokenType.Identifier, value: value, line: startLine });
                 continue;
             }
-            const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>='].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
+            const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
             if ("(){}[].:;,?!<=>+-*/&|".includes(char)) { tokens.push({ type: "()[]{}".includes(char) ? TokenType.Punctuation : TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
@@ -166,7 +166,7 @@ class Parser {
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         if (this.match(TokenType.Keyword, 'ForEach')) return this.parseForEach();
         if (this.match(TokenType.Identifier) && this.peek(1).value === '=') return this.parseAssignment();
-        if (this.match(TokenType.Identifier) && this.peek(1).value === '.') { if (this.peek(2).value === 'push') { const obj = this.consume(TokenType.Identifier); this.consume(TokenType.Operator, '.'); this.consume(TokenType.Identifier, 'push'); this.consume(TokenType.Punctuation, '('); const value = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return { type: 'ArrayPush', object: obj.value, value, line: obj.line }; } }
+        if (this.match(TokenType.Identifier) && this.peek(1).value === '.') { if (this.peek(2).value === 'push') { const obj = this.consume(TokenType.Identifier); this.consume(TokenType.Operator, '.'); this.consume(TokenType.Identifier, 'push'); this.consume(TokenType.Punctuation, '('); this.consume(TokenType.Identifier, 'value'); this.consume(TokenType.Operator, ':'); const value = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return { type: 'ArrayPush', object: obj.value, value, line: obj.line }; } }
         return this.parseView();
     }
 
@@ -254,20 +254,20 @@ class Parser {
         const name = this.consume(TokenType.Identifier).value; 
         this.consume(TokenType.Operator, ':'); 
         
-        let varType;
+        let varType: string;
         let isArray = false;
         if (this.match(TokenType.Punctuation, '[')) {
             this.consume(TokenType.Punctuation, '[');
-            varType = this.consume(TokenType.Identifier).value;
+            varType = this.consume(TokenType.Identifier).value!;
             this.consume(TokenType.Punctuation, ']');
             isArray = true;
         } else {
-            varType = this.consume(TokenType.Identifier).value;
+            varType = this.consume(TokenType.Identifier).value!;
         }
         
         this.consume(TokenType.Operator, '='); 
         const initialValue = this.parseExpression(); 
-        return { type: 'State', name, varType, initialValue, isArray, line: startToken.line }; 
+        return { type: 'State', name, varType: isArray ? `[${varType}]` : varType, initialValue, isArray, line: startToken.line }; 
     }
     
     private parseComponentDef(): Node {
@@ -275,8 +275,7 @@ class Parser {
         const name = this.consume(TokenType.Identifier).value;
         this.consume(TokenType.Punctuation, '(');
         const params: Node[] = [];
-
-        // Correctly handle empty parameter list
+    
         while (!this.match(TokenType.Punctuation, ')')) {
             let isBinding = false;
             if (this.match(TokenType.Keyword, '@binding')) {
@@ -285,25 +284,34 @@ class Parser {
             }
             const paramName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Operator, ':');
-            const typeName = this.consume(TokenType.Identifier).value;
+    
+            let isCallback = false;
+            let typeName;
+    
+            if (this.match(TokenType.Punctuation, '(')) {
+                // This is a callback type, e.g., (id: Int) -> Void
+                isCallback = true;
+                this.advance(); // consume '('
+                while (!this.match(TokenType.Punctuation, ')')) {
+                    this.advance(); // simplified parsing, just consume until ')'
+                }
+                this.advance(); // consume ')'
+                this.consume(TokenType.Operator, '->');
+                typeName = this.consume(TokenType.Keyword, 'Void').value; // Expect 'Void'
+            } else {
+                // This is a regular type
+                typeName = this.consume(TokenType.Identifier).value;
+            }
+    
             let isArray = false;
             if (this.match(TokenType.Punctuation, '[')) {
                 this.advance();
                 this.consume(TokenType.Punctuation, ']');
                 isArray = true;
             }
-            let isCallback = false;
-            if (this.match(TokenType.Punctuation, '(')) {
-                this.advance();
-                while (!this.match(TokenType.Punctuation, ')')) { this.advance(); } // simplified parsing for callback signature
-                this.advance();
-                if(this.match(TokenType.Operator, '-') && this.peek(1).value === '>') {
-                    this.advance(); this.advance();
-                    this.consume(TokenType.Identifier, 'Void');
-                }
-                isCallback = true;
-            }
+            
             params.push({ type: 'Parameter', name: paramName, typeName, isBinding, isArray, isCallback, line: startToken.line });
+    
             if (this.match(TokenType.Operator, ',')) {
                 this.advance();
             } else {

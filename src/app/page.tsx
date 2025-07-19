@@ -33,7 +33,7 @@ component TodoApp() {
     @State isLoading: Bool = true
     
     @effect(once: true) {
-        let savedTasks = Storage.get(key: "synthesis-todo-app")
+        let savedTasks = await Storage.get(key: "synthesis-todo-app")
         if (savedTasks != nil) {
             tasks = savedTasks 
         } else {
@@ -66,10 +66,11 @@ component TodoApp() {
                 TaskRow(task: task, onToggle: { (idToToggle) in
                     let newTasks: [Task] = []
                     ForEach(collection: tasks) { t in
-                        if (t.id == idToToggle) {
-                            t.isCompleted = !t.isCompleted
+                        var mutableT = t
+                        if (mutableT.id == idToToggle) {
+                            mutableT.isCompleted = !mutableT.isCompleted
                         }
-                        newTasks.push(value: t)
+                        newTasks.push(value: mutableT)
                     }
                     tasks = newTasks
                 })
