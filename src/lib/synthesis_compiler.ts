@@ -13,6 +13,7 @@ class Lexer {
     private code: string; private position: number = 0; private line: number = 1;
     private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil", "var"]);
     private booleanLiterals = new Set(["true", "false"]);
+    private types = new Set(["Int", "String", "Bool", "Void", "Date", "UUID"]); // Types are not keywords
 
     constructor(code: string) { this.code = code; }
     private isWhitespace(c: string): boolean { return /\s/.test(c); }
@@ -56,7 +57,7 @@ class Lexer {
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
             if ("(){}[].,:".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
-            if (";?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
+            if (";?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -138,10 +139,10 @@ class Parser {
     
     private parseBinary(left: Node, minPrecedence: number): Node {
         let lookahead = this.peek();
-        while (lookahead.type === TokenType.Operator && this.getPrecedence(lookahead.value!) >= minPrecedence) {
+        while (lookahead.type === TokenType.Punctuation && this.getPrecedence(lookahead.value!) >= minPrecedence) {
             let op = this.advance(); let right = this.parsePrimary();
             lookahead = this.peek();
-            while (lookahead.type === TokenType.Operator && this.getPrecedence(lookahead.value!) > this.getPrecedence(op.value!)) {
+            while (lookahead.type === TokenType.Punctuation && this.getPrecedence(lookahead.value!) > this.getPrecedence(op.value!)) {
                 right = this.parseBinary(right, this.getPrecedence(lookahead.value!));
                 lookahead = this.peek();
             }
@@ -196,23 +197,23 @@ class Parser {
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
-        // This handles component calls as statements
+        // This handles component calls (e.g., HStack, Text) as statements
         if (this.match(TokenType.Identifier) && /^[A-Z]/.test(this.peek().value!)) {
             return this.parseView();
         }
         
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
-             if (this.match(TokenType.Operator, '=')) {
-                this.consume(TokenType.Operator, '=');
+             if (this.match(TokenType.Punctuation, '=')) {
+                this.consume(TokenType.Punctuation, '=');
                 let isAwait = false;
                 if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); }
                 const right = this.parseExpression();
                 return { type: 'Assignment', left: expression, right, isAwait, line: expression.line };
             }
         }
-        if (expression.type === 'FunctionCall' && expression.callee.type === 'MemberAccess' && expression.callee.property === 'push') {
-             return { type: 'ArrayPush', object: expression.callee.object, value: expression.args[0].value, line: expression.line };
+        if (expression.type === 'FunctionCall' && (expression as any).callee.type === 'MemberAccess' && (expression as any).callee.property === 'push') {
+             return { type: 'ArrayPush', object: (expression as any).callee.object, value: (expression as any).args[0].value, line: expression.line };
         }
 
         return expression;
@@ -222,17 +223,13 @@ class Parser {
         const startToken = this.consume(TokenType.Keyword); 
         const name = this.consume(TokenType.Identifier).value; 
         this.consume(TokenType.Punctuation, ':'); 
-        let varType = this.consume(TokenType.Identifier).value; 
-        let isArray = false; 
-        if (this.match(TokenType.Punctuation, '[')) { 
-            this.advance(); this.consume(TokenType.Punctuation, ']'); 
-            isArray = true; varType = `[${varType}]`; 
-        } 
-        this.consume(TokenType.Operator, '='); 
+        let varType: any = this.parseTypeAnnotation();
+        
+        this.consume(TokenType.Punctuation, '='); 
         let isAwait = false; 
         if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); } 
         const value = this.parseExpression(); 
-        return { type: 'VariableDeclaration', name, value, isAwait, mutable: startToken.value === 'var', line: startToken.line }; 
+        return { type: 'VariableDeclaration', name, varType, value, isAwait, mutable: startToken.value === 'var', line: startToken.line }; 
     }
     
     private parseIf(): Node { const startToken = this.consume(TokenType.Keyword, 'if'); const condition = this.parseExpression(); const thenBranch = this.parseAction(); let elseBranch = null; if (this.match(TokenType.Keyword, 'else')) { this.advance(); elseBranch = this.parseAction(); } return { type: 'IfStatement', condition, thenBranch, elseBranch, line: startToken.line }; }
@@ -310,26 +307,29 @@ class Parser {
         this.consume(TokenType.Punctuation, ']');
         return { type: 'Literal', value: elements, line: startToken.line };
     }
+    
+    private parseTypeAnnotation(): Node {
+        if (this.match(TokenType.Punctuation, '[')) {
+            this.consume(TokenType.Punctuation, '[');
+            const typeName = this.consume(TokenType.Identifier).value;
+            this.consume(TokenType.Punctuation, ']');
+            return { type: 'TypeAnnotation', name: `[${typeName}]`, isArray: true };
+        } else {
+            const typeName = this.consume(TokenType.Identifier).value;
+            return { type: 'TypeAnnotation', name: typeName, isArray: false };
+        }
+    }
 
     private parseStateVar(): Node { 
         const startToken = this.consume(TokenType.Keyword, '@State'); 
         const name = this.consume(TokenType.Identifier).value; 
         this.consume(TokenType.Punctuation, ':'); 
         
-        let varType: string;
-        let isArray = false;
-        if (this.match(TokenType.Punctuation, '[')) {
-            this.consume(TokenType.Punctuation, '[');
-            varType = this.consume(TokenType.Identifier).value!;
-            this.consume(TokenType.Punctuation, ']');
-            isArray = true;
-        } else {
-            varType = this.consume(TokenType.Identifier).value!;
-        }
+        const varType = this.parseTypeAnnotation();
         
-        this.consume(TokenType.Operator, '='); 
+        this.consume(TokenType.Punctuation, '='); 
         const initialValue = this.parseExpression(); 
-        return { type: 'State', name, varType: isArray ? `[${varType}]` : varType, initialValue, isArray, line: startToken.line }; 
+        return { type: 'State', name, varType: (varType as any).name, isArray: (varType as any).isArray, initialValue, line: startToken.line }; 
     }
     
     private parseComponentDef(): Node {
@@ -369,11 +369,9 @@ class Parser {
                     typeInfo.params = cbParams;
 
                 } else {
-                    typeInfo.typeName = this.consume(TokenType.Identifier).value;
-                    if (this.match(TokenType.Punctuation, '[')) {
-                        this.advance(); this.consume(TokenType.Punctuation, ']');
-                        typeInfo.isArray = true;
-                    }
+                    typeInfo.typeName = this.parseTypeAnnotation();
+                    typeInfo.isArray = typeInfo.typeName.isArray;
+                    typeInfo.typeName = typeInfo.typeName.name;
                 }
                 params.push({ type: 'Parameter', name: paramName, ...typeInfo, isBinding, line: startToken.line });
                 
@@ -405,7 +403,7 @@ class Parser {
             const propName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Punctuation, ':');
             const propType = this.consume(TokenType.Identifier).value;
-            this.consume(TokenType.Operator, ';');
+            this.consume(TokenType.Punctuation, ';');
             properties.push({ name: propName, type: propType });
         }
         this.consume(TokenType.Punctuation, '}');
@@ -458,28 +456,27 @@ class Parser {
 export function compileSynthesis(code: string, allFiles: VFSNode[]): string {
   try {
     // Basic import handling
-    const importRegex = /import\s+"([^"]+)"/g;
     let fullCode = code;
-    let match;
+    const importRegex = /import\s+"([^"]+)"/g;
     const processedImports = new Set<string>();
 
-    const processCode = (codeToProcess: string) => {
-        let currentCode = codeToProcess;
-        while((match = importRegex.exec(currentCode)) !== null) {
+    const findAndProcess = (codeToProcess: string) => {
+        const imports = [...codeToProcess.matchAll(importRegex)];
+        for(const match of imports) {
             const importPath = `/${match[1]}`;
-            if (processedImports.has(importPath)) continue;
-            processedImports.add(importPath);
-
-            const fileContent = findFileContentRecursive(allFiles, importPath);
-            if(fileContent) {
-                fullCode += `\n${fileContent}`;
-                processCode(fileContent); // Recursively process imports
-            } else {
-                console.warn(`Warning: Could not resolve import for "${importPath}"`);
+            if (!processedImports.has(importPath)) {
+                processedImports.add(importPath);
+                const fileContent = findFileContentRecursive(allFiles, importPath);
+                if (fileContent) {
+                    fullCode += `\n${fileContent}`;
+                    findAndProcess(fileContent);
+                } else {
+                     console.warn(`Warning: Could not resolve import for "${importPath}"`);
+                }
             }
         }
     }
-    processCode(code);
+    findAndProcess(code);
     
     const lexer = new Lexer(fullCode);
     const tokens = lexer.tokenize();

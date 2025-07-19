@@ -60,7 +60,7 @@ component TodoApp() {
              ForEach(tasks) { task in
                 // Передаем callback для изменения состояния в родительском компоненте
                 TaskRow(task: task, onToggle: { (idToToggle) in
-                    let newTasks: [Task] = []
+                    var newTasks: [Task] = []
                     ForEach(tasks) { t in
                         var mutableT = t // Создаем изменяемую копию
                         if (mutableT.id == idToToggle) {
