@@ -65,14 +65,6 @@ export function SettingsSheet() {
                           </SelectContent>
                       </Select>
                   </div>
-                   <div className="flex items-center justify-between">
-                      <Label htmlFor="animations-enabled" className="">UI Animations</Label>
-                       <Switch
-                              id="animations-enabled"
-                              checked={editorSettings.animationsEnabled}
-                              onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, animationsEnabled: checked })}
-                          />
-                  </div>
               </div>
 
               <div className="space-y-4 rounded-lg border p-4">
@@ -114,14 +106,6 @@ export function SettingsSheet() {
                               id="word-wrap"
                               checked={editorSettings.wordWrap}
                               onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, wordWrap: checked })}
-                          />
-                  </div>
-                   <div className="flex items-center justify-between">
-                      <Label htmlFor="smooth-cursor">Smooth Cursor Animation</Label>
-                      <Switch
-                              id="smooth-cursor"
-                              checked={editorSettings.animationsEnabled}
-                              onCheckedChange={(checked) => setEditorSettings({ ...editorSettings, animationsEnabled: checked })}
                           />
                   </div>
               </div>

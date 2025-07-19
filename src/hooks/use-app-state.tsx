@@ -9,12 +9,6 @@ export interface EditorSettings {
   fontSize: number;
   wordWrap: boolean;
   manualJsonInput: boolean;
-  animationsEnabled: boolean;
-  trashCanEnabled: boolean;
-  todoListerEnabled: boolean;
-  clipboardHistoryEnabled: boolean;
-  randomStringGeneratorEnabled: boolean;
-  imageBase64ConverterEnabled: boolean;
 }
 
 interface AppState {
@@ -36,12 +30,6 @@ const defaultEditorSettings: EditorSettings = {
   fontSize: 14,
   wordWrap: true,
   manualJsonInput: false,
-  animationsEnabled: true,
-  trashCanEnabled: true,
-  todoListerEnabled: true,
-  clipboardHistoryEnabled: true,
-  randomStringGeneratorEnabled: true,
-  imageBase64ConverterEnabled: true,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);

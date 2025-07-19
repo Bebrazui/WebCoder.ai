@@ -16,21 +16,14 @@ function VfsLoader() {
 
   // Create the To-Do app example file if it doesn't exist.
   useEffect(() => {
-    if (!vfs.loading && !vfs.findFileByPath('/TodoApp.syn')) {
+    if (!vfs.loading) {
       const todoAppContent = `
-struct Task {
-    id: Int;
-    title: String;
-    isCompleted: Bool;
-}
+import "UserDetail.syn"
 
-// Дочерний компонент, который использует @binding
-component TaskRow(task: Task, onToggle: (id: Int) => Void) {
-    HStack(spacing: 10, alignment: .center) {
-        Checkbox(checked: task.isCompleted) { (newValue) in
-            onToggle(task.id)
-        }
-        Text(task.title)
+@main
+func AppDelegate {
+    Window("My Todo App") {
+        TodoApp()
     }
 }
 
@@ -82,15 +75,31 @@ component TodoApp() {
     .padding(20)
     .frame(width: 400)
 }
+`;
+        if (!vfs.findFileByPath('/TodoApp.syn')) {
+            vfs.createFileInVfs('TodoApp.syn', vfs.vfsRoot, todoAppContent);
+        }
 
-@main
-func AppDelegate {
-    Window("My Todo App") {
-        TodoApp()
+        const userDetailContent = `
+struct Task {
+    id: Int;
+    title: String;
+    isCompleted: Bool;
+}
+
+// Дочерний компонент, который использует @binding
+component TaskRow(task: Task, onToggle: (id: Int) => Void) {
+    HStack(spacing: 10, alignment: .center) {
+        Checkbox(checked: task.isCompleted) { (newValue) in
+            onToggle(task.id)
+        }
+        Text(task.title)
     }
 }
 `;
-      vfs.createFileInVfs('TodoApp.syn', vfs.vfsRoot, todoAppContent);
+        if (!vfs.findFileByPath('/UserDetail.syn')) {
+            vfs.createFileInVfs('UserDetail.syn', vfs.vfsRoot, userDetailContent);
+        }
     }
   }, [vfs.loading, vfs.findFileByPath, vfs.createFileInVfs, vfs.vfsRoot]);
 

@@ -34,7 +34,7 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
     monacoInstance.languages.setMonarchTokensProvider(langId, {
         keywords: [
             'struct', 'component', 'func', 'if', 'else', 'let', 'return',
-            '@main', '@state', '@binding', '@effect', 'in', 'async', 'await',
+            '@main', '@state', '@binding', '@effect', 'in', 'async', 'await', 'import',
             'Window', 'VStack', 'HStack', 'Text', 'Button', 'TextField', 
             'Checkbox', 'ForEach'
         ],
@@ -248,6 +248,14 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     if (onEditorReady) {
         onEditorReady(editor);
     }
+
+    // THIS IS THE FIX for the cursor bug.
+    // We ensure the font is fully loaded before the editor does its layouting.
+    document.fonts.load(`${editorSettings.fontSize}px ${editorSettings.fontFamily}`).then(() => {
+        editor.layout();
+    }).catch(err => {
+        console.warn("Font loading for Monaco failed, layout might be off.", err);
+    });
     
     // --- Add Context Menu Actions ---
     const addAction = (id: string, label: string, keybindings: number[] | undefined, contextMenuGroupId: string, contextMenuOrder: number) => {
@@ -314,7 +322,10 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
             fontFamily: editorSettings.fontFamily,
             fontSize: editorSettings.fontSize,
             wordWrap: editorSettings.wordWrap ? "on" : "off",
-            cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
+        });
+        // Re-layout after font change
+        document.fonts.load(`${editorSettings.fontSize}px ${editorSettings.fontFamily}`).then(() => {
+            editorRef.current?.layout();
         });
     }
   }, [editorSettings]);
@@ -360,7 +371,6 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
           fontFamily: editorSettings.fontFamily,
           fontSize: editorSettings.fontSize,
           wordWrap: editorSettings.wordWrap ? "on" : "off",
-          cursorSmoothCaretAnimation: editorSettings.smoothCursor ? 'on' : 'off',
         }}
       />
       <div className="absolute bottom-4 right-4 z-10 flex gap-2">
@@ -388,5 +398,3 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     </div>
   );
 }
-
-    

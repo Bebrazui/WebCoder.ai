@@ -180,6 +180,7 @@ interface BaseNode {
 }
 
 interface ProgramNode extends BaseNode { type: "Program"; body: BaseNode[];}
+interface ImportDeclarationNode extends BaseNode { type: "ImportDeclaration"; path: string; }
 interface StructDeclarationNode extends BaseNode { type: "StructDeclaration"; name: string; members: PropertyDeclarationNode[];}
 interface PropertyDeclarationNode extends BaseNode { type: "PropertyDeclaration"; name: string; typeName: string; isOptional: boolean; attributes: AttributeNode[];}
 interface AttributeNode extends BaseNode { type: "Attribute"; name: string; args: BaseNode[];}
@@ -369,11 +370,18 @@ class Parser {
     return { type: "ComponentDeclaration", name, params, body, loc: { line: startToken.line, column: startToken.column } };
   }
 
+  private parseImport(): ImportDeclarationNode {
+      this.consume(TokenType.Keyword, 'import');
+      const pathToken = this.consume(TokenType.StringLiteral);
+      return { type: "ImportDeclaration", path: pathToken.value! };
+  }
+
   public parse(): ProgramNode {
     const program: ProgramNode = { type: "Program", body: [] };
     while (!this.match(TokenType.EndOfFile)) {
         const token = this.peek();
-        if (this.match(TokenType.Keyword, '@main')) { program.body.push(this.parseEntryPoint()); }
+        if (this.match(TokenType.Keyword, 'import')) { program.body.push(this.parseImport()); }
+        else if (this.match(TokenType.Keyword, '@main')) { program.body.push(this.parseEntryPoint()); }
         else if (this.match(TokenType.Keyword, 'struct')) { program.body.push(this.parseStructDeclaration()); } 
         else if (this.match(TokenType.Keyword, 'component')) { program.body.push(this.parseComponentDeclaration()); } 
         else { this.error(`Неожиданный токен на верхнем уровне программы: ${TokenType[token.type]} '${token.value || ''}'`, token); }
@@ -527,21 +535,64 @@ class SwiftCodeGenerator {
 
 interface GeneratedFile { fileName: string; content: string; }
 
+// Main compilation function that handles imports
+async function resolveImports(entryFilePath: string, projectRoot: string): Promise<string> {
+    const processedFiles = new Set<string>();
+    let allCode = '';
+
+    async function processFile(filePath: string) {
+        if (processedFiles.has(filePath)) {
+            return;
+        }
+        processedFiles.add(filePath);
+
+        let code: string;
+        try {
+            code = await fs.promises.readFile(filePath, 'utf-8');
+        } catch (e: any) {
+            throw new Error(`Не удалось прочитать исходный файл SYNTHESIS: ${filePath} - ${e.message}`);
+        }
+
+        const importRegex = /import\s+"([^"]+)"/g;
+        let match;
+        const importPromises: Promise<void>[] = [];
+
+        while ((match = importRegex.exec(code)) !== null) {
+            const importPath = match[1];
+            const resolvedPath = path.resolve(path.dirname(filePath), importPath);
+            importPromises.push(processFile(resolvedPath));
+        }
+        
+        await Promise.all(importPromises);
+        
+        allCode += '\n' + code.replace(importRegex, '');
+    }
+
+    await processFile(entryFilePath);
+    return allCode;
+}
+
 export async function compileSynthesisProject(projectRoot: string, outputDir: string, platform: 'ios' | 'android' | 'windows' | 'macos' | 'linux'): Promise<GeneratedFile[]> {
   console.log(`[SYNTHESIS Compiler] Компиляция проекта в ${projectRoot} для ${platform}...`);
-  const synFiles: string[] = [];
-  const findSynFiles = (dir: string) => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) { findSynFiles(fullPath); } 
-          else if (entry.isFile() && entry.name.endsWith('.syn')) { synFiles.push(fullPath); }
-      }
-  };
-  findSynFiles(projectRoot);
-  if (synFiles.length === 0) { throw new Error("Не найдено .syn файлов в проекте."); }
-  const fullCode = synFiles.map(filePath => fs.readFileSync(filePath, 'utf-8')).join('\n\n');
+  
+  // Find main entry file (e.g. main.syn or App.syn)
+  const potentialEntryFiles = ['main.syn', 'App.syn'];
+  let entryFilePath: string | undefined;
+  for (const f of potentialEntryFiles) {
+      const p = path.join(projectRoot, f);
+      try {
+          await fs.promises.access(p);
+          entryFilePath = p;
+          break;
+      } catch {}
+  }
 
+  if (!entryFilePath) {
+      throw new Error(`Не найден входной файл проекта (main.syn или App.syn) в ${projectRoot}`);
+  }
+
+  const fullCode = await resolveImports(entryFilePath, projectRoot);
+  
   console.log('[SYNTHESIS Compiler] Лексический анализ...');
   const lexer = new Lexer(fullCode);
   const tokens = lexer.tokenize();
@@ -567,8 +618,12 @@ if (require.main === module) {
   const testProjectRoot = path.join(__dirname, '../../temp_synthesis_project');
   if (!fs.existsSync(testProjectRoot)) fs.mkdirSync(testProjectRoot, { recursive: true });
   fs.writeFileSync(path.join(testProjectRoot, 'main.syn'), `
+    import "UserDetail.syn"
     @main
     func AppDelegate { Window("Test App") { Text("Hello from Test") } }
+  `);
+   fs.writeFileSync(path.join(testProjectRoot, 'UserDetail.syn'), `
+    component UserDetail() { Text("This is a user detail component.") }
   `);
   const testOutputDir = path.join(testProjectRoot, 'generated', 'ios');
   console.log('\n--- Тестирование компилятора SYNTHESIS напрямую ---');
@@ -576,5 +631,3 @@ if (require.main === module) {
     .then(files => console.log('Компиляция тестового файла прошла успешно.'))
     .catch(e => console.error('Ошибка компиляции тестового файла:', e.message));
 }
-
-    
