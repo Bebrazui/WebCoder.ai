@@ -15,15 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAppState } from "@/hooks/use-app-state";
 import { CheerpJRunnerDialog } from "./cheerpj-runner";
 import { cn } from "@/lib/utils";
-
-interface LaunchConfig {
-    name: string;
-    type: string;
-    request: 'launch';
-    args?: any;
-    platform?: 'ios' | 'android' | 'windows' | 'macos' | 'linux';
-    [key: string]: any; // Allow other properties
-}
+import type { LaunchConfig } from "./file-explorer";
 
 interface RunResult {
     stdout: string;
@@ -272,7 +264,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                                 {launchConfigs.map(config => (
                                     <SelectItem key={config.name} value={config.name}>
                                         <div className="flex items-center gap-2">
-                                            {config.type === 'synthesis' ? <AppWindow className="h-4 w-4" /> 
+                                            {config.type === 'synthesis' ? <Atom className="h-4 w-4" /> 
                                              : <PlayCircle className="h-4 w-4" />}
                                             <span>{config.name}</span>
                                         </div>

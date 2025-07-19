@@ -46,6 +46,7 @@ export interface LaunchConfig {
     program?: string;
     mainClass?: string;
     projectPath?: string;
+    platform?: 'ios' | 'android' | 'windows' | 'macos' | 'linux';
     cargo?: {
         args: string[];
         projectPath: string;
@@ -77,6 +78,7 @@ const ExplorerContext = createContext<{
   findFileByPath: (path: string) => VFSFile | null;
   createFileInVfs: (name: string, parent: VFSDirectory, content?: string) => void;
   vfsRoot: VFSDirectory;
+  onSelectFile: (file: VFSFile) => void;
 } | null>(null);
 
 const useExplorerContext = () => {
@@ -128,7 +130,7 @@ export function FileExplorer({
   };
 
   return (
-    <ExplorerContext.Provider value={{ clearDragState, findFileByPath, createFileInVfs, vfsRoot }}>
+    <ExplorerContext.Provider value={{ clearDragState, findFileByPath, createFileInVfs, vfsRoot, onSelectFile }}>
       <Collapsible open={isSearchOpen} onOpenChange={setIsSearchOpen} className="flex flex-col h-full bg-background text-foreground">
         <div className="p-2 border-b border-border">
             <div className="flex justify-between items-center mb-2">
@@ -187,7 +189,6 @@ export function FileExplorer({
                 ) : (
                   <ExplorerNode 
                     node={vfsRoot} 
-                    onSelectFile={onSelectFile} 
                     level={0}
                     onNewFile={onNewFile}
                     onNewFolder={onNewFolder}
@@ -222,7 +223,6 @@ export function FileExplorer({
 
 const ExplorerNode = ({
   node,
-  onSelectFile,
   level,
   onNewFile,
   onNewFolder,
@@ -233,7 +233,6 @@ const ExplorerNode = ({
   dragVersion,
 }: {
   node: VFSNode;
-  onSelectFile: (file: VFSFile) => void;
   level: number;
   onNewFile: (name: string, parent: VFSDirectory) => void;
   onNewFolder: (name: string, parent: VFSDirectory) => void;
@@ -245,7 +244,7 @@ const ExplorerNode = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level === 0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { vfsRoot, findFileByPath, createFileInVfs, clearDragState } = useExplorerContext();
+  const { vfsRoot, findFileByPath, createFileInVfs, clearDragState, onSelectFile } = useExplorerContext();
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -308,7 +307,6 @@ const ExplorerNode = ({
   }, [createFileInVfs, vfsRoot, toast]);
   
   const handleRunScript = useCallback(async (config: LaunchConfig | null) => {
-      
     if (!config) {
         const launchFile = findFileByPath('launch.json');
         if (window.confirm(`No launch configuration found for this file. Would you like to open 'launch.json' to add one?`)) {
@@ -455,7 +453,6 @@ const ExplorerNode = ({
                             <ExplorerNode
                                 key={child.path}
                                 node={child}
-                                onSelectFile={onSelectFile}
                                 level={level + 1}
                                 onNewFile={onNewFile}
                                 onNewFolder={onNewFolder}
@@ -496,12 +493,13 @@ const ExplorerNode = ({
 
   const isSynthesisFile = node.name.endsWith('.syn');
 
-  const handleRunSynthesis = () => {
+  const handleBuildSynthesis = () => {
     const config: LaunchConfig = {
-      name: `Run ${node.name}`,
+      name: `Build ${node.name}`,
       type: 'synthesis',
       request: 'launch',
-      program: node.path
+      program: node.path,
+      platform: 'ios' // Default platform for direct build
     };
     handleRunScript(config);
   }
@@ -532,8 +530,8 @@ const ExplorerNode = ({
       <ContextMenuContent>
         {isSynthesisFile && (
             <>
-                <ContextMenuItem onClick={handleRunSynthesis}>
-                    <Atom className="mr-2 h-4 w-4" /> Run SYNTHESIS Script
+                <ContextMenuItem onClick={handleBuildSynthesis}>
+                    <Atom className="mr-2 h-4 w-4" /> Build SYNTHESIS App
                 </ContextMenuItem>
                 <ContextMenuSeparator />
             </>

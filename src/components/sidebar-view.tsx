@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileExplorer, type FileExplorerProps } from "./file-explorer";
+import { FileExplorer, type FileExplorerProps, LaunchConfig } from "./file-explorer";
 import { SourceControlView } from "./source-control-view";
 import { Button } from "./ui/button";
 import { FileCode, GitBranch, ListTree, PlayCircle, Puzzle, type LucideProps, Wrench, HeartPulse, Globe } from "lucide-react";
