@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit, AppWindow } from "lucide-react";
+import { PlayCircle, LoaderCircle, ServerCrash, Settings2, FileWarning, Hammer, CheckCircle, FilePlus, Gamepad2, BrainCircuit, AppWindow, Atom } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVfs } from "@/hooks/use-vfs";
@@ -170,7 +170,16 @@ export function RunView({ onSelectFile }: RunViewProps) {
             throw new Error(responseData.error || 'An unknown server error occurred.');
         }
 
-        if (!responseData.success) {
+        if (fullConfig.type === 'synthesis' && !responseData.data.hasError) {
+             const encodedJson = encodeURIComponent(responseData.data.stdout);
+             if (isElectron && window.electronAPI) {
+                 localStorage.setItem('synthesis_ui_data', responseData.data.stdout);
+                 window.electronAPI.openSynthesisWindow();
+             } else {
+                 window.open(`/synthesis-runner?data=${encodedJson}`, '_blank');
+             }
+             setResult({ stdout: 'SYNTHESIS UI launched in new window.', stderr: '', hasError: false });
+        } else if (!responseData.success) {
             setResult({ stdout: responseData.data?.stdout || '', stderr: responseData.error || responseData.data?.stderr, hasError: true });
         } else {
             setResult(responseData.data);
@@ -184,7 +193,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
       } finally {
         setIsActionLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot]);
+  }, [getFullConfig, toast, vfsRoot, isElectron]);
 
   const handleCompile = async () => {
     setIsActionLoading(true);
@@ -273,24 +282,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
                             </SelectContent>
                         </Select>
                     </div>
-
-                    {isSynthesisConfig && (
-                         <div className="space-y-2">
-                            <Label htmlFor="platform-select">Target Platform</Label>
-                            <Select value={selectedPlatform} onValueChange={(v) => setSelectedPlatform(v as any)}>
-                                <SelectTrigger id="platform-select">
-                                    <SelectValue placeholder="Select a platform..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ios">iOS</SelectItem>
-                                    <SelectItem value="android">Android</SelectItem>
-                                    <SelectItem value="macos">macOS</SelectItem>
-                                    <SelectItem value="windows">Windows</SelectItem>
-                                    <SelectItem value="linux">Linux</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
                 </div>
             )}
             
@@ -315,7 +306,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </Button>
                  <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || (isJavaConfig && !isProjectCompiled)} className="w-full">
                     {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                    {isSynthesisConfig ? 'Build' : 'Run'}
+                    {isSynthesisConfig ? 'Build & Run' : 'Run'}
                 </Button>
             </div>
 

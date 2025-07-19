@@ -6,7 +6,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
-import { compileSynthesis, compileSynthesisProject } from './synthesis_compiler';
+import { compileSynthesis } from './synthesis_compiler';
 
 type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'synthesis';
 type BuildType = 'debug' | 'release';
@@ -71,87 +71,16 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
 }
 
 
-// --- NATIVE BUILD PROCESS FOR SYNTHESIS ---
-
-/**
- * Запускает нативные инструменты сборки для выбранной платформы.
- */
-async function runNativeBuildTools(
-  nativeProjectDir: string,
-  platform: 'ios' | 'android' | 'windows' | 'macos' | 'linux',
-  buildType: BuildType
-): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  let command: string;
-  let args: string[] = [];
-  let cwd: string = nativeProjectDir;
-
-  switch (platform) {
-    case 'ios':
-      command = 'xcodebuild';
-      args = ['-workspace', 'MySynApp.xcworkspace', '-scheme', 'MySynApp', '-configuration', buildType === 'debug' ? 'Debug' : 'Release', '-sdk', 'iphonesimulator'];
-      break;
-    case 'android':
-      command = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-      args = [`assemble${buildType === 'debug' ? 'Debug' : 'Release'}`];
-      break;
-    case 'windows':
-      command = 'msbuild';
-      args = ['MySynApp.sln', `/p:Configuration=${buildType === 'debug' ? 'Debug' : 'Release'}`];
-      break;
-    case 'macos':
-      command = 'xcodebuild';
-      args = ['-workspace', 'MySynApp.xcworkspace', '-scheme', 'MySynApp', '-configuration', buildType === 'debug' ? 'Debug' : 'Release'];
-      break;
-    case 'linux':
-      command = 'make';
-      args = [];
-      break;
-    default:
-      throw new Error(`Platform ${platform} is not supported for native build.`);
-  }
-
-  return executeCommand(command, args, cwd, true);
-}
-
-
-const runFullSynthesisBuild = async (config: any, tempDir: string) => {
-    const platform = config.platform || 'ios';
-    const buildType = config.buildType || 'debug';
-    let output = '';
-
-    const generatedCodeDir = path.join(tempDir, 'generated', platform);
-    const nativeProjectDir = path.join(generatedCodeDir, 'native_project');
-
+const runSynthesis = async (config: any, tempDir: string) => {
+    const programPath = path.join(tempDir, config.program!);
     try {
-        // Step 1: Compile SYNTHESIS code
-        output += 'Step 1/3: Compiling SYNTHESIS code and generating native sources...\n';
-        await compileSynthesisProject(tempDir, generatedCodeDir, platform);
-        output += ` -> Sources generated in: ${generatedCodeDir}\n\n`;
-
-        // Step 2: Prepare native project structure (conceptual)
-        output += 'Step 2/3: Preparing native project structure...\n';
-        await fs.mkdir(nativeProjectDir, { recursive: true });
-        await fs.writeFile(path.join(nativeProjectDir, 'README.md'), `This is a generated ${platform} project.`);
-        output += ` -> Native project prepared in: ${nativeProjectDir}\n\n`;
+        const code = await fs.readFile(programPath, 'utf-8');
+        const compiledJson = await compileSynthesis(code); // Expects JSON output
         
-        // Step 3: Run native build tools
-        output += `Step 3/3: Running native build for ${platform}...\n`;
-        const buildResult = await runNativeBuildTools(nativeProjectDir, platform, buildType);
-        
-        output += `\n--- Native Build Log ---\n`;
-        output += buildResult.stdout;
-        if(buildResult.stderr) output += `\n--- Native Build Errors ---\n${buildResult.stderr}`;
-
-        if (buildResult.code !== 0) {
-            return { stdout: output, stderr: `Native build failed with code ${buildResult.code}.`, code: buildResult.code };
-        }
-        
-        output += '\n\nBuild finished successfully!';
-        return { stdout: output, stderr: '', code: 0 };
-
+        // This is not an error, we are returning the compiled UI JSON
+        return { stdout: compiledJson, stderr: '', code: 0 };
     } catch (error: any) {
-        output += `\n\n--- FATAL BUILD ERROR ---\n${error.message}`;
-        return { stdout: output, stderr: error.message, code: 1 };
+        return { stdout: '', stderr: `Failed to read or compile SYNTHESIS file: ${error.message}`, code: 1 };
     }
 }
 
@@ -159,7 +88,7 @@ const runFullSynthesisBuild = async (config: any, tempDir: string) => {
 // --- Language Runners ---
 
 const runners = {
-    synthesis: runFullSynthesisBuild,
+    synthesis: runSynthesis,
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
         const args = [scriptPath, JSON.stringify(config.args)];
