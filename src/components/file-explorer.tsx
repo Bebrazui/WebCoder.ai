@@ -1,3 +1,4 @@
+
 // src/components/file-explorer.tsx
 "use client";
 
@@ -332,8 +333,9 @@ const ExplorerNode = ({
             }),
         });
         const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || data.data.stderr);
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || data.data?.stderr || 'An unknown server error occurred.');
         }
 
         if (config.type === 'synthesis' && data.data && !data.data.hasError) {
