@@ -113,7 +113,10 @@ const resolveValue = (valueNode: any, scope: any): any => {
              if (valueNode.operator === '!') return !operand;
              return operand;
         case 'FunctionCall':
-            const func = APIBridge[valueNode.callee.name as keyof typeof APIBridge];
+            const calleeName = (valueNode.callee.type === 'MemberAccess') 
+                ? `${valueNode.callee.object.name}.${valueNode.callee.property}`
+                : valueNode.callee.name;
+            const func = APIBridge[calleeName as keyof typeof APIBridge];
             if (typeof func === 'function') {
                  const resolvedArgs = valueNode.args.map((arg: any) => resolveValue(arg.value, scope));
                  return func(...resolvedArgs);
@@ -295,7 +298,7 @@ const NodeRenderer = ({ node }: { node: any }) => {
     }
     
     const style = applyModifiers(node.modifiers, scope);
-    const commonProps: any = { style, onClick: () => node.onTap && executeAction(node.onTap.action, scope) };
+    const commonProps: any = { style };
     
     const renderText = (valueNode: any) => {
         if (!valueNode) return '';
@@ -337,8 +340,7 @@ const NodeRenderer = ({ node }: { node: any }) => {
             return <Checkbox {...commonProps} checked={resolveValue(node.binding.value, scope)} onCheckedChange={onCheckedChange} />;
         default:
             if(scope.components[node.type]) {
-                const componentArgs = node.args || [];
-                return renderNode({ type: 'ComponentCall', name: node.type, args: componentArgs, line: node.line });
+                return renderNode({ type: 'ComponentCall', name: node.type, args: node.args || [], line: node.line });
             }
             return null;
     }

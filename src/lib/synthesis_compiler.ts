@@ -14,7 +14,6 @@ class Lexer {
     private code: string; private position: number = 0; private line: number = 1;
     private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil", "var"]);
     private booleanLiterals = new Set(["true", "false"]);
-    private types = new Set(["Int", "String", "Bool", "Void", "Date", "UUID"]); // Types are not keywords
 
     constructor(code: string) { this.code = code; }
     private isWhitespace(c: string): boolean { return /\s/.test(c); }
@@ -139,10 +138,10 @@ class Parser {
     
     private parseBinary(left: Node, minPrecedence: number): Node {
         let lookahead = this.peek();
-        while (lookahead.type === TokenType.Punctuation && this.getPrecedence(lookahead.value!) >= minPrecedence) {
+        while (lookahead.type === TokenType.Operator && this.getPrecedence(lookahead.value!) >= minPrecedence) {
             let op = this.advance(); let right = this.parsePrimary();
             lookahead = this.peek();
-            while (lookahead.type === TokenType.Punctuation && this.getPrecedence(lookahead.value!) > this.getPrecedence(op.value!)) {
+            while (lookahead.type === TokenType.Operator && this.getPrecedence(lookahead.value!) > this.getPrecedence(op.value!)) {
                 right = this.parseBinary(right, this.getPrecedence(lookahead.value!));
                 lookahead = this.peek();
             }
@@ -183,10 +182,15 @@ class Parser {
         if (this.match(TokenType.Punctuation, '(')) {
             this.advance();
              while(!this.match(TokenType.Punctuation, ')')) { 
-                params.push({type: 'Identifier', name: this.consume(TokenType.Identifier).value!});
+                const paramName = this.consume(TokenType.Identifier).value!;
+                this.consume(TokenType.Punctuation, ':');
+                const paramType = this.parseTypeAnnotation();
+                params.push({name: paramName, type: (paramType as any).name});
                 if(this.match(TokenType.Punctuation,',')) this.advance();
             } 
             this.consume(TokenType.Punctuation, ')'); 
+            this.consume(TokenType.Operator, '->');
+            this.parseTypeAnnotation(); // consume return type like Void
             this.consume(TokenType.Keyword, 'in'); 
         }
         const body = this.parseAction(); 
@@ -195,16 +199,18 @@ class Parser {
     
     private parseStatement(): Node {
         const currentToken = this.peek();
+
+        // Check for keywords first
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
+        // ** NEW LOGIC **
+        // Check if it's a component invocation (starts with an uppercase letter)
         if (this.match(TokenType.Identifier) && /^[A-Z]/.test(currentToken.value!)) {
-            if (currentToken.value === 'ForEach') {
-                return this.parseForEach();
-            }
             return this.parseView();
         }
-        
+
+        // It must be an expression statement (like an assignment or function call)
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
              if (this.match(TokenType.Punctuation, '=')) {
@@ -219,6 +225,7 @@ class Parser {
              return { type: 'ArrayPush', object: (expression as any).callee.object, value: (expression as any).args[0].value, line: expression.line };
         }
 
+        // Return the parsed expression if it's not an assignment
         return expression;
     }
 
@@ -259,13 +266,9 @@ class Parser {
         }
         
         if (this.match(TokenType.Punctuation, '{')) { 
-            if (this.peek(1).value === '(') {
-                action = this.parseCallback();
-            } else {
-                 action = this.parseAction(); 
-            }
+            action = this.parseAction(); 
         }
-        
+
         const modifiers = this.parseModifiers();
         let children = []; 
         if (Array.isArray(action) && callee.match(/VStack|HStack|Window/)) { 
@@ -274,6 +277,7 @@ class Parser {
         }
 
         const unnamedArg = args.find((a: any) => !a.name);
+        const actionArg = (action && !Array.isArray(action)) ? action : null;
 
         return { 
             type: callee,
@@ -309,16 +313,21 @@ class Parser {
     }
     
     private parseTypeAnnotation(): Node {
+        let isArray = false;
         if (this.match(TokenType.Punctuation, '[')) {
             this.consume(TokenType.Punctuation, '[');
-            const typeName = this.consume(TokenType.Identifier).value;
+            isArray = true;
+        }
+
+        const typeName = this.consume(TokenType.Identifier).value!;
+
+        if (isArray) {
             this.consume(TokenType.Punctuation, ']');
             return { type: 'TypeAnnotation', name: `[${typeName}]`, isArray: true };
-        } else {
-            const typeName = this.consume(TokenType.Identifier).value;
-            return { type: 'TypeAnnotation', name: typeName, isArray: false };
         }
+        return { type: 'TypeAnnotation', name: typeName, isArray: false };
     }
+
 
     private parseStateVar(): Node { 
         const startToken = this.consume(TokenType.Keyword, '@State'); 
@@ -401,9 +410,9 @@ class Parser {
         while(!this.match(TokenType.Punctuation, '}')) {
             const propName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Punctuation, ':');
-            const propType = this.consume(TokenType.Identifier).value;
+            const propType = this.parseTypeAnnotation();
             this.consume(TokenType.Punctuation, ';');
-            properties.push({ name: propName, type: propType });
+            properties.push({ name: propName, type: (propType as any).name });
         }
         this.consume(TokenType.Punctuation, '}');
         return { type: 'StructDefinition', name, properties, line: startToken.line };
@@ -444,7 +453,12 @@ class Parser {
         const allComponentDefs = topLevelNodes.filter(n => n.type === 'ComponentDefinition');
         const components = allComponentDefs.reduce((acc, curr: any) => ({ ...acc, [curr.name]: curr }), {});
         
-        const mainComponentDef = allComponentDefs.find(c => (c as any).body.some((n: any) => n.type === 'VStack')); // Heuristic to find main component
+        // Find the "main" component, which is called in the program body
+        const mainProgramNode = (program as any).body[0];
+        const mainComponentName = mainProgramNode ? mainProgramNode.type : null;
+        
+        const mainComponentDef = mainComponentName ? allComponentDefs.find(c => (c as any).name === mainComponentName) : null;
+        
         const states = mainComponentDef ? (mainComponentDef as any).states : [];
         const effects = mainComponentDef ? (mainComponentDef as any).effects : [];
         
