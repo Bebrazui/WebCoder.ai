@@ -37,11 +37,11 @@ const defaultEditorSettings: EditorSettings = {
   wordWrap: true,
   manualJsonInput: false,
   animationsEnabled: true,
-  trashCanEnabled: false,
-  todoListerEnabled: false,
-  clipboardHistoryEnabled: false,
-  randomStringGeneratorEnabled: false,
-  imageBase64ConverterEnabled: false,
+  trashCanEnabled: true,
+  todoListerEnabled: true,
+  clipboardHistoryEnabled: true,
+  randomStringGeneratorEnabled: true,
+  imageBase64ConverterEnabled: true,
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
