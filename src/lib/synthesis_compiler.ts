@@ -57,7 +57,6 @@ class Lexer {
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
             if ("(){}[].,:?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
-            if (char === ';') { tokens.push({ type: TokenType.Punctuation, value: ';', line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -216,14 +215,17 @@ class Parser {
             }
         }
         
-        // This is the crucial change. Check for an identifier that starts with an uppercase letter,
-        // which signals a component/view call.
+        // ** THE FIX IS HERE **
+        // Check if it's a component call (starts with uppercase) BEFORE treating it as a general expression.
         if (token.type === TokenType.Identifier && /^[A-Z]/.test(token.value!)) {
             return this.parseView();
         }
 
-        // If it's not a view, it's an expression statement (like an assignment or function call)
+        // It's not a keyword statement or a View, so it must be an expression statement
+        // (like an assignment or a function call on a lowercase variable).
         const expression = this.parseExpression();
+        
+        // Check for assignment
         if (this.match(TokenType.Punctuation, '=')) {
             this.consume(TokenType.Punctuation, '=');
             let isAwait = false;
@@ -232,6 +234,7 @@ class Parser {
             return { type: 'Assignment', left: expression, right, isAwait, line: expression.line };
         }
         
+        // Check for array push
         if (expression.type === 'FunctionCall' && (expression as any).callee.type === 'MemberAccess' && (expression as any).callee.property === 'push') {
              return { type: 'ArrayPush', object: (expression as any).callee.object, value: (expression as any).args[0].value, line: expression.line };
         }

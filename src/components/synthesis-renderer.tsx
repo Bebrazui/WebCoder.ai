@@ -133,15 +133,15 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
 
      if (action.type === 'Assignment') {
         let varName: string;
+        let objToUpdate: any = null;
+        let propToUpdate: string | null = null;
+        
         if (action.left.type === 'Identifier') {
             varName = action.left.name;
         } else if (action.left.type === 'MemberAccess') {
-            // This is a simplification. A real implementation would need to handle nested member access
-            const obj = scope.get(action.left.object.name);
-            const prop = action.left.property;
-            const newObj = { ...obj, [prop]: await resolveValue(action.right, scope) };
-            scope.set(action.left.object.name, newObj);
-            return;
+            objToUpdate = scope.get(action.left.object.name);
+            propToUpdate = action.left.property;
+            varName = action.left.object.name;
         } else {
              return;
         }
@@ -152,7 +152,13 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
         } else {
             newValue = resolveValue(action.right, scope);
         }
-        scope.set(varName, newValue);
+
+        if (objToUpdate && propToUpdate) {
+             const newObj = { ...objToUpdate, [propToUpdate]: newValue };
+             scope.set(varName, newObj);
+        } else {
+            scope.set(varName, newValue);
+        }
         return;
     } 
     
@@ -176,11 +182,21 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
         await scope.executeAsync(action, scope);
         return;
     }
+    
+    if (action.type === 'IfStatement') {
+        if (resolveValue(action.condition, scope)) {
+             await executeAction(action.thenBranch, scope);
+        } else if(action.elseBranch) {
+             await executeAction(action.elseBranch, scope);
+        }
+        return;
+    }
 
     if (Array.isArray(action)) { // For action blocks
         let lastReturnValue;
+        const localScope = {...scope, set: (k, v) => scope.set(k, v, false)}; // New scope for let/var
         for (const subAction of action) {
-           lastReturnValue = await executeAction(subAction, scope);
+           lastReturnValue = await executeAction(subAction, localScope);
         }
         return lastReturnValue;
     }
