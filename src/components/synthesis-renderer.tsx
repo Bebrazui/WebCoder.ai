@@ -189,7 +189,7 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
         } else {
             value = resolveValue(action.value, scope);
         }
-        scope.set(action.name, value); // Assumes scope can handle declarations
+        scope.set(action.name, value, false); // Declare in local scope, not root
         return;
     }
 };
@@ -324,27 +324,20 @@ const NodeRenderer = ({ node }: { node: any }) => {
             return <Button {...commonProps} onClick={() => executeAction(node.action.body, scope)}>{renderText(node.text)}</Button>;
         case 'Checkbox':
             const onCheckedChange = (newValue: boolean) => {
-                const isBound = node.checked.type === 'Binding';
+                const isBound = node.binding;
                 if (isBound) {
-                    scope.set(node.checked.value.name, newValue);
-                } else if(node.checked.type === 'MemberAccess') {
-                    const objName = node.checked.object.name;
-                    const propName = node.checked.property;
-                    const oldObj = scope.get(objName);
-                    const newObj = {...oldObj, [propName]: newValue};
-                    scope.set(objName, newObj);
-                }
+                    scope.set(node.binding.value.name, newValue);
+                } 
                 
                 if (node.onToggle && node.onToggle.type === 'Callback') {
                      const actionScope = { ...scope, get: (k: string) => k === node.onToggle.params[0].name ? newValue : scope.get(k) };
                      executeAction(node.onToggle.body, actionScope);
                 }
             }
-            return <Checkbox {...commonProps} checked={resolveValue(node.checked, scope)} onCheckedChange={onCheckedChange} />;
+            return <Checkbox {...commonProps} checked={resolveValue(node.binding.value, scope)} onCheckedChange={onCheckedChange} />;
         default:
-            // This will render component calls that were not handled by the special case above.
             if(scope.components[node.type]) {
-                const componentArgs = node.args || []; // Handle case where component call has no args
+                const componentArgs = node.args || [];
                 return renderNode({ type: 'ComponentCall', name: node.type, args: componentArgs, line: node.line });
             }
             return null;

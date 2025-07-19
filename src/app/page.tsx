@@ -60,7 +60,7 @@ component TodoApp() {
         } else {
              ForEach(tasks) { task in
                 // Передаем callback для изменения состояния в родительском компоненте
-                TaskRow(task: task, onToggle: { (idToToggle) in
+                TaskRow(task: task, onToggle: { (idToToggle: Int) -> Void in
                     var newTasks: [Task] = []
                     ForEach(tasks) { t in
                         var mutableT = t // Создаем изменяемую копию
@@ -103,9 +103,9 @@ struct Task {
 // Дочерний компонент, который использует @binding и callback
 component TaskRow(task: Task, onToggle: (id: Int) -> Void) {
     HStack(spacing: 10, alignment: .center) {
-        Checkbox(checked: @binding task.isCompleted, onToggle: { (newValue) in
+        Checkbox(checked: @binding task.isCompleted, onToggle: { (newValue: Bool) -> Void in
             // Вызываем callback, переданный от родителя
-            onToggle(task.id)
+            onToggle(id: task.id)
         })
         Text(task.title)
     }

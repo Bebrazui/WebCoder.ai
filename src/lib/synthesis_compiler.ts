@@ -57,8 +57,7 @@ class Lexer {
                 continue;
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
-            if ("(){}[].,:;".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
-            if ("?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if ("(){}[].,:;?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -199,8 +198,6 @@ class Parser {
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
-        // This is the key change: Check for a component call *first*.
-        // A component is an Identifier starting with a capital letter.
         if (this.match(TokenType.Identifier) && /^[A-Z]/.test(currentToken.value!)) {
             if (currentToken.value === 'ForEach') {
                 return this.parseForEach();
@@ -208,7 +205,6 @@ class Parser {
             return this.parseView();
         }
         
-        // If it's not a component, *then* treat it as an expression (like an assignment).
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
              if (this.match(TokenType.Punctuation, '=')) {
@@ -282,15 +278,12 @@ class Parser {
         return { 
             type: callee,
             line: calleeToken.line,
-            // Extract specific properties for easier access in renderer
             text: callee === 'Text' ? (unnamedArg as any)?.value : (callee === 'Button' ? (unnamedArg as any)?.value : null),
             placeholder: callee === 'TextField' ? (unnamedArg as any)?.value : null,
             children,
             action: callee === 'Button' ? action : null, 
             modifiers, 
-            // Keep original args for bindings and named properties
             args,
-            // Specific argument helpers
             binding: (args.find(a => a.type === 'Binding') as any),
             checked: (args.find((a: any) => a.name === 'checked') as any)?.value,
             onToggle: (args.find((a: any) => a.name === 'onToggle') as any)?.value,
@@ -496,7 +489,6 @@ export function compileSynthesis(code: string, allFiles: VFSNode[]): string {
 
 const findFileContentRecursive = (nodes: VFSNode[], targetPath: string): string | null => {
     for(const node of nodes) {
-        // Adjust path to always start with /
         const nodePath = node.path.startsWith('/') ? node.path : `/${node.path}`;
         const searchPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
         
