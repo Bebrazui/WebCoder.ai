@@ -340,7 +340,7 @@ const ExplorerNode = ({
              const encodedJson = encodeURIComponent(data.data.stdout);
              if (isElectron && window.electronAPI) {
                  localStorage.setItem('synthesis_ui_data', data.data.stdout);
-                 window.electronAPI.openSynthesisWindow();
+                 (window as any).electronAPI.openSynthesisWindow();
              } else {
                  window.open(`/synthesis-runner?data=${encodedJson}`, '_blank');
              }
