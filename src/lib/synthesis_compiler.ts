@@ -56,7 +56,8 @@ class Lexer {
                 continue;
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
-            if ("(){}[].,:;?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if ("(){}[].,:?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if (char === ';') { tokens.push({ type: TokenType.Punctuation, value: ';', line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -431,6 +432,7 @@ class Parser {
             this.consume(TokenType.Punctuation, ':');
             const propType = this.parseTypeAnnotation();
             properties.push({ name: propName, type: (propType as any).name });
+            this.consume(TokenType.Punctuation, ';');
         }
         this.consume(TokenType.Punctuation, '}');
         return { type: 'StructDefinition', name, properties, line: startToken.line };
