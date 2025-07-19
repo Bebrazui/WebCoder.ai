@@ -11,7 +11,7 @@ interface Token { type: TokenType; value?: string; line: number; }
 // --- 2. Lexer ---
 class Lexer {
     private code: string; private position: number = 0; private line: number = 1;
-    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil"]);
+    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil", "var"]);
     private booleanLiterals = new Set(["true", "false"]);
 
     constructor(code: string) { this.code = code; }
@@ -55,9 +55,8 @@ class Lexer {
                 continue;
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>=', '->', '&&', '||'].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
-            // Corrected classification for ;
-            if ("(){}[].:,;".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
-            if ("?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
+            if ("(){}[].,:".includes(char)) { tokens.push({ type: TokenType.Punctuation, value: char, line: startLine }); this.advance(); continue; }
+            if (";?!<=>+-*/&|".includes(char)) { tokens.push({ type: TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -89,8 +88,8 @@ class Parser {
              let object = this.consume(TokenType.Identifier);
              let expression: Node = { type: 'Identifier', name: object.value, line: object.line };
 
-             while (this.match(TokenType.Operator, '.') || this.match(TokenType.Punctuation, '(')) {
-                 if (this.match(TokenType.Operator, '.')) {
+             while (this.match(TokenType.Punctuation, '.') || this.match(TokenType.Punctuation, '(')) {
+                 if (this.match(TokenType.Punctuation, '.')) {
                      this.advance();
                      const property = this.consume(TokenType.Identifier);
                      expression = { type: 'MemberAccess', object: expression, property: property.value, line: property.line };
@@ -166,6 +165,10 @@ class Parser {
             const value = this.parseExpression();
             return { type: 'Binding', name: nameToken.value, value, line: nameToken.line };
         }
+        if (this.match(TokenType.Punctuation, '{')) {
+            const value = this.parseCallback();
+            return { type: 'Argument', name: nameToken.value, value, isCallback: true, params: (value as any).params };
+        }
         const value = this.parseExpression();
         return { type: 'Argument', name: nameToken.value, value, line: nameToken.line };
     }
@@ -190,11 +193,14 @@ class Parser {
     }
     
     private parseStatement(): Node {
-        if (this.match(TokenType.Keyword, 'let')) return this.parseLet();
+        if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
-        if (this.match(TokenType.Keyword, 'ForEach')) return this.parseForEach();
         
-        // This handles assignments like `a = b` and `a.b = c`
+        // This handles component calls as statements
+        if (this.match(TokenType.Identifier) && /^[A-Z]/.test(this.peek().value!)) {
+            return this.parseView();
+        }
+        
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
              if (this.match(TokenType.Operator, '=')) {
@@ -212,7 +218,23 @@ class Parser {
         return expression;
     }
 
-    private parseLet(): Node { const startToken = this.consume(TokenType.Keyword, 'let'); const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Punctuation, ':'); let varType = this.consume(TokenType.Identifier).value; let isArray = false; if (this.match(TokenType.Punctuation, '[')) { this.advance(); this.consume(TokenType.Punctuation, ']'); isArray = true; varType = `[${varType}]`; } this.consume(TokenType.Operator, '='); let isAwait = false; if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); } const value = this.parseExpression(); return { type: 'VariableDeclaration', name, value, isAwait, line: startToken.line }; }
+    private parseLet(): Node { 
+        const startToken = this.consume(TokenType.Keyword); 
+        const name = this.consume(TokenType.Identifier).value; 
+        this.consume(TokenType.Punctuation, ':'); 
+        let varType = this.consume(TokenType.Identifier).value; 
+        let isArray = false; 
+        if (this.match(TokenType.Punctuation, '[')) { 
+            this.advance(); this.consume(TokenType.Punctuation, ']'); 
+            isArray = true; varType = `[${varType}]`; 
+        } 
+        this.consume(TokenType.Operator, '='); 
+        let isAwait = false; 
+        if (this.match(TokenType.Keyword, 'await')) { isAwait = true; this.advance(); } 
+        const value = this.parseExpression(); 
+        return { type: 'VariableDeclaration', name, value, isAwait, mutable: startToken.value === 'var', line: startToken.line }; 
+    }
+    
     private parseIf(): Node { const startToken = this.consume(TokenType.Keyword, 'if'); const condition = this.parseExpression(); const thenBranch = this.parseAction(); let elseBranch = null; if (this.match(TokenType.Keyword, 'else')) { this.advance(); elseBranch = this.parseAction(); } return { type: 'IfStatement', condition, thenBranch, elseBranch, line: startToken.line }; }
     private parseForEach(): Node { const startToken = this.consume(TokenType.Keyword, 'ForEach'); this.consume(TokenType.Punctuation, '('); const collection = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Punctuation, '{'); const iterator = this.consume(TokenType.Identifier).value; this.consume(TokenType.Keyword, 'in'); const body = []; while(!this.match(TokenType.Punctuation, '}')) { body.push(this.parseStatement()); } this.consume(TokenType.Punctuation, '}'); return { type: 'ForEach', collection, iterator, body, line: startToken.line }; }
     
@@ -246,8 +268,8 @@ class Parser {
         
         const modifiers = this.parseModifiers();
         let children = []; 
-        if (action && !action.hasOwnProperty('params') && callee.match(/VStack|HStack|Window/)) { 
-            children = Array.isArray(action) ? action : [action]; 
+        if (Array.isArray(action) && callee.match(/VStack|HStack|Window/)) { 
+            children = action;
             action = null; 
         }
 
@@ -316,43 +338,48 @@ class Parser {
         this.consume(TokenType.Punctuation, '(');
         const params: any[] = [];
     
-        while (!this.match(TokenType.Punctuation, ')')) {
-            let isBinding = false;
-            if (this.match(TokenType.Keyword, '@binding')) {
-                this.advance();
-                isBinding = true;
-            }
-            const paramName = this.consume(TokenType.Identifier).value;
-            this.consume(TokenType.Punctuation, ':');
+        if (!this.match(TokenType.Punctuation, ')')) {
+            while (true) {
+                let isBinding = false;
+                if (this.match(TokenType.Keyword, '@binding')) {
+                    this.advance();
+                    isBinding = true;
+                }
+                const paramName = this.consume(TokenType.Identifier).value;
+                this.consume(TokenType.Punctuation, ':');
 
-            let typeInfo: any = {};
-            if (this.match(TokenType.Punctuation, '(')) {
-                typeInfo.isCallback = true;
-                this.advance(); // consume '('
-                const cbParams: any[] = [];
-                if (!this.match(TokenType.Punctuation, ')')) {
-                     while(!this.match(TokenType.Punctuation, ')')) { 
-                        const pName = this.consume(TokenType.Identifier).value;
-                        this.consume(TokenType.Punctuation,':');
-                        const pType = this.consume(TokenType.Identifier).value;
-                        cbParams.push({ name: pName, type: pType});
-                        if(this.match(TokenType.Punctuation,',')) this.advance();
+                let typeInfo: any = {};
+                if (this.match(TokenType.Punctuation, '(')) {
+                    typeInfo.isCallback = true;
+                    this.advance(); // consume '('
+                    const cbParams: any[] = [];
+                    if (!this.match(TokenType.Punctuation, ')')) {
+                        while(true) { 
+                            const pName = this.consume(TokenType.Identifier).value;
+                            this.consume(TokenType.Punctuation,':');
+                            const pType = this.consume(TokenType.Identifier).value;
+                            cbParams.push({ name: pName, type: pType});
+                            if(!this.match(TokenType.Punctuation,',')) break;
+                            this.advance();
+                        }
+                    }
+                    this.advance(); // consume ')'
+                    this.consume(TokenType.Operator, '->');
+                    typeInfo.returnType = this.consume(TokenType.Identifier).value; // Allows 'Void' etc.
+                    typeInfo.params = cbParams;
+
+                } else {
+                    typeInfo.typeName = this.consume(TokenType.Identifier).value;
+                    if (this.match(TokenType.Punctuation, '[')) {
+                        this.advance(); this.consume(TokenType.Punctuation, ']');
+                        typeInfo.isArray = true;
                     }
                 }
-                this.advance(); // consume ')'
-                this.consume(TokenType.Operator, '->');
-                typeInfo.returnType = this.consume(TokenType.Identifier).value; // Allows 'Void' etc.
-                typeInfo.params = cbParams;
-
-            } else {
-                typeInfo.typeName = this.consume(TokenType.Identifier).value;
-                if (this.match(TokenType.Punctuation, '[')) {
-                    this.advance(); this.consume(TokenType.Punctuation, ']');
-                    typeInfo.isArray = true;
-                }
+                params.push({ type: 'Parameter', name: paramName, ...typeInfo, isBinding, line: startToken.line });
+                
+                if (!this.match(TokenType.Punctuation, ',')) break;
+                this.advance(); // consume comma
             }
-            params.push({ type: 'Parameter', name: paramName, ...typeInfo, isBinding, line: startToken.line });
-            if (this.match(TokenType.Punctuation, ',')) this.advance();
         }
         this.consume(TokenType.Punctuation, ')');
 
@@ -378,7 +405,7 @@ class Parser {
             const propName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Punctuation, ':');
             const propType = this.consume(TokenType.Identifier).value;
-            this.consume(TokenType.Punctuation, ';');
+            this.consume(TokenType.Operator, ';');
             properties.push({ name: propName, type: propType });
         }
         this.consume(TokenType.Punctuation, '}');
@@ -420,8 +447,9 @@ class Parser {
         const allComponentDefs = topLevelNodes.filter(n => n.type === 'ComponentDefinition');
         const components = allComponentDefs.reduce((acc, curr: any) => ({ ...acc, [curr.name]: curr }), {});
         
-        const states = allComponentDefs.map((n: any) => n.states).flat();
-        const effects = allComponentDefs.map((n: any) => n.effects).flat();
+        const mainComponentDef = allComponentDefs.find(c => (c as any).body.some((n: any) => n.type === 'VStack')); // Heuristic to find main component
+        const states = mainComponentDef ? (mainComponentDef as any).states : [];
+        const effects = mainComponentDef ? (mainComponentDef as any).effects : [];
         
         return { ...program, components, states, effects };
     }
