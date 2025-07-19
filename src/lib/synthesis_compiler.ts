@@ -89,7 +89,7 @@ class Parser {
         }
         if (this.match(TokenType.Operator, '!')) { this.advance(); return { type: 'UnaryExpression', operator: '!', operand: this.parsePrimary(), line: currentToken.line }; }
         if (this.match(TokenType.Punctuation, '(')) { this.advance(); const expr = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return expr; }
-        throw new Error(`Unexpected token in expression: ${this.peek().value}`);
+        throw new Error(`Unexpected token in expression on line ${currentToken.line}: ${this.peek().value}`);
     }
     
     private parseInterpolatedString(): Node {
@@ -177,17 +177,22 @@ class Parser {
     private parseView(): Node {
         const calleeToken = this.consume(TokenType.Identifier);
         const callee = calleeToken.value!;
-        this.consume(TokenType.Punctuation, '(');
-        const args: Node[] = []; let action = null;
-        while (!this.match(TokenType.Punctuation, ')')) {
-            if (this.peek(1).value === ':') {
-                args.push(this.parseArgument());
-            } else {
-                args.push({ type: 'Argument', value: this.parseExpression() });
+        
+        let args: Node[] = [];
+        let action: Node | Node[] | null = null;
+
+        if (this.match(TokenType.Punctuation, '(')) {
+            this.consume(TokenType.Punctuation, '(');
+            while (!this.match(TokenType.Punctuation, ')')) {
+                if (this.peek(1).value === ':') {
+                    args.push(this.parseArgument());
+                } else {
+                    args.push({ type: 'Argument', value: this.parseExpression() });
+                }
+                if (this.match(TokenType.Operator, ',')) this.advance();
             }
-            if (this.match(TokenType.Operator, ',')) this.advance();
+            this.consume(TokenType.Punctuation, ')');
         }
-        this.consume(TokenType.Punctuation, ')');
         
         if (this.match(TokenType.Punctuation, '{')) { 
             if (this.peek(1).value === '(') {
@@ -198,22 +203,26 @@ class Parser {
         }
         
         const modifiers = this.parseModifiers();
-        let children = []; if (action && !action.hasOwnProperty('params') && callee.match(/VStack|HStack|Window/)) { children = action as Node[]; action = null; }
+        let children = []; 
+        if (action && !action.hasOwnProperty('params') && callee.match(/VStack|HStack|Window/)) { 
+            children = Array.isArray(action) ? action : [action]; 
+            action = null; 
+        }
         
         const textArg = args.find(a => !(a as any).name);
-        const text = callee === 'Button' ? (textArg as any)?.value.value : (action as any)?.[0]?.value;
-
+        const text = callee === 'Button' ? (textArg as any)?.value : (action as any)?.[0];
+        
         return { 
-            type: callee === 'Text' ? 'Text' : callee === 'Image' ? 'Image' : callee === 'TextField' ? 'TextField' : callee === 'Button' ? 'Button' : callee === 'Checkbox' ? 'Checkbox' : callee,
+            type: callee,
             name: callee,
             args: args.filter(a => (a as any).name), 
-            action, 
-            text: callee === 'Text' ? (textArg as any)?.value : text,
+            action: callee === 'Button' ? action : null, 
+            text: callee === 'Text' ? (textArg as any)?.value : (callee === 'Button' ? (text as any)?.value : null),
             modifiers, 
             children, 
             onTap: modifiers.find(m => (m as any).name === 'onTap'), 
             onAppear: modifiers.find(m => (m as any).name === 'onAppear'), 
-            placeholder: (args.find(a => !(a as any).name) as any)?.value.value, 
+            placeholder: (textArg as any)?.value.value, 
             binding: (args.find(a => a.type === 'Binding') as any),
             checked: (args.find(a => (a as any).name === 'checked') as any),
             onToggle: (args.find(a => (a as any).name === 'onToggle') as any)?.value,
@@ -234,10 +243,9 @@ class Parser {
         this.consume(TokenType.Punctuation, '(');
         const params: Node[] = [];
 
-        // Correctly handle empty parameter list
         if (!this.match(TokenType.Punctuation, ')')) {
             do {
-                if (this.match(TokenType.Operator, ',')) this.advance(); // consume comma from previous iteration
+                if (this.match(TokenType.Operator, ',')) this.advance();
                 
                 let isBinding = false;
                 if (this.match(TokenType.Keyword, '@binding')) {
@@ -256,12 +264,11 @@ class Parser {
                 let isCallback = false;
                 if (this.match(TokenType.Punctuation, '(')) {
                     this.advance();
-                    // Simplified parsing for callback signature
                     while (!this.match(TokenType.Punctuation, ')')) { this.advance(); }
-                    this.advance(); // consume ')'
+                    this.advance();
                     if(this.match(TokenType.Operator, '-') && this.peek(1).value === '>') {
-                        this.advance(); this.advance(); // consume '->'
-                        this.consume(TokenType.Identifier, 'Void'); // Assume Void return for now
+                        this.advance(); this.advance();
+                        this.consume(TokenType.Identifier, 'Void');
                     }
                     isCallback = true;
                 }
