@@ -85,7 +85,7 @@ const APIBridge = {
 };
 
 const resolveValue = (valueNode: any, scope: any): any => {
-    if (!valueNode) return null;
+    if (valueNode === null || valueNode === undefined) return null;
     switch (valueNode.type) {
         case 'Identifier': return scope.get(valueNode.name);
         case 'Literal': 
@@ -111,13 +111,15 @@ const resolveValue = (valueNode: any, scope: any): any => {
              const operand = resolveValue(valueNode.operand, scope);
              if (valueNode.operator === '!') return !operand;
              return operand;
-        case 'FunctionCall': // For direct API calls like OS.platform
+        case 'FunctionCall':
             const func = APIBridge[valueNode.callee.name as keyof typeof APIBridge];
             if (typeof func === 'function') {
                  const resolvedArgs = valueNode.args.map((arg: any) => resolveValue(arg.value, scope));
                  return func(...resolvedArgs);
             }
             return func; // Return property value like OS.platform
+        case 'StringLiteral':
+            return valueNode.value.map((part: any) => part.type === 'StringInterpolation' ? resolveValue(part.expression, scope) : part.value).join('');
         default: return null;
     }
 };
@@ -126,7 +128,20 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
      if (!action) return;
 
      if (action.type === 'Assignment') {
-        const varName = action.left.name;
+        let varName: string;
+        if (action.left.type === 'Identifier') {
+            varName = action.left.name;
+        } else if (action.left.type === 'MemberAccess') {
+            // This is a simplification. A real implementation would need to handle nested member access
+            const obj = scope.get(action.left.object.name);
+            const prop = action.left.property;
+            const newObj = { ...obj, [prop]: await resolveValue(action.right, scope) };
+            scope.set(action.left.object.name, newObj);
+            return;
+        } else {
+             return;
+        }
+
         let newValue;
         if (action.isAwait) {
             newValue = await scope.executeAsync(action.right, scope);
@@ -138,16 +153,22 @@ const executeAction = async (action: any, scope: any): Promise<any> => {
     } 
     
     if (action.type === 'ArrayPush') {
-        const array = scope.get(action.object);
+        const array = scope.get(action.object.name);
         if (Array.isArray(array)) {
             const valueToPush = resolveValue(action.value, scope);
-            scope.set(action.object, [...array, valueToPush]);
+            scope.set(action.object.name, [...array, valueToPush]);
         }
         return;
     }
 
     if (action.type === 'FunctionCall') {
-        // This is for API functions called as statements, like Storage.set
+        // Handle callbacks passed as props
+        const callback = scope.get(action.callee.name);
+        if (typeof callback === 'function') {
+            const resolvedArgs = action.args.map((arg: any) => resolveValue(arg.value, scope));
+            callback(...resolvedArgs);
+            return;
+        }
         await scope.executeAsync(action, scope);
         return;
     }
@@ -196,6 +217,16 @@ const NodeRenderer = ({ node }: { node: any }) => {
                     if (propNode.isBinding) {
                         return scope.get(propNode.value.name);
                     }
+                    if (propNode.isCallback) {
+                        return (...args: any[]) => {
+                            const cbScope = {...scope, get: (k:string) => {
+                                const paramIndex = propNode.params.findIndex((p:any) => p.name === k);
+                                if (paramIndex !== -1) return args[paramIndex];
+                                return scope.get(k);
+                            }};
+                            executeAction(propNode.value.body, cbScope);
+                        };
+                    }
                     return resolveValue(propNode.value, scope);
                 }
                 return scope.get(key);
@@ -236,13 +267,19 @@ const NodeRenderer = ({ node }: { node: any }) => {
                     if (key === node.iterator) return item;
                     // Allow access to item properties e.g. task.title
                     if (key.startsWith(`${node.iterator}.`)) {
-                        const prop = key.split('.')[1];
-                        return item?.[prop];
+                        const prop = key.split('.').slice(1).join('.');
+                        let current = item;
+                        for(const p of prop.split('.')) current = current?.[p];
+                        return current;
                     }
                     return scope.get(key);
                 },
                 set: (key: string, value: any) => {
-                    if (key.startsWith(`${node.iterator}.`)) {
+                    if (key === node.iterator) {
+                         const newCollection = [...collection];
+                         newCollection[index] = value;
+                         scope.set(node.collection.name, newCollection);
+                    } else if (key.startsWith(`${node.iterator}.`)) {
                          const prop = key.split('.')[1];
                          const newCollection = [...collection];
                          newCollection[index] = {...item, [prop]: value};
@@ -259,10 +296,16 @@ const NodeRenderer = ({ node }: { node: any }) => {
     const style = applyModifiers(node.modifiers, scope);
     const commonProps: any = { style, onClick: () => node.onTap && executeAction(node.onTap.action, scope) };
     
-    const renderText = (parts: any[]) => parts.map((part, index) => {
-        const val = part.type === 'StringInterpolation' ? resolveValue(part.expression, scope) : part.value;
-        return <React.Fragment key={index}>{val}</React.Fragment>;
-    }).reduce((prev, curr) => <>{prev}{curr}</>, <></>);
+    const renderText = (valueNode: any) => {
+        if (!valueNode) return '';
+        if (valueNode.type === 'StringLiteral') {
+             return valueNode.value.map((part: any, index: number) => {
+                const val = part.type === 'StringInterpolation' ? resolveValue(part.expression, scope) : part.value;
+                return <React.Fragment key={index}>{val}</React.Fragment>;
+            }).reduce((prev: any, curr: any) => <>{prev}{curr}</>, <></>);
+        }
+        return resolveValue(valueNode, scope);
+    }
 
     switch (node.type) {
         case 'VStack':
@@ -270,27 +313,38 @@ const NodeRenderer = ({ node }: { node: any }) => {
         case 'HStack':
             return <div {...commonProps} className="flex" style={{...style, alignItems: style.alignItems || 'center', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
         case 'Text':
-            return <p {...commonProps}>{renderText(node.value)}</p>;
+            return <p {...commonProps}>{renderText(node.text)}</p>;
         case 'Image':
              return <img {...commonProps} src={resolveValue(node.source, scope)} alt="synthesis-image" />;
         case 'TextField':
-             const boundValue = scope.get(node.binding.name);
-             return <Input {...commonProps} type="text" placeholder={resolveValue(node.placeholder, scope)} value={boundValue === null || boundValue === undefined ? '' : boundValue} onChange={(e) => scope.set(node.binding.name, e.target.value)} />;
+             const boundValue = scope.get(node.binding.value.name);
+             return <Input {...commonProps} type="text" placeholder={resolveValue(node.placeholder, scope)} value={boundValue === null || boundValue === undefined ? '' : boundValue} onChange={(e) => scope.set(node.binding.value.name, e.target.value)} />;
         case 'Button':
-            return <Button {...commonProps} onClick={() => executeAction(node.action, scope)}>{renderText(node.text)}</Button>;
+            return <Button {...commonProps} onClick={() => executeAction(node.action.body, scope)}>{renderText(node.text)}</Button>;
         case 'Checkbox':
             const onCheckedChange = (newValue: boolean) => {
                 const isBound = node.checked.type === 'Binding';
                 if (isBound) {
-                    scope.set(node.checked.name, newValue);
+                    scope.set(node.checked.value.name, newValue);
+                } else if(node.checked.type === 'MemberAccess') {
+                    const objName = node.checked.object.name;
+                    const propName = node.checked.property;
+                    const oldObj = scope.get(objName);
+                    const newObj = {...oldObj, [propName]: newValue};
+                    scope.set(objName, newObj);
                 }
-                if (node.action) {
-                     const actionScope = { ...scope, get: (k: string) => k === 'newValue' ? newValue : scope.get(k) };
-                     executeAction(node.action, actionScope);
+                
+                if (node.onToggle && node.onToggle.type === 'Callback') {
+                     const actionScope = { ...scope, get: (k: string) => k === node.onToggle.params[0].name ? newValue : scope.get(k) };
+                     executeAction(node.onToggle.body, actionScope);
                 }
             }
-            return <Checkbox {...commonProps} checked={resolveValue(node.checked.value, scope)} onCheckedChange={onCheckedChange} />;
+            return <Checkbox {...commonProps} checked={resolveValue(node.checked, scope)} onCheckedChange={onCheckedChange} />;
         default:
+            // This will render component calls that were not handled by the special case above.
+            if(scope.components[node.type]) {
+                return renderNode({ type: 'ComponentCall', name: node.type, args: node.args, line: node.line });
+            }
             return null;
     }
 };
@@ -300,23 +354,41 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
     const effectsRef = useRef(uiJson.effects || []);
     
     const executeAsync = useCallback(async (action: any, currentScope: any) => {
-        const { callee, args } = action;
-        const func = APIBridge[callee.name as keyof typeof APIBridge];
+        let calleeName = '';
+        if (action.callee.type === 'Identifier') {
+            calleeName = action.callee.name;
+        } else if (action.callee.type === 'MemberAccess') {
+            calleeName = `${action.callee.object.name}.${action.callee.property}`;
+        }
+
+        const func = APIBridge[calleeName as keyof typeof APIBridge];
         if (func) {
-            const resolvedArgs = args.map((arg: any) => resolveValue(arg.value, currentScope));
+            const resolvedArgs = action.args.map((arg: any) => resolveValue(arg.value, currentScope));
             return await func(...resolvedArgs);
         }
     }, []);
 
     useEffect(() => {
-        const runEffects = async () => {
-             const effectScope = { ...rootState, executeAsync };
-             for (const effect of effectsRef.current) {
-                // Simplified dependency check for demo. A real implementation would be more robust.
+        const effectScope = { ...rootState, executeAsync, get: rootState.get, set: rootState.set };
+
+        // Run 'once' effects
+        const runOnceEffects = async () => {
+             for (const effect of effectsRef.current.filter((e:any) => e.args.some((a:any) => a.name === 'once' && a.value.value === true))) {
+                await executeAction(effect.action, effectScope);
+             }
+        };
+        runOnceEffects();
+    }, []); // Empty dependency array ensures it runs only once on mount
+
+    useEffect(() => {
+        const effectScope = { ...rootState, executeAsync, get: rootState.get, set: rootState.set };
+        // Run dependency-based effects
+        const runDepEffects = async () => {
+             for (const effect of effectsRef.current.filter((e:any) => e.args.some((a:any) => a.name === 'dependencies'))) {
                  await executeAction(effect.action, effectScope);
              }
         };
-        runEffects();
+        runDepEffects();
     }, [rootState.state]); // Re-run effects when root state changes
 
 

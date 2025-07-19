@@ -20,13 +20,6 @@ function VfsLoader() {
       const todoAppContent = `
 import "UserDetail.syn"
 
-@main
-func AppDelegate() {
-    Window(title: "My Todo App") {
-        TodoApp()
-    }
-}
-
 component TodoApp() {
     @State tasks: [Task] = []
     @State newTaskTitle: String = ""
@@ -37,11 +30,13 @@ component TodoApp() {
         if (savedTasks != nil) {
             tasks = savedTasks 
         } else {
+            // Загружаем начальные данные, если в хранилище пусто
             tasks = await Network.get(url: "/api/greet")
         }
         isLoading = false
     }
 
+    // Этот эффект сохраняет задачи в localStorage каждый раз, когда они изменяются
     @effect(dependencies: [tasks]) {
         if (isLoading == false) {
             Storage.set(key: "synthesis-todo-app", value: tasks)
@@ -50,23 +45,24 @@ component TodoApp() {
 
     VStack(alignment: .leading, spacing: 15) {
         HStack(alignment: .center, spacing: 10) {
-            Text(value: "SYNTHESIS Todo App")
-                .font(style: .title)
-            Text(value: "Running on: \\(OS.platform)")
-                .font(style: .caption)
-                .padding(all: 5)
+            Text("SYNTHESIS Todo App")
+                .font(.title)
+            Text("Running on: \\(OS.platform)")
+                .font(.caption)
+                .padding(5)
                 .background(color: "#4B5563") // gray-600
                 .cornerRadius(radius: 5)
         }
         
         if isLoading {
-            Text(value: "Loading tasks...")
+            Text("Loading tasks...")
         } else {
-             ForEach(collection: tasks) { task in
+             ForEach(tasks) { task in
+                // Передаем callback для изменения состояния в родительском компоненте
                 TaskRow(task: task, onToggle: { (idToToggle) in
                     let newTasks: [Task] = []
-                    ForEach(collection: tasks) { t in
-                        var mutableT = t
+                    ForEach(tasks) { t in
+                        var mutableT = t // Создаем изменяемую копию
                         if (mutableT.id == idToToggle) {
                             mutableT.isCompleted = !mutableT.isCompleted
                         }
@@ -78,7 +74,7 @@ component TodoApp() {
         }
 
         HStack(spacing: 5) {
-            TextField(placeholder: "Add a new task...", text: @binding newTaskTitle)
+            TextField("Add a new task...", text: @binding newTaskTitle)
             Button("Add") {
                 if (newTaskTitle != "") {
                     let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
@@ -88,7 +84,7 @@ component TodoApp() {
             }
         }
     }
-    .padding(all: 20)
+    .padding(20)
     .frame(width: 450)
 }
 `;
@@ -98,18 +94,19 @@ component TodoApp() {
 
         const userDetailContent = `
 struct Task {
-    id: Int
-    title: String
-    isCompleted: Bool
+    id: Int;
+    title: String;
+    isCompleted: Bool;
 }
 
-// A child component that uses @binding and a callback
+// Дочерний компонент, который использует @binding и callback
 component TaskRow(task: Task, onToggle: (id: Int) -> Void) {
     HStack(spacing: 10, alignment: .center) {
         Checkbox(checked: @binding task.isCompleted, onToggle: { (newValue) in
+            // Вызываем callback, переданный от родителя
             onToggle(task.id)
         })
-        Text(value: task.title)
+        Text(task.title)
     }
 }
 `;
