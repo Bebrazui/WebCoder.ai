@@ -42,15 +42,8 @@ func AppDelegate {
         }
 
         const userDetailContent = `
-struct Task {
-    id: Int;
-    title: String;
-    isCompleted: Bool;
-}
-
-// A very simple component
-component TaskRow() {
-    Text("This is a task row.")
+component UserDetail() {
+    Text("This is a user detail component.")
 }
 `;
         if (!vfs.findFileByPath('/UserDetail.syn')) {

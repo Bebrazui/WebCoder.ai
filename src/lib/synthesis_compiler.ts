@@ -85,6 +85,13 @@ class Parser {
         if (this.match(TokenType.Punctuation, '(')) { this.advance(); const expr = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return expr; }
         
         if (this.match(TokenType.Identifier)) { 
+             // This is the key change. If it's an Identifier, we first check if it's a component call.
+             // A component call starts with an uppercase letter.
+             if (/^[A-Z]/.test(currentToken.value!)) {
+                 return this.parseView();
+             }
+
+             // Otherwise, it's a regular identifier (variable, etc.)
              let object = this.consume(TokenType.Identifier);
              let expression: Node = { type: 'Identifier', name: object.value, line: object.line };
 
@@ -183,7 +190,7 @@ class Parser {
             this.advance();
              while(!this.match(TokenType.Punctuation, ')')) { 
                 const paramName = this.consume(TokenType.Identifier).value!;
-                this.consume(TokenType.Punctuation, ':');
+                this.consume(TokenType.Punctuation,':');
                 const paramType = this.parseTypeAnnotation();
                 params.push({name: paramName, type: (paramType as any).name});
                 if(this.match(TokenType.Punctuation,',')) this.advance();
@@ -204,13 +211,10 @@ class Parser {
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
-        // ** NEW LOGIC **
-        // Check if it's a component invocation (starts with an uppercase letter)
         if (this.match(TokenType.Identifier) && /^[A-Z]/.test(currentToken.value!)) {
             return this.parseView();
         }
 
-        // It must be an expression statement (like an assignment or function call)
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
              if (this.match(TokenType.Punctuation, '=')) {
@@ -225,7 +229,6 @@ class Parser {
              return { type: 'ArrayPush', object: (expression as any).callee.object, value: (expression as any).args[0].value, line: expression.line };
         }
 
-        // Return the parsed expression if it's not an assignment
         return expression;
     }
 
@@ -411,6 +414,7 @@ class Parser {
             const propName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Punctuation, ':');
             const propType = this.parseTypeAnnotation();
+            if(!this.match(TokenType.Punctuation, ';')) this.error(`Expected semicolon after property type in struct definition.`);
             this.consume(TokenType.Punctuation, ';');
             properties.push({ name: propName, type: (propType as any).name });
         }
@@ -453,7 +457,6 @@ class Parser {
         const allComponentDefs = topLevelNodes.filter(n => n.type === 'ComponentDefinition');
         const components = allComponentDefs.reduce((acc, curr: any) => ({ ...acc, [curr.name]: curr }), {});
         
-        // Find the "main" component, which is called in the program body
         const mainProgramNode = (program as any).body[0];
         const mainComponentName = mainProgramNode ? mainProgramNode.type : null;
         
