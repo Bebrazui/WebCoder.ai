@@ -88,7 +88,11 @@ const resolveValue = (valueNode: any, scope: any): any => {
     if (!valueNode) return null;
     switch (valueNode.type) {
         case 'Identifier': return scope.get(valueNode.name);
-        case 'Literal': return valueNode.value;
+        case 'Literal': 
+            if (Array.isArray(valueNode.value)) {
+                return valueNode.value.map((v: any) => resolveValue(v, scope));
+            }
+            return valueNode.value;
         case 'MemberAccess':
              const obj = resolveValue(valueNode.object, scope);
              return obj?.[valueNode.property] ?? null;
