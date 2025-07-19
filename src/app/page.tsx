@@ -24,10 +24,11 @@ struct Task {
     isCompleted: Bool;
 }
 
+// Дочерний компонент, который использует @binding
 component TaskRow(task: Task, onToggle: (id: Int) => Void) {
-    HStack(spacing: 10) {
-        Checkbox(checked: task.isCompleted) {
-            onToggle(id: task.id)
+    HStack(spacing: 10, alignment: .center) {
+        Checkbox(checked: task.isCompleted) { (newValue) in
+            onToggle(task.id)
         }
         Text(task.title)
     }
@@ -36,28 +37,35 @@ component TaskRow(task: Task, onToggle: (id: Int) => Void) {
 component TodoApp() {
     @State tasks: [Task] = []
     @State newTaskTitle: String = ""
-
-    @effect(tasks) {
-        // This effect runs when the app starts, simulating a data fetch.
-        // In a real app, this could be an API call.
-        if (tasks.length == 0) {
-           let initialTasks = [
-                Task(id: 1, title: "Implement @effect", isCompleted: true),
-                Task(id: 2, title: "Implement @binding", isCompleted: true),
-                Task(id: 3, title: "Add ForEach component", isCompleted: false),
-           ]
-           tasks = initialTasks
-        }
+    @State isLoading: Bool = true
+    
+    // @effect будет вызван один раз при старте для "загрузки" данных
+    @effect(once: true) {
+        let fetchedTasks = await Network.get("/api/greet");
+        tasks = fetchedTasks
+        isLoading = false
     }
 
     VStack(alignment: .leading, spacing: 15) {
         Text("SYNTHESIS Todo App")
             .font(.title)
 
-        ForEach(tasks) { task in
-            TaskRow(task: task, onToggle: { id in
-                // Logic to toggle task completion
-            })
+        if isLoading {
+            Text("Loading tasks...")
+        } else {
+             ForEach(tasks) { task in
+                // Передаем callback для изменения состояния в родительском компоненте
+                TaskRow(task: task, onToggle: { (idToToggle) in
+                    let newTasks: [Task] = []
+                    ForEach(tasks) { t in
+                        if (t.id == idToToggle) {
+                            t.isCompleted = !t.isCompleted
+                        }
+                        newTasks.push(t)
+                    }
+                    tasks = newTasks
+                })
+            }
         }
 
         HStack(spacing: 5) {
@@ -65,8 +73,6 @@ component TodoApp() {
             Button("Add") {
                 if (newTaskTitle != "") {
                     let newTask = Task(id: tasks.length + 1, title: newTaskTitle, isCompleted: false)
-                    // This is a simplified way to append to an array
-                    // A real implementation would have better array manipulation support.
                     tasks.push(newTask) 
                     newTaskTitle = ""
                 }
@@ -74,6 +80,7 @@ component TodoApp() {
         }
     }
     .padding(20)
+    .frame(width: 400)
 }
 
 @main
@@ -135,5 +142,3 @@ export default function Home() {
     </ClientOnly>
   );
 }
-
-    

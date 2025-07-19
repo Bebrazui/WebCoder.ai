@@ -6,7 +6,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import { VFSNode } from '@/lib/vfs';
 import { dataURIToArrayBuffer } from '@/lib/utils';
-import { compileSynthesisProject } from '@/compiler/synthesisCompiler';
+import { compileSynthesis } from '@/lib/synthesis_compiler';
 
 type LanguageType = 'python' | 'java' | 'go' | 'ruby' | 'php' | 'rust' | 'csharp' | 'synthesis';
 type BuildType = 'debug' | 'release';
@@ -70,68 +70,40 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
     });
 }
 
-
-const runSynthesis = async (config: any, tempDir: string) => {
-    try {
-        const buildType = config.buildType || 'debug';
-        const platform = config.platform || 'ios';
-        const generatedCodeDir = path.join(tempDir, 'generated', platform);
-        const nativeProjectDir = path.join(generatedCodeDir, 'native_project');
-        
-        let outputLog = '';
-
-        // 1. Compile SYNTHESIS to native source
-        const generatedFiles = await compileSynthesisProject(tempDir, generatedCodeDir, platform);
-        outputLog += `SYNTHESIS compilation successful. Generated ${generatedFiles.length} file(s).\n`;
-        outputLog += `Generated Swift code:\n---\n${generatedFiles[0].content}\n---\n\n`;
-
-
-        // 2. Prepare native project structure (Placeholder)
-        await fs.mkdir(nativeProjectDir, { recursive: true });
-        outputLog += `Native project structure prepared in: ${nativeProjectDir}\n`;
-
-        // 3. Run native build tools
-        outputLog += `Attempting to run native build tools for ${platform}...\n`;
-        let buildCommand: string;
-        let buildArgs: string[] = [];
-
-        switch (platform) {
-            case 'ios':
-            case 'macos':
-                buildCommand = 'xcodebuild';
-                // A simplified, likely-to-fail command without a real project.
-                // This is where you'd point to a generated .xcodeproj or .xcworkspace
-                buildArgs = ['-showsdks']; 
-                break;
-            case 'android':
-                buildCommand = os.platform() === 'win32' ? 'gradlew.bat' : './gradlew';
-                buildArgs = [`assemble${buildType === 'debug' ? 'Debug' : 'Release'}`];
-                break;
-            case 'linux':
-                buildCommand = 'make';
-                buildArgs = [];
-                break;
-            default:
-                throw new Error(`Platform ${platform} is not supported for native build.`);
-        }
-
-        const buildResult = await executeCommand(buildCommand, buildArgs, nativeProjectDir, true);
-        
-        outputLog += `\n--- Native Build Log ---\n`;
-        outputLog += `STDOUT:\n${buildResult.stdout}\n`;
-        outputLog += `STDERR:\n${buildResult.stderr}\n`;
-
-        if (buildResult.code !== 0) {
-            // ENOENT is a special case where the command wasn't found
-            if (buildResult.code === 127) {
-                 const finalError = `Native build tool '${buildCommand}' not found. Make sure Xcode (for iOS/macOS), Android SDK, or Make (for Linux) is installed and configured in your system's PATH.`;
-                 return { stdout: outputLog, stderr: finalError, code: 1 };
+const findSynFileContent = (nodes: VFSNode[], programPath: string): string => {
+    let content = '';
+    const search = (nodes: VFSNode[]) => {
+        for(const node of nodes) {
+            if (node.type === 'file' && node.path === programPath) {
+                content = node.content;
+                return;
             }
-            return { stdout: outputLog, stderr: `Native build failed with code ${buildResult.code}.`, code: buildResult.code };
+            if (node.type === 'directory') {
+                search(node.children);
+            }
+            if (content) return;
+        }
+    }
+    search(nodes);
+    return content;
+}
+
+const runSynthesis = async (config: any, tempDir: string, projectFiles: VFSNode[]) => {
+    try {
+        const programPath = config.program;
+        if (!programPath) {
+            throw new Error('No program path specified for SYNTHESIS build.');
+        }
+
+        const synCode = findSynFileContent(projectFiles, programPath);
+        if (!synCode) {
+            throw new Error(`Could not find SYNTHESIS file at path: ${programPath}`);
         }
         
-        outputLog += `\nNative build for ${platform} completed successfully!`;
-        return { stdout: outputLog, stderr: '', code: 0 };
+        const compiledJson = compileSynthesis(synCode);
+        const parsedJson = JSON.parse(compiledJson);
+
+        return { stdout: compiledJson, stderr: '', code: parsedJson.type === 'Error' ? 1 : 0 };
     } catch (error: any) {
         console.error("SYNTHESIS run error:", error);
         return { stdout: '', stderr: `Failed to compile SYNTHESIS project: ${error.message}`, code: 1 };
@@ -141,7 +113,7 @@ const runSynthesis = async (config: any, tempDir: string) => {
 
 // --- Language Runners ---
 
-const runners = {
+const runners: { [key in LanguageType]?: (config: any, tempDir: string, projectFiles: VFSNode[]) => Promise<{ stdout: string; stderr: string; code: number | null }> } = {
     synthesis: runSynthesis,
     python: async (config: any, tempDir: string) => {
         const scriptPath = path.join(tempDir, config.program!);
@@ -201,7 +173,7 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         if (!runner) {
             return NextResponse.json({ success: false, error: `Unsupported launch type: ${language}` }, { status: 400 });
         }
-        const result = await runner(config, tempDir);
+        const result = await runner(config, tempDir, projectFiles);
         
         const hasError = result.code !== 0;
         return NextResponse.json({ success: true, data: { stdout: result.stdout, stderr: result.stderr, hasError } });
@@ -215,5 +187,3 @@ export async function runLanguage(language: LanguageType, projectFiles: VFSNode[
         }
     }
 }
-
-    
