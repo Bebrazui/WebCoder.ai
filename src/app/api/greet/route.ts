@@ -45,13 +45,13 @@ export async function GET(req: NextRequest) {
             const message = `Привет, ${name}!`;
             return NextResponse.json({ message });
         } else {
-            // Возвращаем список задач для TodoApp.syn
+            // Возвращаем список задач для TodoApp.syn - теперь это просто начальные данные по умолчанию
             const initialTasks = [
-                {id: 1, title: "Implement @effect", isCompleted: true},
-                {id: 2, title: "Implement @binding", isCompleted: true},
-                {id: 3, title: "Add ForEach component", isCompleted: false},
-                {id: 4, title: "Support async/await", isCompleted: true},
-                {id: 5, title: "Make it REAL!", isCompleted: false},
+                {id: 1, title: "Learn SYNTHESIS State", isCompleted: true},
+                {id: 2, title: "Implement Storage library", isCompleted: true},
+                {id: 3, title: "Add persistence to TodoApp", isCompleted: true},
+                {id: 4, title: "Check OS.platform", isCompleted: false},
+                {id: 5, title: "Build a real app!", isCompleted: false},
            ];
            return NextResponse.json(initialTasks);
         }

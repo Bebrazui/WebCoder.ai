@@ -34,15 +34,35 @@ component TodoApp() {
     
     // @effect будет вызван один раз при старте для "загрузки" данных
     @effect(once: true) {
-        let fetchedTasks = await Network.get("/api/greet");
-        tasks = fetchedTasks
+        // Загружаем задачи из локального хранилища
+        let savedTasksJSON = Storage.get(key: "synthesis-todo-app")
+        if (savedTasksJSON != nil) {
+            tasks = savedTasksJSON // Предполагается, что JSON.parse будет встроен в среду выполнения
+        } else {
+            // Если в хранилище ничего нет, загружаем с сервера
+            tasks = await Network.get("/api/greet")
+        }
         isLoading = false
     }
 
-    VStack(alignment: .leading, spacing: 15) {
-        Text("SYNTHESIS Todo App")
-            .font(.title)
+    // Этот эффект будет сохранять данные при любом изменении списка задач
+    @effect(tasks) {
+        if (isLoading == false) { // Не сохраняем при первой загрузке
+            Storage.set(key: "synthesis-todo-app", value: tasks)
+        }
+    }
 
+    VStack(alignment: .leading, spacing: 15) {
+        HStack(alignment: .center, spacing: 10) {
+            Text("SYNTHESIS Todo App")
+                .font(.title)
+            Text("Running on: \\(OS.platform)")
+                .font(.caption)
+                .padding(5)
+                .background(color: "#4B5563") // gray-600
+                .cornerRadius(radius: 5)
+        }
+        
         if isLoading {
             Text("Loading tasks...")
         } else {
@@ -65,7 +85,8 @@ component TodoApp() {
             TextField("Add a new task...", text: @binding newTaskTitle)
             Button("Add") {
                 if (newTaskTitle != "") {
-                    let newTask = Task(id: tasks.length + 1, title: newTaskTitle, isCompleted: false)
+                    // Генерируем ID на клиенте (упрощение)
+                    let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
                     tasks.push(newTask) 
                     newTaskTitle = ""
                 }
@@ -73,7 +94,7 @@ component TodoApp() {
         }
     }
     .padding(20)
-    .frame(width: 400)
+    .frame(width: 450)
 }
 `;
         if (!vfs.findFileByPath('/TodoApp.syn')) {
@@ -90,7 +111,7 @@ struct Task {
 // Дочерний компонент, который использует @binding
 component TaskRow(task: Task, onToggle: (id: Int) => Void) {
     HStack(spacing: 10, alignment: .center) {
-        Checkbox(checked: task.isCompleted) { (newValue) in
+        Checkbox(checked: @binding task.isCompleted) { (newValue) in
             onToggle(task.id)
         }
         Text(task.title)

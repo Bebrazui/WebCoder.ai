@@ -11,7 +11,7 @@ interface Token { type: TokenType; value?: string; line: number; }
 // --- 2. Lexer ---
 class Lexer {
     private code: string; private position: number = 0; private line: number = 1;
-    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "Int", "String", "Void", "Bool", "async", "await", "ForEach", "Checkbox"]);
+    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "Int", "String", "Void", "Bool", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil"]);
     private booleanLiterals = new Set(["true", "false"]);
 
     constructor(code: string) { this.code = code; }
@@ -50,7 +50,7 @@ class Lexer {
                 continue;
             }
             const twoCharOp = char + (this.peek(1) || ''); if (['==', '!=', '<=', '>='].includes(twoCharOp)) { tokens.push({ type: TokenType.Operator, value: twoCharOp, line: startLine }); this.advance(); this.advance(); continue; }
-            if ("(){}.:;,?!<=>+-*/".includes(char)) { tokens.push({ type: "()[]{}".includes(char) ? TokenType.Punctuation : TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
+            if ("(){}.:;,?!<=>+-*/&|".includes(char)) { tokens.push({ type: "()[]{}".includes(char) ? TokenType.Punctuation : TokenType.Operator, value: char, line: startLine }); this.advance(); continue; }
             this.error(`Unexpected character: ${char}`);
         }
         tokens.push({ type: TokenType.EndOfFile, line: this.line }); return tokens;
@@ -66,19 +66,43 @@ class Parser {
     private advance(): Token { return this.tokens[this.position++]; }
     private match(type: TokenType, value?: string): boolean { const t = this.peek(); if (t.type === TokenType.EndOfFile) return false; return t.type === type && (value === undefined || t.value === value); }
     private consume(type: TokenType, value?: string): Token { const t = this.peek(); if (t.type !== type || (value !== undefined && t.value !== value)) throw new Error(`Parser Error: Expected ${TokenType[type]} ${value || ''}, got ${TokenType[t.type]} ${t.value || ''} on line ${t.line}`); return this.advance(); }
-    private getPrecedence(op: string): number { switch (op) { case '*': case '/': return 2; case '+': case '-': return 1; case '==': case '!=': case '<': case '>': return 0; default: return -1; } }
+    private getPrecedence(op: string): number { switch (op) { case '&&': case '||': return 0; case '==': case '!=': case '<': case '>': return 1; case '+': case '-': return 2; case '*': case '/': return 3; default: return -1; } }
 
     private parsePrimary(): Node {
         if (this.match(TokenType.NumberLiteral)) return { type: 'Literal', value: Number(this.consume(TokenType.NumberLiteral).value) };
         if (this.match(TokenType.StringLiteral)) return { type: 'Literal', value: this.consume(TokenType.StringLiteral).value };
+        if (this.match(TokenType.Keyword, 'nil')) { this.consume(TokenType.Keyword, 'nil'); return { type: 'Literal', value: null }; }
         if (this.match(TokenType.BooleanLiteral)) return { type: 'Literal', value: this.consume(TokenType.BooleanLiteral).value === 'true' };
-        if (this.match(TokenType.Identifier)) {
-            if (this.peek(1).value === '.') { const obj = this.consume(TokenType.Identifier); this.consume(TokenType.Operator, '.'); const prop = this.consume(TokenType.Identifier); return { type: 'MemberAccess', object: { type: 'Identifier', name: obj.value }, property: prop.value }; }
+        if (this.match(TokenType.Identifier)) { 
+             if (this.peek(1).value === '.') { 
+                 const callee = this.parseIdentifier();
+                 const args = this.parseArguments();
+                 return {type: 'FunctionCall', callee, args};
+             }
             return { type: 'Identifier', name: this.consume(TokenType.Identifier).value };
         }
         if (this.match(TokenType.Operator, '!')) { this.advance(); return { type: 'UnaryExpression', operator: '!', operand: this.parsePrimary() }; }
         if (this.match(TokenType.Punctuation, '(')) { this.advance(); const expr = this.parseExpression(); this.consume(TokenType.Punctuation, ')'); return expr; }
         throw new Error(`Unexpected token in expression: ${this.peek().value}`);
+    }
+
+    private parseArguments() {
+        const args: any[] = [];
+        this.consume(TokenType.Punctuation, '(');
+        while (!this.match(TokenType.Punctuation, ')')) {
+            let name;
+            if (this.peek(1).value === ':') {
+                name = this.consume(TokenType.Identifier).value;
+                this.consume(TokenType.Operator, ':');
+            }
+            const value = this.parseExpression();
+            const arg:any = { type: 'Argument', value };
+            if (name) arg.name = name;
+            args.push(arg);
+            if (this.match(TokenType.Operator, ',')) this.advance();
+        }
+        this.consume(TokenType.Punctuation, ')');
+        return args;
     }
     
     private parseBinary(left: Node, minPrecedence: number): Node {
@@ -96,12 +120,9 @@ class Parser {
     }
     
     private parseExpression(): Node { return this.parseBinary(this.parsePrimary(), 0); }
-    
-    private parseArgument(): Node { const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); const value = this.parseExpression(); return { type: 'Argument', name, value }; }
-    
+    private parseArgument(): Node { const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); if (this.match(TokenType.Keyword, '@binding')) { this.advance(); const value = this.consume(TokenType.Identifier); return { type: 'Binding', name, value: value.value }; } const value = this.parseExpression(); return { type: 'Argument', name, value }; }
     private parseAction(): Node[] { this.consume(TokenType.Punctuation, '{'); const actions = []; while (!this.match(TokenType.Punctuation, '}')) { actions.push(this.parseStatement()); } this.consume(TokenType.Punctuation, '}'); return actions; }
-    
-    private parseCallback(): Node { this.consume(TokenType.Punctuation, '{'); this.consume(TokenType.Punctuation, '('); const params: string[] = []; while(!this.match(TokenType.Punctuation, ')')) { params.push(this.consume(TokenType.Identifier).value!); if (this.match(TokenType.Operator, ',')) this.advance(); } this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Identifier, 'in'); const body = this.parseStatement(); this.consume(TokenType.Punctuation, '}'); return { type: 'Callback', params, body }; }
+    private parseCallback(): Node { this.consume(TokenType.Punctuation, '{'); this.consume(TokenType.Punctuation, '('); const params: string[] = []; while(!this.match(TokenType.Punctuation, ')')) { params.push(this.consume(TokenType.Identifier).value!); if (this.match(TokenType.Operator, ',')) this.advance(); } this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Identifier, 'in'); const body = this.parseAction(); this.consume(TokenType.Punctuation, '}'); return { type: 'Callback', params, body }; }
     
     private parseStatement(): Node {
         if (this.match(TokenType.Keyword, 'let')) return this.parseLet();
@@ -125,30 +146,47 @@ class Parser {
         this.consume(TokenType.Punctuation, ')');
         if (this.match(TokenType.Punctuation, '{')) { action = this.match(TokenType.Punctuation, '{') && this.peek(1).value === '(' ? this.parseCallback() : this.parseAction(); }
         const modifiers = this.parseModifiers();
-        let children = []; if (action && callee.match(/Stack/)) { children = action as Node[]; action = null; }
-        return { type: callee, args, action, modifiers, children, onTap: modifiers.find(m => (m as any).name === 'onTap'), onAppear: modifiers.find(m => (m as any).name === 'onAppear') };
+        let children = []; if (action && callee.match(/VStack|HStack|Window/)) { children = action as Node[]; action = null; }
+        const text = callee === 'Button' ? (args.find(a => !(a as any).name) as any)?.value.value : (action as any)?.[0]?.value;
+
+        return { type: callee, args: args.filter(a => (a as any).name), action, text, modifiers, children, onTap: modifiers.find(m => (m as any).name === 'onTap'), onAppear: modifiers.find(m => (m as any).name === 'onAppear'), placeholder: (args.find(a => !(a as any).name) as any)?.value.value, binding: (args.find(a => a.type === 'Binding') as any)?.value, checked: args.find(a => (a as any).name === 'checked'), source: (args.find(a => (a as any).name === 'source') as any)?.value };
     }
     
     private parseModifiers(): Node[] { const modifiers = []; while (this.match(TokenType.Punctuation, '.')) { this.advance(); const name = this.consume(TokenType.Identifier).value; const args: Node[] = []; this.consume(TokenType.Punctuation, '('); while (!this.match(TokenType.Punctuation, ')')) { if (this.peek(1).value === ':') args.push(this.parseArgument()); else args.push({ type: 'Argument', value: this.parseExpression() }); if (this.match(TokenType.Operator, ',')) this.advance(); } this.consume(TokenType.Punctuation, ')'); modifiers.push({ type: 'Modifier', name, args }); } return modifiers; }
     
-    private parseStateVar(): Node { this.consume(TokenType.Keyword, '@State'); this.consume(TokenType.Keyword, 'let'); const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); const varType = this.consume(TokenType.Identifier).value; let isArray = false; if (this.match(TokenType.Punctuation, '[')) { this.advance(); this.consume(TokenType.Punctuation, ']'); isArray = true; } this.consume(TokenType.Operator, '='); const initialValue = this.parseExpression(); return { type: 'State', name, varType, initialValue, isArray }; }
+    private parseStateVar(): Node { this.consume(TokenType.Keyword, '@State'); const keyword = this.consume(TokenType.Keyword, 'let') || this.consume(TokenType.Keyword, 'var'); const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); const varType = this.consume(TokenType.Identifier).value; let isArray = false; if (this.match(TokenType.Punctuation, '[')) { this.advance(); this.consume(TokenType.Punctuation, ']'); isArray = true; } this.consume(TokenType.Operator, '='); const initialValue = this.parseExpression(); return { type: 'State', name, varType, initialValue, isArray }; }
     
     private parseComponentDef(): Node { this.consume(TokenType.Keyword, 'component'); const name = this.consume(TokenType.Identifier).value; this.consume(TokenType.Punctuation, '('); const params: Node[] = []; while(!this.match(TokenType.Punctuation, ')')) { let isBinding = false; if(this.match(TokenType.Keyword, '@binding')) { this.advance(); isBinding = true; } const paramName = this.consume(TokenType.Identifier).value; this.consume(TokenType.Operator, ':'); const typeName = this.consume(TokenType.Identifier).value; params.push({ type: 'Parameter', name: paramName, typeName, isBinding }); if(this.match(TokenType.Operator, ',')) this.advance(); } this.consume(TokenType.Punctuation, ')'); const states = []; let effects: Node[] = []; let body = []; this.consume(TokenType.Punctuation, '{'); while (!this.match(TokenType.Punctuation, '}')) { if (this.match(TokenType.Keyword, '@State')) states.push(this.parseStateVar()); else if (this.match(TokenType.Keyword, '@effect')) effects.push(this.parseEffect()); else body.push(this.parseStatement()); } this.consume(TokenType.Punctuation, '}'); return { type: 'ComponentDefinition', name, params, states, effects, body }; }
     
     private parseEffect(): Node { this.consume(TokenType.Keyword, '@effect'); this.consume(TokenType.Punctuation, '('); const dependencies: Node[] = []; let isOnce = false; if (this.match(TokenType.Identifier, 'once')) { this.advance(); this.consume(TokenType.Operator, ':'); isOnce = this.consume(TokenType.BooleanLiteral).value === 'true'; } else { while (!this.match(TokenType.Punctuation, ')')) { dependencies.push(this.parseExpression()); if (this.match(TokenType.Operator, ',')) this.advance(); } } this.consume(TokenType.Punctuation, ')'); const action = this.parseAction(); return { type: 'Effect', dependencies, action, isOnce }; }
 
-    public parse(): Node {
-        const components: Record<string, Node> = {};
-        const states: Node[] = [];
-        const effects: Node[] = [];
-        let body: Node[] = [];
-        while (!this.match(TokenType.EndOfFile)) {
-            if (this.match(TokenType.Keyword, 'component')) { const comp = this.parseComponentDef() as any; components[comp.name] = comp; }
-            else if (this.match(TokenType.Keyword, '@main')) { this.consume(TokenType.Keyword, '@main'); this.consume(TokenType.Keyword, 'func'); this.consume(TokenType.Identifier); this.consume(TokenType.Punctuation, '{'); this.consume(TokenType.Keyword, 'Window'); this.consume(TokenType.Punctuation, '('); this.consume(TokenType.StringLiteral); this.consume(TokenType.Punctuation, ')'); this.consume(TokenType.Punctuation, '{'); while (!this.match(TokenType.Punctuation, '}')) body.push(this.parseStatement()); this.consume(TokenType.Punctuation, '}'); this.consume(TokenType.Punctuation, '}'); }
-            else if (this.match(TokenType.Keyword, '@State')) { states.push(this.parseStateVar()); }
-            else { this.advance(); }
+    private parseTopLevel(): Node[] {
+        const nodes: Node[] = [];
+        while(!this.match(TokenType.EndOfFile)) {
+             if (this.match(TokenType.Keyword, 'import')) { this.advance(); this.consume(TokenType.StringLiteral); } // Skip imports
+             else if (this.match(TokenType.Keyword, '@main')) { nodes.push(this.parseEntryPoint()); }
+             else if (this.match(TokenType.Keyword, 'component')) { nodes.push(this.parseComponentDef()); }
+             else if (this.match(TokenType.Keyword, 'struct')) { this.advance(); while(!this.match(TokenType.Punctuation, '}')) this.advance(); this.advance(); } // Skip structs
+             else { this.advance(); }
         }
-        return { type: 'Program', components, states, effects, body };
+        return nodes;
+    }
+    
+    private parseEntryPoint(): Node {
+        this.consume(TokenType.Keyword, '@main');
+        this.consume(TokenType.Keyword, 'func');
+        this.consume(TokenType.Identifier); // AppDelegate
+        const body = this.parseAction();
+        return { type: 'Program', body: (body[0] as any).children };
+    }
+
+    public parse(): Node {
+        const topLevelNodes = this.parseTopLevel();
+        const program = topLevelNodes.find(n => n.type === 'Program') || { type: 'Program', body: [] };
+        const components = topLevelNodes.filter(n => n.type === 'ComponentDefinition').reduce((acc, curr: any) => ({ ...acc, [curr.name]: curr }), {});
+        const states = topLevelNodes.filter(n => n.type === 'State');
+        const effects = topLevelNodes.filter(n => n.type === 'Effect');
+        return { ...program, components, states, effects };
     }
 }
 

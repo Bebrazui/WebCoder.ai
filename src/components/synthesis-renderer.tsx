@@ -12,15 +12,15 @@ const StateContext = createContext<{
     get: (key: string) => any;
     set: (key: string, value: any, isRoot?: boolean) => void;
     components: Record<string, any>;
-    executeAsync: (action: any) => Promise<any>;
+    executeAsync: (action: any, currentScope: any) => Promise<any>;
 } | null>(null);
 
-const useStateManager = (initialStates: any[]) => {
+const useStateManager = (initialStates: any[], parentScope?: any) => {
     const [state, setState] = useState(() => {
         const initialState: { [key: string]: any } = {};
         if (initialStates) {
             initialStates.forEach(s => {
-                initialState[s.name] = s.initialValue.value;
+                initialState[s.name] = resolveValue(s.initialValue, parentScope || { get: () => null });
             });
         }
         return initialState;
@@ -41,7 +41,48 @@ const useRendererState = () => {
     return context;
 };
 
-// --- Value & Action Resolution ---
+// --- API Bridge ---
+const APIBridge = {
+    'Network.get': async (url: string) => {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Network request failed for ${url}`);
+            return res.json();
+        } catch (e) {
+            console.error("APIBridge Error:", e);
+            return null; // Return null on network error
+        }
+    },
+    'Storage.get': (key: string) => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const value = localStorage.getItem(key);
+            if (value === null) return null;
+            // Attempt to parse as JSON, otherwise return as string
+            try {
+                return JSON.parse(value);
+            } catch {
+                return value;
+            }
+        } catch (e) {
+            console.error("Storage.get Error:", e);
+            return null;
+        }
+    },
+    'Storage.set': (key: string, value: any) => {
+         if (typeof window === 'undefined') return;
+         try {
+            const valueToStore = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            localStorage.setItem(key, valueToStore);
+         } catch(e) {
+            console.error("Storage.set Error:", e);
+         }
+    },
+    'OS.platform': 'web',
+    'OS.screenWidth': typeof window !== 'undefined' ? window.innerWidth : 1024,
+    'OS.screenHeight': typeof window !== 'undefined' ? window.innerHeight : 768,
+    'OS.randomInt': () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+};
 
 const resolveValue = (valueNode: any, scope: any): any => {
     if (!valueNode) return null;
@@ -59,37 +100,71 @@ const resolveValue = (valueNode: any, scope: any): any => {
                 case '*': return left * right; case '/': return left / right;
                 case '<': return left < right; case '>': return left > right;
                 case '==': return left == right; case '!=': return left != right;
+                case '&&': return left && right; case '||': return left || right;
                 default: return false;
             }
         case 'UnaryExpression':
              const operand = resolveValue(valueNode.operand, scope);
              if (valueNode.operator === '!') return !operand;
              return operand;
+        case 'FunctionCall': // For direct API calls like OS.platform
+            const func = APIBridge[valueNode.callee.name as keyof typeof APIBridge];
+            if (typeof func === 'function') {
+                 const resolvedArgs = valueNode.args.map((arg: any) => resolveValue(arg.value, scope));
+                 return func(...resolvedArgs);
+            }
+            return func; // Return property value like OS.platform
         default: return null;
     }
 };
 
-const executeAction = async (action: any, scope: any): Promise<void> => {
+const executeAction = async (action: any, scope: any): Promise<any> => {
      if (!action) return;
+
      if (action.type === 'Assignment') {
         const varName = action.left.name;
-        const newValue = resolveValue(action.right, scope);
-        scope.set(varName, newValue);
-    } else if (action.type === 'FunctionCall') {
-        await scope.executeAsync(action);
-    } else if (Array.isArray(action)) { // For action blocks
-        for (const subAction of action) {
-            await executeAction(subAction, scope);
+        let newValue;
+        if (action.isAwait) {
+            newValue = await scope.executeAsync(action.right, scope);
+        } else {
+            newValue = resolveValue(action.right, scope);
         }
+        scope.set(varName, newValue);
+        return;
+    } 
+    
+    if (action.type === 'ArrayPush') {
+        const array = scope.get(action.object);
+        if (Array.isArray(array)) {
+            const valueToPush = resolveValue(action.value, scope);
+            scope.set(action.object, [...array, valueToPush]);
+        }
+        return;
     }
-};
 
-// --- API Bridge ---
-const APIBridge = {
-    'Network.get': async (url: string) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Network request failed for ${url}`);
-        return res.json();
+    if (action.type === 'FunctionCall') {
+        // This is for API functions called as statements, like Storage.set
+        await scope.executeAsync(action, scope);
+        return;
+    }
+
+    if (Array.isArray(action)) { // For action blocks
+        let lastReturnValue;
+        for (const subAction of action) {
+           lastReturnValue = await executeAction(subAction, scope);
+        }
+        return lastReturnValue;
+    }
+    
+    if (action.type === 'VariableDeclaration') {
+        let value;
+        if(action.isAwait) {
+            value = await scope.executeAsync(action.value, scope);
+        } else {
+            value = resolveValue(action.value, scope);
+        }
+        scope.set(action.name, value); // Assumes scope can handle declarations
+        return;
     }
 };
 
@@ -102,23 +177,21 @@ const NodeRenderer = ({ node }: { node: any }) => {
     
     const renderNode = (n: any, key?: number | string) => <NodeRenderer key={key} node={n} />;
     
-    // --- Component Call ---
     if (node.type === "ComponentCall") {
         const componentDef = scope.components[node.name];
         if (!componentDef) return <div className="text-red-500">Component '{node.name}' not found.</div>;
         
-        // Setup state for this component instance
-        const { state, get, set } = useStateManager(componentDef.states || []);
+        const { state, get, set } = useStateManager(componentDef.states || [], scope);
         
-        // Create a new scope for the component instance
         const componentScope = {
             ...scope,
             get: (key: string) => {
-                // Check local state first, then props, then parent scope
                 if (key in state) return state[key];
                 const propNode = node.args.find((a: any) => a.name === key);
                 if (propNode) {
-                    if (propNode.isBinding) return scope.get(propNode.value.name);
+                    if (propNode.isBinding) {
+                        return scope.get(propNode.value.name);
+                    }
                     return resolveValue(propNode.value, scope);
                 }
                 return scope.get(key);
@@ -142,7 +215,6 @@ const NodeRenderer = ({ node }: { node: any }) => {
         );
     }
 
-    // --- Conditional & Loops ---
     if (node.type === "IfStatement") {
         return resolveValue(node.condition, scope)
             ? <>{node.thenBranch.map(renderNode)}</>
@@ -154,19 +226,32 @@ const NodeRenderer = ({ node }: { node: any }) => {
         if (!Array.isArray(collection)) return null;
 
         return collection.map((item, index) => {
-            // Create a temporary scope for each iteration
             const loopScope = {
                 ...scope,
                 get: (key: string) => {
                     if (key === node.iterator) return item;
+                    // Allow access to item properties e.g. task.title
+                    if (key.startsWith(`${node.iterator}.`)) {
+                        const prop = key.split('.')[1];
+                        return item?.[prop];
+                    }
                     return scope.get(key);
+                },
+                set: (key: string, value: any) => {
+                    if (key.startsWith(`${node.iterator}.`)) {
+                         const prop = key.split('.')[1];
+                         const newCollection = [...collection];
+                         newCollection[index] = {...item, [prop]: value};
+                         scope.set(node.collection.name, newCollection);
+                    } else {
+                        scope.set(key, value);
+                    }
                 }
             };
-            return <StateContext.Provider key={index} value={loopScope}>{node.body.map(renderNode)}</StateContext.Provider>;
+            return <StateContext.Provider key={item.id || index} value={loopScope}>{node.body.map(renderNode)}</StateContext.Provider>;
         });
     }
     
-    // --- UI Element Rendering ---
     const style = applyModifiers(node.modifiers, scope);
     const commonProps: any = { style, onClick: () => node.onTap && executeAction(node.onTap.action, scope) };
     
@@ -177,64 +262,58 @@ const NodeRenderer = ({ node }: { node: any }) => {
 
     switch (node.type) {
         case 'VStack':
-            return <div {...commonProps} className="flex flex-col items-center p-4" style={{...style, gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
+            return <div {...commonProps} className="flex flex-col" style={{...style, alignItems: style.alignItems || 'center', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
         case 'HStack':
-            return <div {...commonProps} className="flex items-center" style={{...style, gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
+            return <div {...commonProps} className="flex" style={{...style, alignItems: style.alignItems || 'center', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
         case 'Text':
             return <p {...commonProps}>{renderText(node.value)}</p>;
         case 'Image':
              return <img {...commonProps} src={resolveValue(node.source, scope)} alt="synthesis-image" />;
         case 'TextField':
-            return <Input {...commonProps} type="text" placeholder={resolveValue(node.placeholder, scope)} value={scope.get(node.binding.name) || ''} onChange={(e) => scope.set(node.binding.name, e.target.value)} />;
+             const boundValue = scope.get(node.binding.name);
+             return <Input {...commonProps} type="text" placeholder={resolveValue(node.placeholder, scope)} value={boundValue === null || boundValue === undefined ? '' : boundValue} onChange={(e) => scope.set(node.binding.name, e.target.value)} />;
         case 'Button':
             return <Button {...commonProps} onClick={() => executeAction(node.action, scope)}>{renderText(node.text)}</Button>;
         case 'Checkbox':
-             return <Checkbox {...commonProps} checked={resolveValue(node.checked, scope)} onCheckedChange={(val) => executeAction(node.action, {...scope, get: (k:string) => k === 'newValue' ? val : scope.get(k) })} />;
+            const onCheckedChange = (newValue: boolean) => {
+                const isBound = node.checked.type === 'Binding';
+                if (isBound) {
+                    scope.set(node.checked.name, newValue);
+                }
+                if (node.action) {
+                     const actionScope = { ...scope, get: (k: string) => k === 'newValue' ? newValue : scope.get(k) };
+                     executeAction(node.action, actionScope);
+                }
+            }
+            return <Checkbox {...commonProps} checked={resolveValue(node.checked.value, scope)} onCheckedChange={onCheckedChange} />;
         default:
-            return null; // Don't render unknown or non-UI nodes
+            return null;
     }
 };
 
-// --- Main Renderer & Helpers ---
-
 export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
     const rootState = useStateManager(uiJson.states);
+    const effectsRef = useRef(uiJson.effects || []);
     
-    const executeAsync = useCallback(async (action: any) => {
+    const executeAsync = useCallback(async (action: any, currentScope: any) => {
         const { callee, args } = action;
         const func = APIBridge[callee.name as keyof typeof APIBridge];
         if (func) {
-            const resolvedArgs = args.map((arg: any) => resolveValue(arg.value, rootState));
+            const resolvedArgs = args.map((arg: any) => resolveValue(arg.value, currentScope));
             return await func(...resolvedArgs);
         }
-    }, [rootState]);
+    }, []);
 
     useEffect(() => {
-        uiJson.effects?.forEach((effect: any) => {
-            let lastDeps: any[] = [];
-            const runEffect = async () => {
-                const newDeps = effect.dependencies.map((d: any) => resolveValue(d, rootState));
-                if (JSON.stringify(newDeps) !== JSON.stringify(lastDeps)) {
-                    lastDeps = newDeps;
-                    for (const action of effect.action) {
-                         const result = await executeAction(action, { ...rootState, executeAsync });
-                         if(action.type === 'Assignment' && result) {
-                            rootState.set(action.left.name, result);
-                         }
-                    }
-                }
-            };
-            
-            if (effect.isOnce) {
-                runEffect();
-            } else {
-                 // This is where a proper dependency tracking system would go.
-                 // For now, we simulate with an interval for demo purposes.
-                 const interval = setInterval(runEffect, 500);
-                 return () => clearInterval(interval);
-            }
-        });
-    }, [uiJson.effects, rootState, executeAsync]);
+        const runEffects = async () => {
+             const effectScope = { ...rootState, executeAsync };
+             for (const effect of effectsRef.current) {
+                // Simplified dependency check for demo. A real implementation would be more robust.
+                 await executeAction(effect.action, effectScope);
+             }
+        };
+        runEffects();
+    }, [rootState.state]); // Re-run effects when root state changes
 
 
     if (!uiJson?.body) {
@@ -266,12 +345,19 @@ const applyModifiers = (modifiers: any[], scope: any): CSSProperties => {
                 if (width) style.width = `${resolveValue(width.value, scope)}px`;
                 if (height) style.height = `${resolveValue(height.value, scope)}px`;
                 break;
-            case 'backgroundColor': style.backgroundColor = resolveValue(getArg('color').value, scope); break;
+            case 'background': style.backgroundColor = resolveValue(getArg('color').value, scope); break;
             case 'foregroundColor': style.color = resolveValue(getArg('color').value, scope); break;
             case 'font':
                 const fontStyle = resolveValue(mod.args[0].value, scope);
                 if (fontStyle === 'title') { style.fontSize = '2rem'; style.fontWeight = 'bold'; }
                 else if (fontStyle === 'headline') { style.fontSize = '1.5rem'; style.fontWeight = '600'; }
+                else if (fontStyle === 'caption') { style.fontSize = '0.75rem'; style.opacity = 0.8; }
+                break;
+            case 'alignment':
+                const align = resolveValue(mod.args[0].value, scope);
+                if (align === 'leading') style.alignItems = 'flex-start';
+                else if (align === 'center') style.alignItems = 'center';
+                else if (align === 'trailing') style.alignItems = 'flex-end';
                 break;
             case 'cornerRadius': style.borderRadius = `${resolveValue(getArg('radius').value, scope)}px`; break;
             case 'position':
