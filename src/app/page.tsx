@@ -32,22 +32,18 @@ component TodoApp() {
     @State newTaskTitle: String = ""
     @State isLoading: Bool = true
     
-    // @effect will be called once on start to "load" data
     @effect(once: true) {
-        // Load tasks from local storage
-        let savedTasksJSON = Storage.get(key: "synthesis-todo-app")
-        if (savedTasksJSON != nil) {
-            tasks = savedTasksJSON // Assumes JSON.parse is built into runtime
+        let savedTasks = Storage.get(key: "synthesis-todo-app")
+        if (savedTasks != nil) {
+            tasks = savedTasks 
         } else {
-            // If nothing in storage, load from a server
             tasks = await Network.get(url: "/api/greet")
         }
         isLoading = false
     }
 
-    // This effect will save data whenever the tasks list changes
     @effect(dependencies: [tasks]) {
-        if (isLoading == false) { // Don't save on first load
+        if (isLoading == false) {
             Storage.set(key: "synthesis-todo-app", value: tasks)
         }
     }
@@ -67,7 +63,6 @@ component TodoApp() {
             Text("Loading tasks...")
         } else {
              ForEach(tasks) { task in
-                // Pass a callback to change state in the parent component
                 TaskRow(task: task, onToggle: { (idToToggle) in
                     let newTasks: [Task] = []
                     ForEach(tasks) { t in
@@ -85,7 +80,6 @@ component TodoApp() {
             TextField("Add a new task...", text: @binding newTaskTitle)
             Button("Add") {
                 if (newTaskTitle != "") {
-                    // Generate ID on client (simplification)
                     let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
                     tasks.push(newTask) 
                     newTaskTitle = ""
@@ -108,12 +102,12 @@ struct Task {
     isCompleted: Bool;
 }
 
-// A child component that uses @binding
+// A child component that uses @binding and a callback
 component TaskRow(task: Task, onToggle: (id: Int) => Void) {
     HStack(spacing: 10, alignment: .center) {
-        Checkbox(checked: @binding task.isCompleted) { (newValue) in
+        Checkbox(checked: @binding task.isCompleted, onToggle: { (newValue) in
             onToggle(task.id)
-        }
+        })
         Text(task.title)
     }
 }
