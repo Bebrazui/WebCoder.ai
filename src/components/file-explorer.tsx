@@ -318,7 +318,7 @@ const ExplorerNode = ({
   }, [node, launchConfigs]);
   
   const handleRunSynthesis = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation(); // Prevent folder from opening/closing if clicked
+    e?.stopPropagation();
     if (node.type !== 'file') return;
     const config: LaunchConfig = {
       name: `Run ${node.name}`,
@@ -530,15 +530,15 @@ const ExplorerNode = ({
       <ContextMenuContent>
         {isSynthesisFile && (
             <>
-                <ContextMenuItem onClick={() => handleRunSynthesis()}>
+                <ContextMenuItem onClick={handleRunSynthesis}>
                     <PlayCircle className="mr-2 h-4 w-4 text-green-500" /> Run SYNTHESIS App
                 </ContextMenuItem>
                 <ContextMenuSeparator />
             </>
         )}
-        {runnableConfig !== null && (
+        {runnableConfig && (
             <>
-                <ContextMenuItem onClick={() => handleRunScript(runnableConfig)}>
+                <ContextMenuItem onClick={() => handleRunScript(runnableConfig || null)}>
                     <Play className="mr-2 h-4 w-4" /> Run Script
                 </ContextMenuItem>
                 <ContextMenuSeparator />
