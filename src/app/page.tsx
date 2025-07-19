@@ -21,8 +21,8 @@ function VfsLoader() {
 import "UserDetail.syn"
 
 @main
-func AppDelegate {
-    Window("My Todo App") {
+func AppDelegate() {
+    Window(title: "My Todo App") {
         TodoApp()
     }
 }
@@ -50,26 +50,26 @@ component TodoApp() {
 
     VStack(alignment: .leading, spacing: 15) {
         HStack(alignment: .center, spacing: 10) {
-            Text("SYNTHESIS Todo App")
-                .font(.title)
-            Text("Running on: \\(OS.platform)")
-                .font(.caption)
-                .padding(5)
+            Text(value: "SYNTHESIS Todo App")
+                .font(style: .title)
+            Text(value: "Running on: \\(OS.platform)")
+                .font(style: .caption)
+                .padding(all: 5)
                 .background(color: "#4B5563") // gray-600
                 .cornerRadius(radius: 5)
         }
         
         if isLoading {
-            Text("Loading tasks...")
+            Text(value: "Loading tasks...")
         } else {
-             ForEach(tasks) { task in
+             ForEach(collection: tasks) { task in
                 TaskRow(task: task, onToggle: { (idToToggle) in
                     let newTasks: [Task] = []
-                    ForEach(tasks) { t in
+                    ForEach(collection: tasks) { t in
                         if (t.id == idToToggle) {
                             t.isCompleted = !t.isCompleted
                         }
-                        newTasks.push(t)
+                        newTasks.push(value: t)
                     }
                     tasks = newTasks
                 })
@@ -77,17 +77,17 @@ component TodoApp() {
         }
 
         HStack(spacing: 5) {
-            TextField("Add a new task...", text: @binding newTaskTitle)
+            TextField(placeholder: "Add a new task...", text: @binding newTaskTitle)
             Button("Add") {
                 if (newTaskTitle != "") {
                     let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
-                    tasks.push(newTask) 
+                    tasks.push(value: newTask) 
                     newTaskTitle = ""
                 }
             }
         }
     }
-    .padding(20)
+    .padding(all: 20)
     .frame(width: 450)
 }
 `;
@@ -97,18 +97,18 @@ component TodoApp() {
 
         const userDetailContent = `
 struct Task {
-    id: Int;
-    title: String;
-    isCompleted: Bool;
+    id: Int
+    title: String
+    isCompleted: Bool
 }
 
 // A child component that uses @binding and a callback
-component TaskRow(task: Task, onToggle: (id: Int) => Void) {
+component TaskRow(task: Task, onToggle: (id: Int) -> Void) {
     HStack(spacing: 10, alignment: .center) {
         Checkbox(checked: @binding task.isCompleted, onToggle: { (newValue) in
             onToggle(task.id)
         })
-        Text(task.title)
+        Text(value: task.title)
     }
 }
 `;
