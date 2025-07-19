@@ -11,7 +11,8 @@ interface Token { type: TokenType; value?: string; line: number; }
 // --- 2. Lexer ---
 class Lexer {
     private code: string; private position: number = 0; private line: number = 1;
-    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "Int", "String", "Void", "Bool", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil"]);
+    // Removed type names from keywords
+    private keywords = new Set(["@main", "@State", "@binding", "@effect", "func", "Window", "VStack", "HStack", "Text", "TextField", "Image", "Timer", "Button", "if", "else", "let", "in", "struct", "component", "font", "padding", "background", "foregroundColor", "cornerRadius", "shadow", "frame", "position", "onAppear", "onTap", "async", "await", "ForEach", "Checkbox", "import", "alignment", "spacing", "nil"]);
     private booleanLiterals = new Set(["true", "false"]);
 
     constructor(code: string) { this.code = code; }
@@ -178,7 +179,7 @@ class Parser {
             this.advance();
              while(!this.match(TokenType.Punctuation, ')')) { 
                 params.push({type: 'Identifier', name: this.consume(TokenType.Identifier).value!});
-                if (this.match(TokenType.Operator, ',')) this.advance();
+                if(this.match(TokenType.Operator,',')) this.advance();
             } 
             this.consume(TokenType.Punctuation, ')'); 
             this.consume(TokenType.Keyword, 'in'); 
@@ -328,16 +329,18 @@ class Parser {
                 typeInfo.isCallback = true;
                 this.advance(); // consume '('
                 const cbParams: any[] = [];
-                while (!this.match(TokenType.Punctuation, ')')) {
-                   const pName = this.consume(TokenType.Identifier).value;
-                   this.consume(TokenType.Operator,':');
-                   const pType = this.consume(TokenType.Identifier).value;
-                   cbParams.push({ name: pName, type: pType});
-                   if(this.match(TokenType.Operator,',')) this.advance();
+                if (!this.match(TokenType.Punctuation, ')')) {
+                     while(!this.match(TokenType.Punctuation, ')')) { 
+                        const pName = this.consume(TokenType.Identifier).value;
+                        this.consume(TokenType.Operator,':');
+                        const pType = this.consume(TokenType.Identifier).value;
+                        cbParams.push({ name: pName, type: pType});
+                        if(this.match(TokenType.Operator,',')) this.advance();
+                    }
                 }
                 this.advance(); // consume ')'
                 this.consume(TokenType.Operator, '->');
-                typeInfo.returnType = this.consume(TokenType.Keyword, 'Void').value;
+                typeInfo.returnType = this.consume(TokenType.Identifier, 'Void').value;
                 typeInfo.params = cbParams;
 
             } else {
@@ -373,7 +376,7 @@ class Parser {
         while(!this.match(TokenType.Punctuation, '}')) {
             const propName = this.consume(TokenType.Identifier).value;
             this.consume(TokenType.Operator, ':');
-            const propType = this.consume(TokenType.Identifier).value;
+            const propType = this.consume(TokenType.Identifier).value; // Now works b/c type names are identifiers
             this.consume(TokenType.Punctuation, ';');
             properties.push({ name: propName, type: propType });
         }
