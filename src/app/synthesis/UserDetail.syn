@@ -1,0 +1,17 @@
+// UserDetail.syn
+struct User {
+  id: Int;
+  name: String;
+}
+
+component UserDetail(user: User, onEdit: (userId: Int) => Void) {
+  VStack(alignment: .leading) {
+    Text("ID: \\(user.id)")
+    Text("Name: \\(user.name)")
+    Button("Edit") {
+        onEdit(user.id)
+    }
+  }
+}
+
+    

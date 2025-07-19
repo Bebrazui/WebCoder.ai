@@ -263,7 +263,7 @@ const ExplorerNode = ({
     const filePath = normalizePath(node.path);
     
     return launchConfigs.find(config => {
-      if (config.type === 'synthesis') return false; // Handled separately
+      if (config.type === 'synthesis') return false; 
       const program = config.program ? normalizePath(config.program) : null;
       if (program && program === filePath) return true;
       if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
@@ -339,7 +339,6 @@ const ExplorerNode = ({
     }
   }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile]);
 
-
   const paddingLeft = `${level * 1}rem`;
 
   const handleRename = () => {
@@ -392,7 +391,6 @@ const ExplorerNode = ({
     onMoveNode(sourcePath, targetDirPath);
   };
 
-
   if (node.type === "directory") {
     const handleNewFile = () => {
       const name = prompt("Enter new file name:");
@@ -407,7 +405,6 @@ const ExplorerNode = ({
         onNewFolder(name, node as VFSDirectory);
       }
     };
-
 
     return (
       <ContextMenu>
@@ -499,7 +496,7 @@ const ExplorerNode = ({
       type: 'synthesis',
       request: 'launch',
       program: node.path,
-      platform: 'ios' // Default platform for direct build
+      platform: 'ios'
     };
     handleRunScript(config);
   }
@@ -559,3 +556,5 @@ const ExplorerNode = ({
     </ContextMenu>
   );
 };
+
+    

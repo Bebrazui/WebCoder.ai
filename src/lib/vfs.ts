@@ -130,78 +130,10 @@ export function getLanguage(path: string): string {
     }
 }
 
-// Новая функция для создания примера Animation.syn
 export function createAnimationExample(): VFSFile {
-    const content = `
-@main
-func AppDelegate {
-    Window("SYNTHESIS Animation & State Demo") {
-        MainComponent()
-    }
-}
-
-component MainComponent() {
-    @State let x: Int = 150
-    @State let y: Int = 100
-    @State let dx: Int = 2
-    @State let dy: Int = 2
-    @State let speed: Int = 2
-    @State let name: String = "World"
-    @State let counter: Int = 0
-    @State let textColor: String = "#FFFFFF"
-
-    VStack {
-        // Пример с TextField и двусторонней привязкой
-        HStack {
-            Text("Enter your name: ")
-            TextField("Your Name", text: name)
-        }
-
-        Text("Hello, \\(name)!")
-            .font(.headline)
-        
-        Image(source: "https://firebase.google.com/static/images/brand-guidelines/logo-standard.png")
-            .frame(width: 50, height: 50)
-            .position(x: x, y: y)
-            .onTap {
-                // Увеличиваем скорость при каждом клике
-                speed = speed + 1
-            }
-        
-        // Счетчик с условным рендерингом цвета
-        HStack {
-            Button(" - ") {
-                counter = counter - 1
-            }
-            if (counter < 0) {
-                 Text("Count: \\(counter)")
-                    .foregroundColor(color: "#F87171") // tailwind-red-400
-            } else {
-                 Text("Count: \\(counter)")
-                    .foregroundColor(color: "#FFFFFF") // white
-            }
-            Button(" + ") {
-                counter = counter + 1
-            }
-        }
-        
-        Timer {
-            // Логика отскока от стен
-            if (x > 350 || x < 0) {
-                dx = dx * -1
-            }
-            if (y > 250 || y < 0) {
-                dy = dy * -1
-            }
-            
-            // Движение
-            x = x + dx * speed
-            y = y + dy * speed
-        }
-    }
-    .frame(width: 400, height: 400)
-    .background(color: "#111827") // Tailwind gray-900
-    .cornerRadius(radius: 12)
-}`;
+    const content = `// This file is deprecated. Please use main.syn and UserDetail.syn in /src
+`;
     return createFile('Animation.syn', '/Animation.syn', content);
 }
+
+    

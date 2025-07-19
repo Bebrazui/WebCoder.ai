@@ -1,0 +1,16 @@
+// main.syn
+@main
+func AppDelegate {
+  Window("Hello SYNTHESIS!") {
+    VStack {
+      Text("Welcome to SYNTHESIS!")
+      // This is a simplified object literal, not a real one.
+      // In a real implementation, you'd pass a variable.
+      UserDetail(user: {id: 123, name: "Alice"}, onEdit: { id in 
+        // Handle edit action for user with ID
+      })
+    }
+  }
+}
+
+    
