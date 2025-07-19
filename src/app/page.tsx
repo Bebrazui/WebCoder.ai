@@ -32,22 +32,22 @@ component TodoApp() {
     @State newTaskTitle: String = ""
     @State isLoading: Bool = true
     
-    // @effect будет вызван один раз при старте для "загрузки" данных
+    // @effect will be called once on start to "load" data
     @effect(once: true) {
-        // Загружаем задачи из локального хранилища
+        // Load tasks from local storage
         let savedTasksJSON = Storage.get(key: "synthesis-todo-app")
         if (savedTasksJSON != nil) {
-            tasks = savedTasksJSON // Предполагается, что JSON.parse будет встроен в среду выполнения
+            tasks = savedTasksJSON // Assumes JSON.parse is built into runtime
         } else {
-            // Если в хранилище ничего нет, загружаем с сервера
-            tasks = await Network.get("/api/greet")
+            // If nothing in storage, load from a server
+            tasks = await Network.get(url: "/api/greet")
         }
         isLoading = false
     }
 
-    // Этот эффект будет сохранять данные при любом изменении списка задач
-    @effect(tasks) {
-        if (isLoading == false) { // Не сохраняем при первой загрузке
+    // This effect will save data whenever the tasks list changes
+    @effect(dependencies: [tasks]) {
+        if (isLoading == false) { // Don't save on first load
             Storage.set(key: "synthesis-todo-app", value: tasks)
         }
     }
@@ -67,7 +67,7 @@ component TodoApp() {
             Text("Loading tasks...")
         } else {
              ForEach(tasks) { task in
-                // Передаем callback для изменения состояния в родительском компоненте
+                // Pass a callback to change state in the parent component
                 TaskRow(task: task, onToggle: { (idToToggle) in
                     let newTasks: [Task] = []
                     ForEach(tasks) { t in
@@ -85,7 +85,7 @@ component TodoApp() {
             TextField("Add a new task...", text: @binding newTaskTitle)
             Button("Add") {
                 if (newTaskTitle != "") {
-                    // Генерируем ID на клиенте (упрощение)
+                    // Generate ID on client (simplification)
                     let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
                     tasks.push(newTask) 
                     newTaskTitle = ""
@@ -108,7 +108,7 @@ struct Task {
     isCompleted: Bool;
 }
 
-// Дочерний компонент, который использует @binding
+// A child component that uses @binding
 component TaskRow(task: Task, onToggle: (id: Int) => Void) {
     HStack(spacing: 10, alignment: .center) {
         Checkbox(checked: @binding task.isCompleted) { (newValue) in

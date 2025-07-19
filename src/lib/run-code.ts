@@ -70,22 +70,17 @@ function executeCommand(command: string, args: string[], cwd: string, shell: boo
     });
 }
 
-const findSynFileContent = (nodes: VFSNode[], programPath: string): string => {
-    let content = '';
-    const search = (nodes: VFSNode[]) => {
-        for(const node of nodes) {
-            if (node.type === 'file' && node.path === programPath) {
-                content = node.content;
-                return;
-            }
-            if (node.type === 'directory') {
-                search(node.children);
-            }
-            if (content) return;
+const findFileContentRecursive = (nodes: VFSNode[], targetPath: string): string | null => {
+    for(const node of nodes) {
+        if (node.type === 'file' && node.path === targetPath) {
+            return node.content;
+        }
+        if (node.type === 'directory') {
+            const found = findFileContentRecursive(node.children, targetPath);
+            if (found) return found;
         }
     }
-    search(nodes);
-    return content;
+    return null;
 }
 
 const runSynthesis = async (config: any, tempDir: string, projectFiles: VFSNode[]) => {
@@ -94,13 +89,13 @@ const runSynthesis = async (config: any, tempDir: string, projectFiles: VFSNode[
         if (!programPath) {
             throw new Error('No program path specified for SYNTHESIS build.');
         }
-
-        const synCode = findSynFileContent(projectFiles, programPath);
-        if (!synCode) {
-            throw new Error(`Could not find SYNTHESIS file at path: ${programPath}`);
+        
+        const mainCode = findFileContentRecursive(projectFiles, programPath);
+        if (mainCode === null) {
+            throw new Error(`Could not find main SYNTHESIS file at path: ${programPath}`);
         }
         
-        const compiledJson = compileSynthesis(synCode);
+        const compiledJson = await compileSynthesis(mainCode, projectFiles);
         const parsedJson = JSON.parse(compiledJson);
 
         return { stdout: compiledJson, stderr: '', code: parsedJson.type === 'Error' ? 1 : 0 };

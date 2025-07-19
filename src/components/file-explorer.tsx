@@ -37,6 +37,7 @@ import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { FileIcon } from "./file-icon";
 import { useToast } from "@/hooks/use-toast";
+import { useAppState } from "@/hooks/use-app-state";
 
 
 export interface LaunchConfig {
@@ -246,6 +247,7 @@ const ExplorerNode = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const { vfsRoot, findFileByPath, createFileInVfs, clearDragState, onSelectFile } = useExplorerContext();
   const { toast } = useToast();
+  const { isElectron } = useAppState();
 
   React.useEffect(() => {
     setIsDragOver(false);
@@ -263,7 +265,6 @@ const ExplorerNode = ({
     const filePath = normalizePath(node.path);
     
     return launchConfigs.find(config => {
-      if (config.type === 'synthesis') return false; 
       const program = config.program ? normalizePath(config.program) : null;
       if (program && program === filePath) return true;
       if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
@@ -319,7 +320,7 @@ const ExplorerNode = ({
         return;
     }
 
-    toast({ title: "Running script...", description: `Executing '${config.name}'... Check the Run & Debug view for output.`});
+    toast({ title: "Running script...", description: `Executing '${config.name}'...`});
     const apiEndpoint = `/api/run-${config.type}`;
     try {
         const response = await fetch(apiEndpoint, {
@@ -332,12 +333,26 @@ const ExplorerNode = ({
         });
         const data = await response.json();
         if (!data.success) {
-            throw new Error(data.error);
+            throw new Error(data.error || data.data.stderr);
+        }
+
+        if (config.type === 'synthesis' && data.data && !data.data.hasError) {
+             const encodedJson = encodeURIComponent(data.data.stdout);
+             if (isElectron && window.electronAPI) {
+                 localStorage.setItem('synthesis_ui_data', data.data.stdout);
+                 window.electronAPI.openSynthesisWindow();
+             } else {
+                 window.open(`/synthesis-runner?data=${encodedJson}`, '_blank');
+             }
+        } else if (data.data.hasError) {
+            toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: data.data.stderr || data.data.stdout || "Unknown error." });
+        } else {
+             toast({ title: `Execution Succeeded: ${config.name}`, description: data.data.stdout });
         }
     } catch(e: any) {
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
-  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile]);
+  }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile, isElectron]);
 
   const paddingLeft = `${level * 1}rem`;
 
@@ -490,13 +505,13 @@ const ExplorerNode = ({
 
   const isSynthesisFile = node.name.endsWith('.syn');
 
-  const handleBuildSynthesis = () => {
+  const handleRunSynthesis = () => {
     const config: LaunchConfig = {
-      name: `Build ${node.name}`,
+      name: `Run ${node.name}`,
       type: 'synthesis',
       request: 'launch',
       program: node.path,
-      platform: 'ios'
+      platform: 'ios' // Default platform for direct run
     };
     handleRunScript(config);
   }
@@ -527,13 +542,13 @@ const ExplorerNode = ({
       <ContextMenuContent>
         {isSynthesisFile && (
             <>
-                <ContextMenuItem onClick={handleBuildSynthesis}>
-                    <Atom className="mr-2 h-4 w-4" /> Build SYNTHESIS App
+                <ContextMenuItem onClick={handleRunSynthesis}>
+                    <Atom className="mr-2 h-4 w-4" /> Run SYNTHESIS App
                 </ContextMenuItem>
                 <ContextMenuSeparator />
             </>
         )}
-        {runnableConfig !== null && (
+        {runnableConfig !== null && !isSynthesisFile && (
             <>
                 <ContextMenuItem onClick={() => handleRunScript(runnableConfig || null)}>
                     <Play className="mr-2 h-4 w-4" /> Run Script
@@ -556,5 +571,3 @@ const ExplorerNode = ({
     </ContextMenu>
   );
 };
-
-    

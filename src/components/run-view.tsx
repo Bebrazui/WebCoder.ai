@@ -68,12 +68,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
   const [launchFile, setLaunchFile] = useState<VFSFile | null>(null);
   const [launchConfigs, setLaunchConfigs] = useState<LaunchConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
-  
-  // State for platform selection
-  const [selectedPlatform, setSelectedPlatform] = useState<'ios' | 'android' | 'windows' | 'macos' | 'linux'>('ios');
-  
-  const [jsonInput, setJsonInput] = useState('');
-  
+    
   const [isCheerpJOpen, setIsCheerpJOpen] = useState(false);
   const [cheerpjJarUrl, setCheerpjJarUrl] = useState('');
   
@@ -112,65 +107,29 @@ export function RunView({ onSelectFile }: RunViewProps) {
   }, [launchConfigs, selectedConfigName]);
 
   const isJavaConfig = selectedConfig?.type === 'java';
-  const isSynthesisConfig = selectedConfig?.type === 'synthesis';
 
-
-  useEffect(() => {
-    if (selectedConfig) {
-        setJsonInput(selectedConfig.args ? JSON.stringify(selectedConfig.args, null, 2) : '{}');
-        if (selectedConfig.platform) {
-            setSelectedPlatform(selectedConfig.platform);
-        }
-    } else {
-        setJsonInput('{}');
-    }
-  }, [selectedConfig]);
-
-  const getFullConfig = useCallback(() => {
-      if (!selectedConfig) return null;
-
-      let argsToUse = {};
-      try {
-          if (editorSettings.manualJsonInput && jsonInput.trim() && selectedConfig.args) {
-              argsToUse = JSON.parse(jsonInput);
-          } else if (selectedConfig.args) {
-              argsToUse = selectedConfig.args;
-          }
-      } catch (e: any) {
-          toast({ variant: 'destructive', title: 'Invalid JSON Arguments', description: `Could not parse JSON: ${e.message}` });
-          return null;
-      }
-      
-      const configWithPlatform = { ...selectedConfig, args: argsToUse };
-      if (isSynthesisConfig) {
-          configWithPlatform.platform = selectedPlatform;
-      }
-      return configWithPlatform;
-  }, [selectedConfig, jsonInput, editorSettings.manualJsonInput, toast, isSynthesisConfig, selectedPlatform]);
-
-  const handleRun = useCallback(async (overrideConfig?: LaunchConfig) => {
-      let fullConfig = overrideConfig || getFullConfig();
-      if (!fullConfig) {
+  const handleRun = useCallback(async () => {
+      if (!selectedConfig) {
           toast({ variant: 'destructive', title: 'No Configuration', description: 'Please select a valid launch configuration.' });
           return;
       }
 
       setIsActionLoading(true);
       setResult(null);
-      const apiEndpoint = `/api/run-${fullConfig.type}`;
+      const apiEndpoint = `/api/run-${selectedConfig.type}`;
 
       try {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectFiles: [vfsRoot], config: fullConfig }),
+            body: JSON.stringify({ projectFiles: [vfsRoot], config: selectedConfig }),
         });
         const responseData = await response.json();
         if (!response.ok) {
             throw new Error(responseData.error || 'An unknown server error occurred.');
         }
 
-        if (fullConfig.type === 'synthesis' && !responseData.data.hasError) {
+        if (selectedConfig.type === 'synthesis' && !responseData.data.hasError) {
              const encodedJson = encodeURIComponent(responseData.data.stdout);
              if (isElectron && window.electronAPI) {
                  localStorage.setItem('synthesis_ui_data', responseData.data.stdout);
@@ -184,16 +143,16 @@ export function RunView({ onSelectFile }: RunViewProps) {
         } else {
             setResult(responseData.data);
             if (!responseData.data.hasError) {
-              toast({ title: "Execution Successful", description: `'${fullConfig.name}' ran successfully.` });
+              toast({ title: "Execution Successful", description: `'${selectedConfig.name}' ran successfully.` });
             }
         }
       } catch (err: any) {
-        console.error(`Failed to run '${fullConfig.name}':`, err);
+        console.error(`Failed to run '${selectedConfig.name}':`, err);
         setResult({ stdout: '', stderr: err.message || "Failed to communicate with the server.", hasError: true });
       } finally {
         setIsActionLoading(false);
       }
-  }, [getFullConfig, toast, vfsRoot, isElectron]);
+  }, [selectedConfig, toast, vfsRoot, isElectron]);
 
   const handleCompile = async () => {
     setIsActionLoading(true);
@@ -215,8 +174,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
       "name": "Run SYNTHESIS App",
       "type": "synthesis",
       "request": "launch",
-      "program": "main.syn",
-      "platform": "ios"
+      "program": "/TodoApp.syn"
     }
   ]
 }
@@ -285,20 +243,6 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </div>
             )}
             
-            {editorSettings.manualJsonInput && selectedConfig && !isSynthesisConfig && (
-                <div className="space-y-2">
-                    <Label htmlFor="input-data">JSON Arguments (for console apps)</Label>
-                    <Textarea
-                        id="input-data"
-                        placeholder='{ "key": "value" }'
-                        value={jsonInput}
-                        onChange={(e) => setJsonInput(e.target.value)}
-                        className="font-mono text-sm min-h-[120px]"
-                        rows={5}
-                    />
-                </div>
-            )}
-            
             <div className="grid grid-cols-2 gap-4">
                  <Button onClick={handleCompile} disabled={!isJavaConfig || isActionLoading} className="w-full">
                     {isActionLoading && isJavaConfig ? <LoaderCircle className="animate-spin" /> : <Hammer />}
@@ -306,7 +250,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                 </Button>
                  <Button onClick={() => handleRun()} disabled={isActionLoading || !selectedConfigName || (isJavaConfig && !isProjectCompiled)} className="w-full">
                     {isActionLoading ? <LoaderCircle className="animate-spin" /> : <PlayCircle />}
-                    {isSynthesisConfig ? 'Build & Run' : 'Run'}
+                    Run
                 </Button>
             </div>
 
@@ -325,7 +269,7 @@ export function RunView({ onSelectFile }: RunViewProps) {
                     <h3 className="font-medium">Output</h3>
                     {result.stdout && (
                         <div>
-                            <Label>{isSynthesisConfig ? 'Build Log' : 'stdout'}</Label>
+                            <Label>{selectedConfig?.type === 'synthesis' ? 'Build Log' : 'stdout'}</Label>
                             <pre className="rounded-md border p-4 bg-muted font-mono text-sm whitespace-pre-wrap min-h-[50px] max-h-96 overflow-auto">
                                 <code>{result.stdout || "No standard output."}</code>
                             </pre>
