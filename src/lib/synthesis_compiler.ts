@@ -1,3 +1,4 @@
+
 // src/lib/synthesis_compiler.ts
 
 // --- 1. Token Definitions ---
@@ -198,9 +199,8 @@ class Parser {
         if (this.match(TokenType.Keyword, 'let') || this.match(TokenType.Keyword, 'var')) return this.parseLet();
         if (this.match(TokenType.Keyword, 'if')) return this.parseIf();
         
-        // ** THE FIX IS HERE **
-        // Check if it's an Identifier starting with an uppercase letter,
-        // which signifies a Component/View call.
+        // This is the key change: Check for a component call *first*.
+        // A component is an Identifier starting with a capital letter.
         if (this.match(TokenType.Identifier) && /^[A-Z]/.test(currentToken.value!)) {
             if (currentToken.value === 'ForEach') {
                 return this.parseForEach();
@@ -208,6 +208,7 @@ class Parser {
             return this.parseView();
         }
         
+        // If it's not a component, *then* treat it as an expression (like an assignment).
         const expression = this.parseExpression();
         if (expression.type === 'MemberAccess' || expression.type === 'Identifier') {
              if (this.match(TokenType.Punctuation, '=')) {
@@ -344,44 +345,43 @@ class Parser {
         this.consume(TokenType.Punctuation, '(');
         const params: any[] = [];
     
-        if (!this.match(TokenType.Punctuation, ')')) {
-            while (true) {
-                let isBinding = false;
-                if (this.match(TokenType.Keyword, '@binding')) {
-                    this.advance();
-                    isBinding = true;
-                }
-                const paramName = this.consume(TokenType.Identifier).value;
-                this.consume(TokenType.Punctuation, ':');
+        while (!this.match(TokenType.Punctuation, ')')) {
+            let isBinding = false;
+            if (this.match(TokenType.Keyword, '@binding')) {
+                this.advance();
+                isBinding = true;
+            }
+            const paramName = this.consume(TokenType.Identifier).value;
+            this.consume(TokenType.Punctuation, ':');
 
-                let typeInfo: any = {};
-                if (this.match(TokenType.Punctuation, '(')) {
-                    typeInfo.isCallback = true;
-                    this.advance(); // consume '('
-                    const cbParams: any[] = [];
-                    if (!this.match(TokenType.Punctuation, ')')) {
-                        while(true) { 
-                            const pName = this.consume(TokenType.Identifier).value;
-                            this.consume(TokenType.Punctuation,':');
-                            const pType = this.consume(TokenType.Identifier).value;
-                            cbParams.push({ name: pName, type: pType});
-                            if(!this.match(TokenType.Punctuation,',')) break;
-                            this.advance();
-                        }
+            let typeInfo: any = {};
+            if (this.match(TokenType.Punctuation, '(')) {
+                typeInfo.isCallback = true;
+                this.advance(); // consume '('
+                const cbParams: any[] = [];
+                if (!this.match(TokenType.Punctuation, ')')) {
+                    while(true) { 
+                        const pName = this.consume(TokenType.Identifier).value;
+                        this.consume(TokenType.Punctuation,':');
+                        const pType = this.consume(TokenType.Identifier).value;
+                        cbParams.push({ name: pName, type: pType});
+                        if(!this.match(TokenType.Punctuation,',')) break;
+                        this.advance();
                     }
-                    this.advance(); // consume ')'
-                    this.consume(TokenType.Operator, '->');
-                    typeInfo.returnType = this.consume(TokenType.Identifier).value; // Allows 'Void' etc.
-                    typeInfo.params = cbParams;
-
-                } else {
-                    typeInfo.typeName = this.parseTypeAnnotation();
-                    typeInfo.isArray = typeInfo.typeName.isArray;
-                    typeInfo.typeName = typeInfo.typeName.name;
                 }
-                params.push({ type: 'Parameter', name: paramName, ...typeInfo, isBinding, line: startToken.line });
-                
-                if (!this.match(TokenType.Punctuation, ',')) break;
+                this.advance(); // consume ')'
+                this.consume(TokenType.Operator, '->');
+                typeInfo.returnType = this.consume(TokenType.Identifier).value; // Allows 'Void' etc.
+                typeInfo.params = cbParams;
+
+            } else {
+                typeInfo.typeName = this.parseTypeAnnotation();
+                typeInfo.isArray = typeInfo.typeName.isArray;
+                typeInfo.typeName = typeInfo.typeName.name;
+            }
+            params.push({ type: 'Parameter', name: paramName, ...typeInfo, isBinding, line: startToken.line });
+            
+            if (this.match(TokenType.Punctuation, ',')) {
                 this.advance(); // consume comma
             }
         }
@@ -461,7 +461,6 @@ class Parser {
 
 export function compileSynthesis(code: string, allFiles: VFSNode[]): string {
   try {
-    // Basic import handling
     let fullCode = code;
     const importRegex = /import\s+"([^"]+)"/g;
     const processedImports = new Set<string>();
@@ -474,7 +473,7 @@ export function compileSynthesis(code: string, allFiles: VFSNode[]): string {
                 processedImports.add(importPath);
                 const fileContent = findFileContentRecursive(allFiles, importPath);
                 if (fileContent) {
-                    fullCode += `\n${fileContent}`;
+                    fullCode += `\n${fileContent.replace(importRegex, '')}`; // Remove nested imports from content
                     findAndProcess(fileContent);
                 } else {
                      console.warn(`Warning: Could not resolve import for "${importPath}"`);

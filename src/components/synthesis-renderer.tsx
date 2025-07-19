@@ -1,3 +1,4 @@
+
 // src/components/synthesis-renderer.tsx
 "use client";
 
@@ -309,7 +310,7 @@ const NodeRenderer = ({ node }: { node: any }) => {
 
     switch (node.type) {
         case 'VStack':
-            return <div {...commonProps} className="flex flex-col" style={{...style, alignItems: style.alignItems || 'center', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
+            return <div {...commonProps} className="flex flex-col" style={{...style, alignItems: style.alignItems || 'flex-start', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
         case 'HStack':
             return <div {...commonProps} className="flex" style={{...style, alignItems: style.alignItems || 'center', gap: resolveValue(node.spacing, scope)}}>{node.children.map(renderNode)}</div>;
         case 'Text':
@@ -343,7 +344,8 @@ const NodeRenderer = ({ node }: { node: any }) => {
         default:
             // This will render component calls that were not handled by the special case above.
             if(scope.components[node.type]) {
-                return renderNode({ type: 'ComponentCall', name: node.type, args: node.args, line: node.line });
+                const componentArgs = node.args || []; // Handle case where component call has no args
+                return renderNode({ type: 'ComponentCall', name: node.type, args: componentArgs, line: node.line });
             }
             return null;
     }
@@ -389,7 +391,7 @@ export function SynthesisRenderer({ uiJson }: { uiJson: any }) {
              }
         };
         runDepEffects();
-    }, [rootState.state]); // Re-run effects when root state changes
+    }, [rootState.state, executeAsync, rootState ]); // Re-run effects when root state changes
 
 
     if (!uiJson?.body) {
