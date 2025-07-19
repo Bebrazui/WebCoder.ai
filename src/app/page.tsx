@@ -18,21 +18,84 @@ function VfsLoader() {
   // Create the To-Do app example file if it doesn't exist.
   useEffect(() => {
     if (!vfs.loading) {
-      const todoAppContent = `
-import "UserDetail.syn"
+      const todoAppContent = `import "UserDetail.syn"
+
+struct Task {
+    id: Int
+    title: String
+    isCompleted: Bool
+}
+
+// Дочерний компонент, который использует @binding и callback
+component TaskRow(task: Task, onToggle: (id: Int) -> Void) {
+    HStack(spacing: 10, alignment: .center) {
+        Checkbox(checked: @binding task.isCompleted) { (newValue) in
+            onToggle(task.id)
+        }
+        Text(task.title)
+    }
+}
 
 component TodoApp() {
+    @State var tasks: [Task] = []
+    @State var newTaskTitle: String = ""
+    @State var isLoading: Bool = true
+    
+    @effect(once: true) {
+        let fetchedTasks = await Network.get("/api/greet")
+        if (fetchedTasks != nil) {
+            tasks = fetchedTasks
+        }
+        isLoading = false
+    }
+
+    @effect(dependencies: [tasks]) {
+        if (isLoading == false) {
+           await Storage.set("synthesis-tasks", tasks)
+        }
+    }
+
     VStack(alignment: .leading, spacing: 15) {
-        Text("SYNTHESIS: Hello World!")
+        Text("SYNTHESIS Todo App")
             .font(.title)
+
+        if isLoading {
+            Text("Loading tasks...")
+        } else {
+             ForEach(tasks) { task in
+                TaskRow(task: task, onToggle: { (idToToggle) in
+                    let newTasks: [Task] = []
+                    ForEach(tasks) { t in
+                        var mutableTask = t
+                        if (mutableTask.id == idToToggle) {
+                            mutableTask.isCompleted = !t.isCompleted
+                        }
+                        newTasks.push(mutableTask)
+                    }
+                    tasks = newTasks
+                })
+            }
+        }
+
+        HStack(spacing: 5) {
+            TextField("Add a new task...", text: @binding newTaskTitle)
+            Button("Add") {
+                if (newTaskTitle != "") {
+                    // Используем OS.randomInt() для уникального ID
+                    let newTask = Task(id: OS.randomInt(), title: newTaskTitle, isCompleted: false)
+                    tasks.push(newTask) 
+                    newTaskTitle = ""
+                }
+            }
+        }
     }
     .padding(20)
-    .frame(width: 450)
+    .frame(width: 400)
 }
 
 @main
 func AppDelegate {
-    Window("My App") {
+    Window("My Todo App") {
         TodoApp()
     }
 }
