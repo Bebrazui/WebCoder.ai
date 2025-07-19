@@ -1,4 +1,3 @@
-
 // src/components/file-explorer.tsx
 "use client";
 
@@ -49,6 +48,7 @@ export interface LaunchConfig {
     mainClass?: string;
     projectPath?: string;
     platform?: 'ios' | 'android' | 'windows' | 'macos' | 'linux';
+    buildType?: 'debug' | 'release';
     cargo?: {
         args: string[];
         projectPath: string;
@@ -260,20 +260,6 @@ const ExplorerNode = ({
     if (path.startsWith('/')) path = path.substring(1);
     return path;
   };
-  
-  const runnableConfig = useMemo(() => {
-    if (node.type !== 'file') return null;
-    const filePath = normalizePath(node.path);
-    
-    return launchConfigs.find(config => {
-      const program = config.program ? normalizePath(config.program) : null;
-      if (program && program === filePath) return true;
-      if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
-      if (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(normalizePath(config.cargo.projectPath))) return true;
-      if (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.startsWith(normalizePath(config.projectPath))) return true;
-      return false;
-    });
-  }, [node, launchConfigs]);
 
   const handleAddLaunchJson = useCallback(() => {
       const content = `{
@@ -346,7 +332,7 @@ const ExplorerNode = ({
              } else {
                  window.open(`/synthesis-runner?data=${encodedJson}`, '_blank');
              }
-        } else if (data.data.hasError) {
+        } else if (data.data?.hasError) {
             toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: data.data.stderr || data.data.stdout || "Unknown error." });
         } else {
              toast({ title: `Execution Succeeded: ${config.name}`, description: data.data.stdout });
@@ -355,6 +341,34 @@ const ExplorerNode = ({
         toast({ variant: 'destructive', title: `Execution Failed: ${config.name}`, description: e.message });
     }
   }, [findFileByPath, handleAddLaunchJson, toast, vfsRoot, onSelectFile, isElectron]);
+  
+  const runnableConfig = useMemo(() => {
+    if (node.type !== 'file') return null;
+    const filePath = normalizePath(node.path);
+    
+    return launchConfigs.find(config => {
+      const program = config.program ? normalizePath(config.program) : null;
+      if (program && program === filePath) return true;
+      if (config.type === 'java' && node.name === `${config.mainClass}.java`) return true;
+      if (config.type === 'rust' && node.name === 'main.rs' && config.cargo?.projectPath && filePath.startsWith(normalizePath(config.cargo.projectPath))) return true;
+      if (config.type === 'csharp' && node.name === 'Program.cs' && config.projectPath && filePath.startsWith(normalizePath(config.projectPath))) return true;
+      return false;
+    });
+  }, [node, launchConfigs]);
+  
+  const handleRunSynthesis = useCallback(() => {
+    if (node.type !== 'file') return;
+    const config: LaunchConfig = {
+      name: `Run ${node.name}`,
+      type: 'synthesis',
+      request: 'launch',
+      program: node.path,
+      platform: 'ios',
+      buildType: 'debug',
+    };
+    handleRunScript(config);
+  }, [node, handleRunScript]);
+
 
   const paddingLeft = `${level * 1}rem`;
 
@@ -507,17 +521,6 @@ const ExplorerNode = ({
 
   const isSynthesisFile = node.name.endsWith('.syn');
 
-  const handleRunSynthesis = () => {
-    const config: LaunchConfig = {
-      name: `Run ${node.name}`,
-      type: 'synthesis',
-      request: 'launch',
-      program: node.path,
-      platform: 'ios' // Default platform for direct run
-    };
-    handleRunScript(config);
-  }
-
   const handleCopyBase64 = () => {
     if (node.type === 'file' && isImageFile(node.name) && node.content.startsWith('data:')) {
         const base64Content = node.content.split(',')[1];
@@ -550,9 +553,9 @@ const ExplorerNode = ({
                 <ContextMenuSeparator />
             </>
         )}
-        {runnableConfig !== null && !isSynthesisFile && (
+        {runnableConfig !== null && (
             <>
-                <ContextMenuItem onClick={() => handleRunScript(runnableConfig || null)}>
+                <ContextMenuItem onClick={() => handleRunScript(runnableConfig)}>
                     <Play className="mr-2 h-4 w-4" /> Run Script
                 </ContextMenuItem>
                 <ContextMenuSeparator />
