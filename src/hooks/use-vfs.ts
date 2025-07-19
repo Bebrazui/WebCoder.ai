@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import localforage from "localforage";
 import JSZip from "jszip";
 import type { VFSFile, VFSDirectory, VFSNode } from "@/lib/vfs";
-import { createDirectory, createFile, isTextFile as isTextFileUtil, createAnimationExample } from "@/lib/vfs";
+import { createDirectory, createFile, isTextFile as isTextFileUtil } from "@/lib/vfs";
 import { useToast } from "./use-toast";
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
@@ -31,7 +31,7 @@ This is a web-based code editor with AI capabilities.
 *   **File System Access API:** Open local folders directly (click "Folder" in the explorer).
 *   **File Upload:** Upload individual files or ZIP archives.
 *   **AI Code Transformer:** Select a piece of code, click the 'AI Transform' button, and tell the AI what to do!
-*   **SYNTHESIS Language:** A custom language for building UI. Check out the included \`Animation.syn\` for a demo!
+*   **SYNTHESIS Language:** A custom language for building UI. Check out the included \`TodoApp.syn\` for a demo!
 *   **Persistence:** Your file system is saved in your browser, so it will be here when you come back.
 *   **Drag & Drop:** Move files and folders around in the explorer.
 
@@ -40,7 +40,6 @@ This is a web-based code editor with AI capabilities.
 Get started by opening a local folder, or by uploading your files.
 `
 ));
-defaultRoot.children.push(createAnimationExample());
 
 const findNodeAndParent = (root: VFSDirectory, path: string): { node: VFSNode; parent: VFSDirectory | null } | null => {
   const parts = path.split('/').filter(p => p);
@@ -873,3 +872,5 @@ Start adding your files here!`
     exitProject,
   };
 }
+
+    

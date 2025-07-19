@@ -171,3 +171,5 @@ export function compileSynthesis(code: string): string {
     return JSON.stringify({ type: 'Error', message: e.message, stack: e.stack }, null, 2);
   }
 }
+
+    

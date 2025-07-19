@@ -34,10 +34,12 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
     monacoInstance.languages.setMonarchTokensProvider(langId, {
         keywords: [
             'struct', 'component', 'func', 'if', 'else', 'let', 'return',
-            '@main', '@State'
+            '@main', '@state', '@binding', '@effect', 'in', 'async', 'await',
+            'Window', 'VStack', 'HStack', 'Text', 'Button', 'TextField', 
+            'Checkbox', 'ForEach'
         ],
         typeKeywords: [
-            'Int', 'String', 'Void', 'Bool'
+            'Int', 'String', 'Void', 'Bool', 'Date', 'UUID'
         ],
         operators: [
             '=', '>', '<', '!', '?', ':', '==', '<=', '>=', '!=', '&&', '||', '+', '-', '*', '/'
@@ -82,7 +84,8 @@ const registerSynthesisLanguage = (monacoInstance: typeof monaco) => {
                 [/[\/*]/, 'comment']
             ],
             string: [
-                [/[^"\\]|\\\(|\\\(/, 'string'], // handle escaped parens for interpolation
+                [/[^"\\]+/, 'string'],
+                [/\\\(.*?\)/, 'string.escape'], // Interpolation
                 [/@escapes/, 'string.escape'],
                 [/\\./, 'string.escape.invalid'],
                 [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
@@ -385,3 +388,5 @@ export function CodeEditor({ path, value, onChange, onEditorReady, onOutlineChan
     </div>
   );
 }
+
+    

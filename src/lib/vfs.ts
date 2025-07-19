@@ -130,10 +130,4 @@ export function getLanguage(path: string): string {
     }
 }
 
-export function createAnimationExample(): VFSFile {
-    const content = `// This file is deprecated. Please use main.syn and UserDetail.syn in /src
-`;
-    return createFile('Animation.syn', '/Animation.syn', content);
-}
-
     

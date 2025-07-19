@@ -99,7 +99,9 @@ const runSynthesis = async (config: any, tempDir: string) => {
             case 'ios':
             case 'macos':
                 buildCommand = 'xcodebuild';
-                buildArgs = ['-workspace', 'MySynApp.xcworkspace', '-scheme', 'MySynApp', '-configuration', buildType, '-sdk', platform === 'ios' ? 'iphonesimulator' : 'macosx'];
+                // A simplified, likely-to-fail command without a real project.
+                // This is where you'd point to a generated .xcodeproj or .xcworkspace
+                buildArgs = ['-showsdks']; 
                 break;
             case 'android':
                 buildCommand = os.platform() === 'win32' ? 'gradlew.bat' : './gradlew';
@@ -113,7 +115,7 @@ const runSynthesis = async (config: any, tempDir: string) => {
                 throw new Error(`Platform ${platform} is not supported for native build.`);
         }
 
-        const buildResult = await executeCommand(buildCommand, buildArgs, nativeProjectDir);
+        const buildResult = await executeCommand(buildCommand, buildArgs, nativeProjectDir, true);
         
         outputLog += `\n--- Native Build Log ---\n`;
         outputLog += `STDOUT:\n${buildResult.stdout}\n`;

@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         return await runLanguage(config.type, projectFiles, config);
 
     } catch (error: any) {
-        console.error(`Error in /api/run-${'synthesis'}:`, error);
+        console.error(`Error in /api/run-synthesis:`, error);
         return NextResponse.json({ success: false, error: `An internal server error occurred: ${error.message}` }, { status: 500 });
     }
 }
