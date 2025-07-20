@@ -1,178 +1,173 @@
 // electron.cjs
-const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
-const pty = require('node-pty');
-const os = require('os');
 const createMenuTemplate = require('./menu.js');
+const { spawn } = require('child_process');
 
-const isDev = process.env.NODE_ENV !== 'production';
-const isMac = process.platform === 'darwin';
+const isDev = !app.isPackaged;
+const devServerUrl = 'http://localhost:9002';
 
-// Устанавливаем оболочку по умолчанию для node-pty
-const shellCmd = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-
+// --- Global State ---
 let mainWindow;
-let ptyProcess = null;
+let synthesisWindow;
+let childProcess;
 
-function createMainWindow() {
+function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    width: 1400,
+    height: 900,
+    minWidth: 940,
+    minHeight: 560,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#1e293b', // slate-800
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      nodeIntegration: false,
     },
-    titleBarStyle: isMac ? 'hidden' : 'default',
-    trafficLightPosition: { x: 15, y: 15 },
-    backgroundColor: '#1e293b', // slate-800
-    show: false,
   });
   
-  const menu = Menu.buildFromTemplate(createMenuTemplate(app, mainWindow));
+  // Set up the menu
+  const menuTemplate = createMenuTemplate(app, mainWindow);
+  const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 
-  // mainWindow.setRepresentedFilename('/path/to/file');
-  // mainWindow.setDocumentEdited(true);
-
+  // Load the app
   if (isDev) {
-    mainWindow.loadURL('http://localhost:9002');
-    mainWindow.webContents.openDevTools();
+    mainWindow.loadURL(devServerUrl);
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // Correctly load the static export from the 'out' directory
-    const startUrl = new URL(path.join(__dirname, 'out', 'index.html'), 'file:').href;
-    mainWindow.loadURL(startUrl);
+    // Correctly load the static export from Next.js
+    mainWindow.loadFile(path.join(__dirname, 'out/index.html'));
   }
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-  });
   
-  // Window state events for custom title bar
-  mainWindow.on('maximize', () => {
-      mainWindow.webContents.send('window:isMaximized', true);
-  });
-
-  mainWindow.on('unmaximize', () => {
-      mainWindow.webContents.send('window:isMaximized', false);
-  });
+  // Window event listeners
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window:isMaximized', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:isMaximized', false));
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-let synthesisWindow;
 
 function createSynthesisWindow() {
-    if (synthesisWindow) {
-        synthesisWindow.focus();
-        return;
-    }
+  if (synthesisWindow) {
+    synthesisWindow.focus();
+    return;
+  }
+  synthesisWindow = new BrowserWindow({
+    width: 500,
+    height: 800,
+    title: 'SYNTHESIS App Runner',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
 
-    synthesisWindow = new BrowserWindow({
-        width: 500,
-        height: 700,
-        title: 'SYNTHESIS App Runner',
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: false, // For localStorage access from main process
-            sandbox: false,
-        },
-    });
+  if (isDev) {
+    synthesisWindow.loadURL(`${devServerUrl}/synthesis-runner`);
+    synthesisWindow.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    synthesisWindow.loadFile(path.join(__dirname, 'out/synthesis-runner.html'));
+  }
 
-    const runnerUrl = isDev
-      ? 'http://localhost:9002/synthesis-runner'
-      : new URL(path.join(__dirname, 'out', 'synthesis-runner', 'index.html'), 'file:').href;
-
-    synthesisWindow.loadURL(runnerUrl);
-    
-    // if(isDev) synthesisWindow.webContents.openDevTools();
-
-    synthesisWindow.on('closed', () => {
-        synthesisWindow = null;
-    });
+  synthesisWindow.on('closed', () => { synthesisWindow = null; });
 }
 
-app.whenReady().then(() => {
-  createMainWindow();
 
+// --- App Lifecycle ---
+app.whenReady().then(() => {
+  createWindow();
+  
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      createWindow();
     }
   });
+
+  // Handle opening files or directories with the app
+  app.on('open-file', (event, path) => {
+      event.preventDefault();
+      dialog.showErrorBox('Open File', `This functionality is under development. Path: ${path}`);
+      // In the future, you would send this path to the renderer process
+      // mainWindow.webContents.send('open-path', path);
+  });
+   app.on('open-url', (event, url) => {
+      event.preventDefault();
+      dialog.showErrorBox('Open URL', `This functionality is under development. URL: ${url}`);
+   });
+
 });
 
 app.on('window-all-closed', () => {
-  if (!isMac) {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-app.on('open-file', (event, path) => {
-    event.preventDefault();
-    if(mainWindow) {
-      mainWindow.webContents.send('open-path', path);
-    }
-});
 
-app.on('open-url', (event, url) => {
-  event.preventDefault();
-  const path = url.replace('webcoder://', '');
-   if(mainWindow) {
-      mainWindow.webContents.send('open-path', path);
-    }
-});
+// --- IPC Handlers ---
 
-// Window Controls
-ipcMain.on('window:minimize', () => mainWindow.minimize());
+// Window controls
+ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => {
-  if (mainWindow.isMaximized()) {
+  if (mainWindow?.isMaximized()) {
     mainWindow.unmaximize();
   } else {
-    mainWindow.maximize();
+    mainWindow?.maximize();
   }
 });
-ipcMain.on('window:close', () => mainWindow.close());
+ipcMain.on('window:close', () => mainWindow?.close());
 
-// Synthesis Window
+// Synthesis runner window
 ipcMain.on('synthesis:open-window', createSynthesisWindow);
 
 
-// --- Terminal IPC Handling ---
+// Terminal command execution
 ipcMain.on('execute-command', (event, { command, args, cwd }) => {
-    if (ptyProcess) {
-        // Kill existing process before starting a new one
-        ptyProcess.kill();
+    if (childProcess) {
+        event.sender.send('terminal-output', '\r\nAnother process is already running.\r\n');
+        return;
     }
 
-    ptyProcess = pty.spawn(command, args, {
-        name: 'xterm-color',
-        cols: 80,
-        rows: 30,
-        cwd: cwd || process.env.HOME,
-        env: process.env,
-    });
-    
-    ptyProcess.onData(data => {
-        event.sender.send('terminal-output', data);
-    });
+    try {
+        childProcess = spawn(command, args, { cwd: cwd || require('os').homedir(), shell: true });
 
-    ptyProcess.onExit(({ exitCode }) => {
-        event.sender.send('terminal-command-complete', exitCode);
-        ptyProcess = null;
-    });
+        childProcess.stdout.on('data', (data) => {
+            event.sender.send('terminal-output', data.toString());
+        });
+
+        childProcess.stderr.on('data', (data) => {
+            event.sender.send('terminal-output', data.toString());
+        });
+
+        childProcess.on('close', (code) => {
+            event.sender.send('terminal-command-complete', code);
+            childProcess = null;
+        });
+
+        childProcess.on('error', (err) => {
+            event.sender.send('terminal-output', `\r\nError: ${err.message}\r\n`);
+            event.sender.send('terminal-command-complete', 1);
+            childProcess = null;
+        });
+
+    } catch (err) {
+        event.sender.send('terminal-output', `\r\nFailed to start process: ${err.message}\r\n`);
+        event.sender.send('terminal-command-complete', 1);
+        childProcess = null;
+    }
 });
 
-ipcMain.on('terminal-input', (event, data) => {
-    if (ptyProcess) {
-        ptyProcess.write(data);
+ipcMain.on('terminal-input', (_event, data) => {
+    if (childProcess) {
+        childProcess.stdin.write(data);
     }
 });
 
 ipcMain.on('terminal-kill', () => {
-    if (ptyProcess) {
-        ptyProcess.kill();
-        ptyProcess = null;
+    if (childProcess) {
+        childProcess.kill(); // Sends SIGTERM
+        childProcess = null;
     }
 });

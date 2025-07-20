@@ -1,8 +1,10 @@
-
 {
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
+  "description": "A cross-platform IDE built with Next.js and Electron.",
+  "author": "WebCoder.ai Developer",
+  "homepage": "./",
   "main": "electron.cjs",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
